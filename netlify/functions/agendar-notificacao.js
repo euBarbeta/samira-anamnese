@@ -2,6 +2,14 @@
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_REST_KEY = process.env.ONESIGNAL_REST_KEY;
 
+// Mapa de conversão de unidades para milissegundos
+const MS_POR_UNIDADE = {
+  segundos: 1000,
+  minutos: 60 * 1000,
+  horas: 60 * 60 * 1000,
+  dias: 24 * 60 * 60 * 1000,
+};
+
 exports.handler = async (event) => {
   // Só aceita POST
   if (event.httpMethod !== 'POST') {
@@ -19,15 +27,21 @@ exports.handler = async (event) => {
     let sendAfter;
 
     if (lembrete.tipo === 'data_hora') {
-      // Data/hora específica: já vem no formato ISO do datetime-local
+      // Data/hora específica: vem no formato ISO do datetime-local
+      if (!lembrete.valor) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'Data/hora não informada' }) };
+      }
       sendAfter = new Date(lembrete.valor).toISOString();
     } else {
-      // Intervalo: por enquanto, vamos agendar pro próximo horário cheio
-      // Ex: "8 em 8 horas" → não é parseável, precisa de UI estruturada (falo disso abaixo)
-      const agora = new Date();
-      const intervaloHoras = parseInt(lembrete.intervaloHoras) || 1;
-      const proximo = new Date(agora.getTime() + intervaloHoras * 60 * 60 * 1000);
-      sendAfter = proximo.toISOString();
+      // Intervalo: número + unidade (segundos, minutos, horas, dias)
+      const numero = parseInt(lembrete.intervaloNumero) || 1;
+      const unidade = lembrete.intervaloUnidade || 'horas';
+      
+      // Converte para milissegundos
+      const msPorUnidade = MS_POR_UNIDADE[unidade] || MS_POR_UNIDADE.horas;
+      const msTotal = numero * msPorUnidade;
+      
+      sendAfter = new Date(Date.now() + msTotal).toISOString();
     }
 
     // Chama a API do OneSignal

@@ -64,9 +64,9 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
   const habitosInputsRef = useRef([]);
   const observacoesRef = useRef(null);
 
-  const [lembretes, setLembretes] = useState([
-    { titulo: '', tipo: 'intervalo', valor: '' }
-  ]);
+ const [lembretes, setLembretes] = useState([
+  { titulo: '', tipo: 'intervalo', valor: '', intervaloNumero: '8', intervaloUnidade: 'horas' }
+]);
 
   // Catálogo expandido com mais opções de ícones vetoriais em roxo (#9333ea)
   const iconesDisponiveis = [
@@ -448,10 +448,15 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
   };
 
   const adicionarLembrete = () => {
-    if (mode === 'view') return;
-    setLembretes([...lembretes, { titulo: '', tipo: 'intervalo', valor: '' }]);
-  };
-
+  if (mode === 'view') return;
+  setLembretes([...lembretes, { 
+    titulo: '', 
+    tipo: 'intervalo', 
+    valor: '', 
+    intervaloNumero: '8', 
+    intervaloUnidade: 'horas' 
+  }]);
+};
   const removerLembrete = (index) => {
     if (mode === 'view') return;
     const novosLembretes = lembretes.filter((_, i) => i !== index);
@@ -1807,27 +1812,67 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
                           </div>
                         </div>
 
-                        {/* VALOR / INTERVALO */}
-                        <div style={{ flex: '1', minWidth: '140px' }}>
-                          <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>
-                            {lembrete.tipo === 'intervalo' ? 'Ex: A cada 4 horas / 7 dias' : 'Data e Hora:'}
-                          </span>
-                          {/* Input visível na tela */}
-                          <input 
-                            type={mode === 'view' ? 'text' : (lembrete.tipo === 'intervalo' ? 'text' : 'datetime-local')} 
-                            id={`lembrete_valor_${index}`}
-                            name={`lembrete_valor_${index}`}
-                            placeholder={lembrete.tipo === 'intervalo' ? 'Ex: 8 em 8 horas' : ''}
-                            value={lembrete.valor}
-                            readOnly={mode === 'view'}
-                            onChange={(e) => atualizarLembrete(index, 'valor', e.target.value)}
-                            className="habit-input-line lembrete-input-original"
-                          />
-                          {/* Div estática visível apenas no PDF */}
-                          <div className="lembrete-div-pdf">
-                            {lembrete.valor || '-'}
-                          </div>
-                        </div>
+                       {/* VALOR / INTERVALO */}
+<div style={{ flex: '1', minWidth: '200px' }}>
+  <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>
+    {lembrete.tipo === 'intervalo' ? 'A cada:' : 'Data e Hora:'}
+  </span>
+
+  {/* INTERVALO: número + unidade */}
+  {lembrete.tipo === 'intervalo' ? (
+    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+      <input
+        type="number"
+        min="1"
+        id={`lembrete_numero_${index}`}
+        name={`lembrete_numero_${index}`}
+        placeholder="Ex: 8"
+        value={lembrete.intervaloNumero || ''}
+        readOnly={mode === 'view'}
+        onChange={(e) => atualizarLembrete(index, 'intervaloNumero', e.target.value)}
+        className="habit-input-line lembrete-input-original"
+        style={{ width: '70px', flexGrow: 0 }}
+      />
+      <select
+        id={`lembrete_unidade_${index}`}
+        name={`lembrete_unidade_${index}`}
+        value={lembrete.intervaloUnidade || 'horas'}
+        disabled={mode === 'view'}
+        onChange={(e) => atualizarLembrete(index, 'intervaloUnidade', e.target.value)}
+        className="lembrete-input-original"
+        style={{
+          padding: '2px 4px',
+          borderRadius: '4px',
+          border: '1.5px solid #C8A24A',
+          fontSize: '10px',
+          background: '#fff'
+        }}
+      >
+        <option value="horas">Horas</option>
+        <option value="dias">Dias</option>
+      </select>
+    </div>
+  ) : (
+    /* DATA/HORA: input datetime-local */
+    <input 
+      type={mode === 'view' ? 'text' : 'datetime-local'} 
+      id={`lembrete_valor_${index}`}
+      name={`lembrete_valor_${index}`}
+      value={lembrete.valor}
+      readOnly={mode === 'view'}
+      onChange={(e) => atualizarLembrete(index, 'valor', e.target.value)}
+      className="habit-input-line lembrete-input-original"
+    />
+  )}
+
+  {/* Div estática visível apenas no PDF */}
+  <div className="lembrete-div-pdf">
+    {lembrete.tipo === 'intervalo' 
+      ? `A cada ${lembrete.intervaloNumero || '?'} ${lembrete.intervaloUnidade || 'horas'}`
+      : (lembrete.valor || '-')
+    }
+  </div>
+</div>
                       </div>
                     </div>
                   ))}

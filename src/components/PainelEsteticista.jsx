@@ -219,8 +219,8 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
     const agora = new Date();
     const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novoDoc = extrairDocumento(dadosAtualizados);
-    if (dadosAnamnese.lembretes) {
-  await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+   if (dadosAtualizados.lembretes) {
+  await agendarLembretesNoOneSignal(pacienteSelecionado.id, dadosAtualizados.lembretes);
 }
 
     let pacienteAtualizadoSalvar = null;
