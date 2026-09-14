@@ -241,8 +241,8 @@ const handleSalvarFicha = async (dadosNovaFicha) => {
         atualizadoEm: new Date()
       }, { merge: true });
       
-if (dadosAnamnese.lembretes) {
-  await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+if (dadosNovaFicha.lembretes) {
+  await agendarLembretesNoOneSignal(pacienteUid, dadosNovaFicha.lembretes);
 }
       alert('Ficha salva e acesso do paciente gerado com sucesso!');
       setFichaSelecionada(null);
