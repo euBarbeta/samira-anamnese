@@ -1,0 +1,48 @@
+{
+  "id": "/",
+  "short_name": "Samira Ferreira",
+  "name": "Samira Ferreira Estética & Cosmetologia",
+  "description": "Prontuário digital e acompanhamento estético de pacientes da Samira Ferreira Estética & Cosmetologia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color":"#f3eef8",
+  "background_color":"#f3eef8",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["health", "beauty", "medical"],
+  "icons": [
+    {
+      "src": "/imagens/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/imagens/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/imagens/pwa-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/imagens/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/imagens/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png"
+    }
+  ]
+}

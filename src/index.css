@@ -1,0 +1,152 @@
+:root {
+  color-scheme: light only;
+}
+
+html, body {
+  color-scheme: light !important;
+  background-color: #dfc6fc !important;
+  margin: 0;
+  padding: 0;
+}
+
+/* Garante que todos os inputs mantenham a consistência visual */
+input, select, textarea, label, span {
+  color-scheme: light !important;
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* --- CONTAINER PRINCIPAL DO PDF --- */
+#ficha-container {
+  width: 100% !important;
+  max-width: 1100px !important;
+  margin: 0 auto !important;
+  background-color: #dfc6fc !important;
+  box-sizing: border-box !important;
+  position: relative;
+}
+
+/* --- CLASSES PARA TEXTO NO HTML2CANVAS / PDF --- */
+.caixa-texto-pdf {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+/* --- ALTERNÂNCIA VISUAL ENTRE TELA E PDF (OBSERVAÇÕES) --- */
+body.sendo-exportado .textarea-edicao-original {
+  display: none !important;
+}
+
+body:not(.sendo-exportado) .div-visualizacao-pdf {
+  display: none !important;
+}
+
+.div-visualizacao-pdf {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'Montserrat', sans-serif;
+  color: #2D2D2D;
+  min-height: 100px;
+  border: 1.5px solid rgba(200, 162, 74, 0.5);
+  border-radius: 4px;
+  background: transparent;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
+
+/* --- ALTERNÂNCIA VISUAL PARA HÁBITOS E LEMBRETES NO PDF --- */
+body.sendo-exportado .habit-input-line,
+body.sendo-exportado .lembrete-input-original {
+  display: none !important;
+}
+
+body:not(.sendo-exportado) .habit-div-pdf,
+body:not(.sendo-exportado) .lembrete-div-pdf {
+  display: none !important;
+}
+
+/* Espelho exato do traço dos hábitos no PDF */
+.habit-div-pdf {
+  width: 100% !important;
+  flex-grow: 1;
+  border-bottom: 1.5px solid #1A1A1A !important;
+  min-height: 18px !important;
+  font-size: 11px !important;
+  font-family: 'Montserrat', sans-serif !important;
+  color: #1A1A1A !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  box-sizing: border-box !important;
+  padding-bottom: 2px !important;
+  margin-top: 2px !important;
+}
+
+/* Espelho exato do traço dos lembretes no PDF */
+.lembrete-div-pdf {
+  width: 100% !important;
+  border-bottom: 1.5px solid #1A1A1A !important;
+  min-height: 18px !important;
+  font-size: 11px !important;
+  font-family: 'Montserrat', sans-serif !important;
+  color: #1A1A1A !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  box-sizing: border-box !important;
+  padding-bottom: 2px !important;
+  margin-top: 2px !important;
+}
+.btn-lavanda-hover:hover {
+  background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
+  border-color: #6a4e8a !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(138, 111, 168, 0.4) !important;
+}
+
+.btn-lavanda-hover:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(138, 111, 168, 0.3) !important;
+}
+.painel-btn-lavanda-hover:hover {
+  background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
+  border-color: #6a4e8a !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(138, 111, 168, 0.4) !important;
+}
+
+.painel-btn-lavanda-hover:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(138, 111, 168, 0.3) !important;
+}
+.btn-lavanda-mobile:hover {
+  background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
+  border-color: #6a4e8a !important;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(138, 111, 168, 0.4) !important;
+}
+
+.btn-lavanda-mobile:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(138, 111, 168, 0.3) !important;
+}
+/* --- REGRAS DE IMPRESSÃO E PDF --- */
+@media print {
+  body {
+    background-color: #ffffff !important;
+  }
+  
+  .no-print, 
+  button, 
+  .botoes-acao-container {
+    display: none !important;
+  }
+}
