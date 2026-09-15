@@ -7,7 +7,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // ✅ 1) VALIDA TODAS AS VARIÁVEIS ANTES DE QUALQUER COISA
+  // 1) VALIDA TODAS AS VARIÁVEIS ANTES DE QUALQUER COISA
   const missing = [];
   if (!process.env.VAPID_PUBLIC_KEY)   missing.push('VAPID_PUBLIC_KEY');
   if (!process.env.VAPID_PRIVATE_KEY)  missing.push('VAPID_PRIVATE_KEY');
@@ -27,7 +27,7 @@ exports.handler = async (event) => {
     };
   }
 
-  // ✅ 2) INICIALIZA (só agora é seguro)
+  // 2) INICIALIZA (só agora é seguro)
   try {
     if (!admin.apps.length) {
       admin.initializeApp({
@@ -45,7 +45,7 @@ exports.handler = async (event) => {
       process.env.VAPID_PRIVATE_KEY
     );
 
-    // ✅ 3) Processa o pedido
+    // 3) Processa o pedido
     const { pacienteId, lembrete } = JSON.parse(event.body || '{}');
 
     if (!pacienteId || !lembrete) {
