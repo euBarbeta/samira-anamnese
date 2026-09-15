@@ -12,12 +12,13 @@ import { secondaryAuth } from './firebaseSecondary';
 import { 
   doc, 
   getDoc, 
-  getDocs,       // <-- Adicione isto
+  getDocs,
   setDoc, 
+  deleteDoc,   // ⬅️ ADICIONAR
   collection, 
   query, 
   where, 
-  onSnapshot     // <-- Adicione isto
+  onSnapshot
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut, onAuthStateChanged  } from 'firebase/auth';
 import { db, auth } from './firebase';
@@ -318,20 +319,25 @@ const handleSalvarFicha = async (dadosNovaFicha) => {
   }
 
   // 2. PAINEL EXCLUSIVO DO PACIENTE
- <PainelPaciente 
-  pacienteData={dadosPaciente}
-  onLogout={async () => {
-    try {
-      await signOut(auth);  // ⬅️ destrói a sessão no Firebase
-    } catch (e) {
-      console.error('Erro ao sair:', e);
-    }
-    setAutenticado(false);
-    setUsuarioLogado(null);
-    setDadosPaciente(null);
-    setAbaAtiva('telainicial');
-  }}
-/>
+   // 2. PAINEL EXCLUSIVO DO PACIENTE
+  if (abaAtiva === 'painelPaciente') {
+    return (
+      <PainelPaciente
+        pacienteData={dadosPaciente}
+        onLogout={async () => {
+          try {
+            await signOut(auth);
+          } catch (e) {
+            console.error('Erro ao sair:', e);
+          }
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setAbaAtiva('telainicial');
+        }}
+      />
+    );  
+  }
   // 3. PAINEL DA ESTETICISTA
   if (abaAtiva === 'painel') {
     return isMobile ? (

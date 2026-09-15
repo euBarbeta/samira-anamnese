@@ -169,6 +169,16 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
       if (!pacienteUid) {
         pacienteUid = String(Date.now());
       }
+      const salvarPacienteNaNuvem = async (pacienteObj) => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  try {
+    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), pacienteObj);
+  } catch (e) {
+    console.error('Erro ao salvar paciente na nuvem:', e);
+  }
+};
 
       // 5. Montagem do objeto e salvamento no Firestore
       const agora = new Date();
