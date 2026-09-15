@@ -2,38 +2,58 @@
 const webpush = require('web-push');
 const admin = require('firebase-admin');
 
-// Inicializa Firebase Admin (só uma vez)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_EMAIL}`,
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
-
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // ✅ 1) VALIDA TODAS AS VARIÁVEIS ANTES DE QUALQUER COISA
+  const missing = [];
+  if (!process.env.VAPID_PUBLIC_KEY)   missing.push('VAPID_PUBLIC_KEY');
+  if (!process.env.VAPID_PRIVATE_KEY)  missing.push('VAPID_PRIVATE_KEY');
+  if (!process.env.VAPID_EMAIL)        missing.push('VAPID_EMAIL');
+  if (!process.env.FIREBASE_PROJECT_ID) missing.push('FIREBASE_PROJECT_ID');
+  if (!process.env.FIREBASE_CLIENT_EMAIL) missing.push('FIREBASE_CLIENT_EMAIL');
+  if (!process.env.FIREBASE_PRIVATE_KEY) missing.push('FIREBASE_PRIVATE_KEY');
+
+  if (missing.length > 0) {
+    console.error('❌ Variáveis faltando:', missing);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: 'Variáveis de ambiente faltando',
+        missing,
+      }),
+    };
+  }
+
+  // ✅ 2) INICIALIZA (só agora é seguro)
   try {
-    const { pacienteId, lembrete } = JSON.parse(event.body);
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        }),
+      });
+    }
+
+    webpush.setVapidDetails(
+      `mailto:${process.env.VAPID_EMAIL}`,
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+
+    // ✅ 3) Processa o pedido
+    const { pacienteId, lembrete } = JSON.parse(event.body || '{}');
 
     if (!pacienteId || !lembrete) {
-      return { statusCode: 400, body: 'Dados incompletos' };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
     }
 
     console.log('📨 Enviando push para paciente:', pacienteId);
 
-    // Busca a inscrição salva
     const db = admin.firestore();
     const subDoc = await db
       .collection('push_subscriptions')
@@ -41,7 +61,6 @@ exports.handler = async (event) => {
       .get();
 
     if (!subDoc.exists) {
-      console.error('❌ Inscrição não encontrada para:', pacienteId);
       return {
         statusCode: 404,
         body: JSON.stringify({ error: 'Paciente não tem inscrição de push' }),
@@ -49,7 +68,6 @@ exports.handler = async (event) => {
     }
 
     const { subscription } = subDoc.data();
-    console.log('✅ Inscrição encontrada, enviando...');
 
     const payload = JSON.stringify({
       title: lembrete.titulo || 'Lembrete',
