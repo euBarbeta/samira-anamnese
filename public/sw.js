@@ -1,4 +1,4 @@
-// public/sw.js
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
 const CACHE_NAME = 'samira-estetica-v2'; // ⬅️ suba esta versão a cada deploy
 const PRECACHE_URLS = [
   '/',
