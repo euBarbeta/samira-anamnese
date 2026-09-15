@@ -1,14 +1,20 @@
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+// 🧪 TESTE TEMPORÁRIO — capturar erro do importScripts
+try {
+  importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+  console.log('✅ importScripts do OneSignal OK');
+} catch (e) {
+  console.error('❌ importScripts FALHOU:', e.message, e.stack);
+}
+
+// Listener de push manual (testado e funcionando)
 self.addEventListener('push', (event) => {
-  console.log('🔥 PUSH RECEBIDO NO SW!', event);
   event.waitUntil(
     self.registration.showNotification('🔥 TESTE SW MANUAL', {
-      body: 'O Service Worker recebeu um push!',
+      body: 'Se você vê isso, o SW funciona',
       icon: '/imagens/pwa-192.png'
     })
   );
 });
-
 const CACHE_NAME = 'samira-estetica-v5';
 const PRECACHE_URLS = [
   '/',
