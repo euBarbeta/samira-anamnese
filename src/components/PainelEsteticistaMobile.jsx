@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch } from 'react-icons/md';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut 
+} from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { secondaryAuth } from './firebaseSecondary';  // ⬅️ ADICIONAR
 import FichaMobile from './FichaMobile';
 import FichaEvoMobile from './FichaEvoMobile';
 
@@ -28,7 +34,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
     mostrarSenhaModal: false,
     erroSenha: ''
   });
-  const db = getFirestore();
+
     const auth = getAuth();
 // Adicione esta função auxiliar no topo do componente PainelEsteticista
 const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
