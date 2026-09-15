@@ -33,19 +33,25 @@ export default function PainelEsteticista({ onLogout }) {
   // Adicione esta função auxiliar no topo do componente PainelEsteticista
 const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
   if (!lembretes || lembretes.length === 0) return;
-  
+
   for (const lembrete of lembretes) {
-    if (!lembrete.titulo || !lembrete.valor) continue; // pula lembretes vazios
-    
+    // ✅ CORREÇÃO: aceita tanto 'data_hora' quanto 'intervalo'
+    const temConteudo =
+      lembrete.tipo === 'intervalo'
+        ? Boolean(lembrete.titulo && lembrete.intervaloNumero)
+        : Boolean(lembrete.titulo && lembrete.valor);
+
+    if (!temConteudo) continue;
+
     try {
       const response = await fetch('/.netlify/functions/agendar-notificacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pacienteId, lembrete }),
       });
-      
+
       if (!response.ok) {
-        console.error('Falha ao agendar lembrete:', lembrete.titulo);
+        console.error('Falha ao agendar lembrete:', lembrete.titulo, await response.text());
       } else {
         console.log('✅ Lembrete agendado:', lembrete.titulo);
       }

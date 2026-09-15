@@ -52,19 +52,24 @@ exports.handler = async (event) => {
         'Authorization': `Key ${ONESIGNAL_REST_KEY}`,
       },
       body: JSON.stringify({
-        app_id: ONESIGNAL_APP_ID,
-        target_channel: 'push',
-        include_aliases: {
-          external_id: [String(pacienteId)],
-        },
-        headings: { en: lembrete.titulo || 'Lembrete' },
-        contents: { en: 'Você tem um lembrete da Samira Estética' },
-        send_after: sendAfter,
-        web_push_topic: 'lembretes',
-        data: {
-          targetUrl: 'https://samira-anamnese.netlify.app',
-        },
-      }),
+  app_id: ONESIGNAL_APP_ID,
+  target_channel: 'push',
+  include_aliases: {
+    external_id: [String(pacienteId)],
+  },
+  headings: {
+    en: lembrete.titulo || 'Lembrete',
+    pt: lembrete.titulo || 'Lembrete',
+  },
+  contents: {
+    en: 'Você tem um lembrete da Samira Estética',
+    pt: 'Você tem um lembrete da Samira Estética',
+  },
+  send_after: sendAfter,
+  data: {
+    targetUrl: 'https://samira-anamnese.netlify.app',
+  },
+}),
     });
 
     const result = await response.json();

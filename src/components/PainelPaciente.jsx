@@ -267,21 +267,28 @@ window.OneSignalDeferred.push(async function(OneSignal) {
 }, [pacienteData]);
 
 useEffect(() => {
-  if (!appInstalado) return;
   if (!pacienteData?.id) return;
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async function(OneSignal) {
+  window.OneSignalDeferred.push(async function (OneSignal) {
     try {
+      // 1) Faz login com o ID do paciente
+      await OneSignal.login(String(pacienteData.id));
+
+      // 2) Pede permissão (independente de estar instalado ou não)
       if (!OneSignal.Notifications.permission) {
         const permission = await OneSignal.Notifications.requestPermission();
         console.log('Permissão de notificação:', permission);
       }
+
+      // 3) Verifica se o subscription foi criado
+      const subId = OneSignal.User?.PushSubscription?.id;
+      console.log('🔔 Subscription ID do paciente:', subId);
     } catch (err) {
-      console.error('Erro ao pedir permissão:', err);
+      console.error('Erro ao registrar OneSignal:', err);
     }
   });
-}, [appInstalado, pacienteData]);
+}, [pacienteData]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
