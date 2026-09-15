@@ -82,19 +82,7 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
 
     carregarDadosNuvem();
   }, [db, auth]);
-
-  // Função auxiliar para salvar ou atualizar um paciente no Firestore
-  const salvarPacienteNaNuvem = async (pacienteObj) => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    try {
-      await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), pacienteObj);
-    } catch (e) {
-      console.error('Erro ao salvar paciente na nuvem:', e);
-    }
-  };
-
+  
   // Função auxiliar para excluir um paciente do Firestore
   const excluirPacienteDaNuvem = async (idPaciente) => {
     const user = auth.currentUser;
@@ -118,6 +106,17 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
       'Não informado'
     );
   };
+    const salvarPacienteNaNuvem = async (pacienteObj) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), pacienteObj);
+    } catch (e) {
+      console.error('Erro ao salvar paciente na nuvem:', e);
+    }
+  };
+
 
 const handleSalvarAnamnese = async (dadosAnamnese) => {
     // 1. Garante que pegamos o usuário esteticista logado corretamente do Auth principal
