@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { inscreverPush } from './push-notifications';
 import {
   DownloadCloud,
   X,
@@ -251,43 +252,9 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
   const [appInstalado, setAppInstalado] = useState(false);
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
   // No PainelPaciente.jsx, dentro do componente, junto aos outros useEffects
-useEffect(() => {
+  useEffect(() => {
   if (!pacienteData?.id) return;
-  
-  // Aguarda o OneSignal carregar e faz login
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-window.OneSignalDeferred.push(async function(OneSignal) {
-  try {
-    await OneSignal.login(String(pacienteData.id));
-    // Só associa. Não pede permissão ainda.
-  } catch (err) {
-    console.error('Erro ao registrar OneSignal:', err);
-  }
-});
-}, [pacienteData]);
-
-useEffect(() => {
-  if (!pacienteData?.id) return;
-
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async function (OneSignal) {
-    try {
-      // 1) Faz login com o ID do paciente
-      await OneSignal.login(String(pacienteData.id));
-
-      // 2) Pede permissão (independente de estar instalado ou não)
-      if (!OneSignal.Notifications.permission) {
-        const permission = await OneSignal.Notifications.requestPermission();
-        console.log('Permissão de notificação:', permission);
-      }
-
-      // 3) Verifica se o subscription foi criado
-      const subId = OneSignal.User?.PushSubscription?.id;
-      console.log('🔔 Subscription ID do paciente:', subId);
-    } catch (err) {
-      console.error('Erro ao registrar OneSignal:', err);
-    }
-  });
+  inscreverPush(pacienteData.id);
 }, [pacienteData]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);

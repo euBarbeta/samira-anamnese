@@ -1,14 +1,4 @@
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
-self.addEventListener('push', (event) => {
-  console.log('🚨 PUSH RECEBIDO NO SW!', event.data?.text());
-  event.waitUntil(
-    self.registration.showNotification('🚨 PUSH CHEGOU NO SW', {
-      body: 'Isso veio do OneSignal, não do DevTools!',
-      icon: '/imagens/pwa-192.png'
-    })
-  );
-});
-const CACHE_NAME = 'samira-estetica-v4'; // ⬅️ suba esta versão a cada deploy
+const CACHE_NAME = 'samira-estetica-v5';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
@@ -18,15 +8,11 @@ const PRECACHE_URLS = [
   '/imagens/pwa-512.png'
 ];
 
-// Tipos de recurso que vale a pena guardar em cache
-const CACHEABLE_DESTINATIONS = ['image', 'style', 'script', 'font'];
-
 /* ---------- INSTALL ---------- */
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      // allSettled: se um arquivo falhar, os outros continuam sendo cacheados
       Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)))
     )
   );
@@ -45,24 +31,70 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-/* ---------- FETCH ---------- */
+/* ---------- PUSH (NOVO) ---------- */
+self.addEventListener('push', (event) => {
+  console.log('🔔 Push recebido no SW:', event);
+
+  let data = {
+    title: 'Lembrete',
+    body: 'Você tem um lembrete da Samira Estética',
+    icon: '/imagens/pwa-192.png',
+    badge: '/imagens/pwa-192.png',
+    url: '/'
+  };
+
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon,
+      badge: data.badge,
+      vibrate: [200, 100, 200],
+      data: { url: data.url }
+    })
+  );
+});
+
+/* ---------- CLIQUE NA NOTIFICAÇÃO (NOVO) ---------- */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+
+/* ---------- FETCH (MANTIDO) ---------- */
+const CACHEABLE_DESTINATIONS = ['image', 'style', 'script', 'font'];
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-
-  // Só lida com GET do próprio domínio
   if (request.method !== 'GET') return;
   if (!request.url.startsWith(self.location.origin)) return;
-
-  // Ignora requisições do Vite em dev (HMR, websocket, etc.)
   if (request.url.includes('/@vite/') || request.url.includes('/__vite')) return;
 
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Só cacheia respostas OK e de tipos estáticos
         if (response.ok && CACHEABLE_DESTINATIONS.includes(request.destination)) {
           const clone = response.clone();
-          // ✅ waitUntil garante que o cache.put termine antes do SW dormir
           event.waitUntil(
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
           );
@@ -70,15 +102,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() =>
-        caches.match(request).then((cached) => {
-          if (cached) return cached;
-          // Fallback offline
-          return new Response('Conexão perdida e nenhum cache encontrado.', {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: new Headers({ 'Content-Type': 'text/plain;charset=UTF-8' })
-          });
-        })
+        caches.match(request).then((cached) => cached || new Response('Offline', { status: 503 }))
       )
   );
 });

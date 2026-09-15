@@ -36,19 +36,14 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
 
   for (const lembrete of lembretes) {
     // ✅ CORREÇÃO: aceita tanto 'data_hora' quanto 'intervalo'
-    const temConteudo =
-      lembrete.tipo === 'intervalo'
-        ? Boolean(lembrete.titulo && lembrete.intervaloNumero)
-        : Boolean(lembrete.titulo && lembrete.valor);
-
-    if (!temConteudo) continue;
+    if (!lembrete.titulo || !lembrete.titulo.trim()) continue;
 
     try {
-      const response = await fetch('/.netlify/functions/agendar-notificacao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pacienteId, lembrete }),
-      });
+     const response = await fetch('/.netlify/functions/enviar-push', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ pacienteId, lembrete }),
+});
 
       if (!response.ok) {
         console.error('Falha ao agendar lembrete:', lembrete.titulo, await response.text());
