@@ -1,6 +1,14 @@
 importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
-
-const CACHE_NAME = 'samira-estetica-v4';
+self.addEventListener('push', (event) => {
+  console.log('🔥 PUSH RECEBIDO NO SW!', event);
+  event.waitUntil(
+    self.registration.showNotification('🔥 TESTE SW MANUAL', {
+      body: 'O Service Worker recebeu um push!',
+      icon: '/imagens/pwa-192.png'
+    })
+  );
+});
+const CACHE_NAME = 'samira-estetica-v5';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
