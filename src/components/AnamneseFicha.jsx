@@ -67,7 +67,28 @@ export default function AnamneseFicha() {
   return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+// ============================================================
+// SINCRONIZAÇÃO EM TEMPO REAL — PACIENTE
+// ============================================================
+const [pacienteDocPath, setPacienteDocPath] = useState(null);
 
+useEffect(() => {
+  if (!pacienteDocPath) return;
+
+  const unsubscribe = onSnapshot(
+    pacienteDocPath,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const dadosAtualizados = { id: docSnap.id, ...docSnap.data() };
+        setDadosPaciente(dadosAtualizados);
+        console.log('🔄 Dados atualizados em tempo real:', dadosAtualizados.nome);
+      }
+    },
+    (error) => console.error('Erro no listener:', error)
+  );
+
+  return () => unsubscribe();
+}, [pacienteDocPath]);
   // Sincronização em tempo real das fichas (Somente para a Esteticista)
   useEffect(() => {
     if (autenticado && usuarioLogado && abaAtiva !== 'painelPaciente') {
@@ -155,6 +176,7 @@ const handleLoginSucesso = async (user) => {
 
           if (pacienteEncontrado) {
             
+            
             // Auto-cura do mapeamento na raiz para logins futuros instantâneos
             await setDoc(mapRef, {
               profissionalUid: estUid,
@@ -162,13 +184,23 @@ const handleLoginSucesso = async (user) => {
               atualizadoEm: new Date()
             }, { merge: true });
             break;
+            
           }
+        
         }
       }
+      
 
       if (pacienteEncontrado) {
        setDadosPaciente(pacienteEncontrado);
         setAbaAtiva('painelPaciente');
+        const mapRef2 = doc(db, "mapeamento_emails", emailUsuario);
+  const mapSnap2 = await getDoc(mapRef2);
+  if (mapSnap2.exists()) {
+    const { profissionalUid, pacienteId } = mapSnap2.data();
+    setPacienteDocPath(doc(db, "usuarios", profissionalUid, "pacientes", pacienteId));
+  }
+        
       } else {
         alert("Sua ficha de paciente não foi encontrada nas pastas do sistema.");
         setAutenticado(false);
@@ -185,6 +217,7 @@ const handleLoginSucesso = async (user) => {
       setCarregandoNuvem(false);
     }
   };
+  
   // Adicione esta função auxiliar no topo do componente PainelEsteticista
 const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
   if (!lembretes || lembretes.length === 0) return;
@@ -333,6 +366,7 @@ const handleSalvarFicha = async (dadosNovaFicha) => {
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
+           setPacienteDocPath(null); 
           setAbaAtiva('telainicial');
         }}
       />
