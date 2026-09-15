@@ -260,7 +260,7 @@ useEffect(() => {
     try {
       // Associa este dispositivo ao ID do paciente
       await OneSignal.login(String(pacienteData.id));
-      console.log('✅ OneSignal: paciente logado', pacienteData.id);
+      
       
       // Pede permissão de notificação (só se ainda não tiver)
       if (!OneSignal.Notifications.permission) {
