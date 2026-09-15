@@ -1833,24 +1833,26 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
         className="habit-input-line lembrete-input-original"
         style={{ width: '70px', flexGrow: 0 }}
       />
-      <select
-        id={`lembrete_unidade_${index}`}
-        name={`lembrete_unidade_${index}`}
-        value={lembrete.intervaloUnidade || 'horas'}
-        disabled={mode === 'view'}
-        onChange={(e) => atualizarLembrete(index, 'intervaloUnidade', e.target.value)}
-        className="lembrete-input-original"
-        style={{
-          padding: '2px 4px',
-          borderRadius: '4px',
-          border: '1.5px solid #C8A24A',
-          fontSize: '10px',
-          background: '#fff'
-        }}
-      >
-        <option value="horas">Horas</option>
-        <option value="dias">Dias</option>
-      </select>
+    <select
+  id={`lembrete_unidade_${index}`}
+  name={`lembrete_unidade_${index}`}
+  value={lembrete.intervaloUnidade || 'horas'}
+  disabled={mode === 'view'}
+  onChange={(e) => atualizarLembrete(index, 'intervaloUnidade', e.target.value)}
+  className="lembrete-input-original"
+  style={{
+    padding: '2px 4px',
+    borderRadius: '4px',
+    border: '1.5px solid #C8A24A',
+    fontSize: '10px',
+    background: '#fff'
+  }}
+>
+  <option value="segundos">Segundos</option>
+  <option value="minutos">Minutos</option>
+  <option value="horas">Horas</option>
+  <option value="dias">Dias</option>
+</select>
     </div>
   ) : (
     /* DATA/HORA: input datetime-local */

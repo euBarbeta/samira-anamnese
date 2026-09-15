@@ -8,8 +8,6 @@ import FichaEvoMobile from './FichaEvoMobile';
 import PainelEsteticista from './PainelEsteticista';
 import PainelEsteticistaMobile from './PainelEsteticistaMobile';
 import PainelPaciente from './PainelPaciente'; 
-
-import { db } from './firebase';
 import { secondaryAuth } from './firebaseSecondary'; 
 import { 
   doc, 
@@ -21,7 +19,8 @@ import {
   where, 
   onSnapshot     // <-- Adicione isto
 } from "firebase/firestore";
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut, onAuthStateChanged  } from 'firebase/auth';
+import { db, auth } from './firebase';
 
 const EMAILS_ESTETICISTAS = [
   'samira.ferreira@sistema.local',
@@ -51,6 +50,22 @@ export default function AnamneseFicha() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (user && !autenticado) {
+      // Sessão persistente detectada — refaz o fluxo
+      await handleLoginSucesso(user);
+    } else if (!user && autenticado) {
+      // Sessão caiu (ex: logout em outra aba)
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setDadosPaciente(null);
+      setAbaAtiva('telainicial');
+    }
+  });
+  return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   // Sincronização em tempo real das fichas (Somente para a Esteticista)
   useEffect(() => {
@@ -241,9 +256,7 @@ const handleSalvarFicha = async (dadosNovaFicha) => {
         atualizadoEm: new Date()
       }, { merge: true });
       
-if (dadosNovaFicha.lembretes) {
-  await agendarLembretesNoOneSignal(pacienteUid, dadosNovaFicha.lembretes);
-}
+
       alert('Ficha salva e acesso do paciente gerado com sucesso!');
       setFichaSelecionada(null);
       setAbaAtiva('painel');
@@ -305,15 +318,20 @@ if (dadosNovaFicha.lembretes) {
   }
 
   // 2. PAINEL EXCLUSIVO DO PACIENTE
-  if (abaAtiva === 'painelPaciente') {
-    return (
-      <PainelPaciente 
-        pacienteData={dadosPaciente}
-        onLogout={() => { setAutenticado(false); setUsuarioLogado(null); setDadosPaciente(null); setAbaAtiva('telainicial'); }}
-      />
-    );
-  }
-
+ <PainelPaciente 
+  pacienteData={dadosPaciente}
+  onLogout={async () => {
+    try {
+      await signOut(auth);  // ⬅️ destrói a sessão no Firebase
+    } catch (e) {
+      console.error('Erro ao sair:', e);
+    }
+    setAutenticado(false);
+    setUsuarioLogado(null);
+    setDadosPaciente(null);
+    setAbaAtiva('telainicial');
+  }}
+/>
   // 3. PAINEL DA ESTETICISTA
   if (abaAtiva === 'painel') {
     return isMobile ? (

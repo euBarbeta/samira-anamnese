@@ -456,7 +456,7 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
     return (
       <FichaMobile 
         mode="edit" 
-        initialData={pacienteSelecionado.anamnese} 
+        fichaSelecionada={pacienteSelecionado.anamnese} 
         onSave={handleAtualizarAnamnese} 
         onVoltar={() => setTelaAtual('detalhe_pasta')} 
       />

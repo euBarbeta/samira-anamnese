@@ -256,22 +256,32 @@ useEffect(() => {
   
   // Aguarda o OneSignal carregar e faz login
   window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async function(OneSignal) {
-    try {
-      // Associa este dispositivo ao ID do paciente
-      await OneSignal.login(String(pacienteData.id));
-      
-      
-      // Pede permissão de notificação (só se ainda não tiver)
-      if (!OneSignal.Notifications.permission) {
-        await OneSignal.Notifications.requestPermission();
-      }
-    } catch (err) {
-      console.error('Erro ao registrar OneSignal:', err);
-    }
-  });
+window.OneSignalDeferred.push(async function(OneSignal) {
+  try {
+    await OneSignal.login(String(pacienteData.id));
+    // Só associa. Não pede permissão ainda.
+  } catch (err) {
+    console.error('Erro ao registrar OneSignal:', err);
+  }
+});
 }, [pacienteData]);
 
+useEffect(() => {
+  if (!appInstalado) return;
+  if (!pacienteData?.id) return;
+
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      if (!OneSignal.Notifications.permission) {
+        const permission = await OneSignal.Notifications.requestPermission();
+        console.log('Permissão de notificação:', permission);
+      }
+    } catch (err) {
+      console.error('Erro ao pedir permissão:', err);
+    }
+  });
+}, [appInstalado, pacienteData]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
