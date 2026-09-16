@@ -29,6 +29,7 @@ exports.handler = async (event) => {
 
   // 2) INICIALIZA (só agora é seguro)
   try {
+    console.log('🟢 [1/6] Antes de initializeApp');
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -38,36 +39,31 @@ exports.handler = async (event) => {
         }),
       });
     }
+    console.log('🟢 [2/6] Firebase Admin OK');
 
     webpush.setVapidDetails(
       `mailto:${process.env.VAPID_EMAIL}`,
       process.env.VAPID_PUBLIC_KEY,
       process.env.VAPID_PRIVATE_KEY
     );
+    console.log('🟢 [3/6] VAPID OK');
 
-    // 3) Processa o pedido
     const { pacienteId, lembrete } = JSON.parse(event.body || '{}');
-
     if (!pacienteId || !lembrete) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
     }
-
-    console.log('📨 Enviando push para paciente:', pacienteId);
+    console.log('🟢 [4/6] Body OK. pacienteId:', pacienteId);
 
     const db = admin.firestore();
-    const subDoc = await db
-      .collection('push_subscriptions')
-      .doc(String(pacienteId))
-      .get();
+    const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
+    console.log('🟢 [5/6] Firestore OK. Existe?', subDoc.exists);
 
     if (!subDoc.exists) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'Paciente não tem inscrição de push' }),
-      };
+      return { statusCode: 404, body: JSON.stringify({ error: 'Paciente sem inscrição' }) };
     }
 
     const { subscription } = subDoc.data();
+    console.log('🟢 Subscription recebida:', JSON.stringify(subscription).slice(0, 200));
 
     const payload = JSON.stringify({
       title: lembrete.titulo || 'Lembrete',
@@ -75,6 +71,7 @@ exports.handler = async (event) => {
       url: 'https://samira-anamnese.netlify.app',
     });
 
+    console.log('🟢 [6/6] Enviando...');
     await webpush.sendNotification(subscription, payload);
     console.log('✅ Push enviado!');
 
@@ -83,13 +80,14 @@ exports.handler = async (event) => {
       body: JSON.stringify({ ok: true, message: 'Push enviado' }),
     };
   } catch (err) {
-    console.error('❌ Erro:', err);
+    console.error('❌ Erro capturado:', err);
+    console.error('❌ Stack:', err.stack);
     return {
       statusCode: 500,
       body: JSON.stringify({
         error: err.message,
+        stack: err.stack,
         statusCode: err.statusCode || null,
       }),
     };
-  }
-};
+  }}
