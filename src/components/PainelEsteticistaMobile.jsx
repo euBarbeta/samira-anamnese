@@ -40,24 +40,22 @@ export default function PainelEsteticistaMobile({ onLogout }) {
 const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
   if (!lembretes || lembretes.length === 0) return;
 
-  for (const lembrete of lembretes) {
-    // ✅ CORREÇÃO: aceita tanto 'data_hora' quanto 'intervalo'
-   if (!lembrete.titulo || !lembrete.titulo.trim()) continue;
+  try {
+    const response = await fetch('/.netlify/functions/agendar-lembretes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pacienteId, lembretes }),
+    });
 
-    try {
-      const response = await fetch('/.netlify/functions/enviar-push', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ pacienteId, lembrete }),
-});
-      if (!response.ok) {
-        console.error('Falha ao agendar lembrete:', lembrete.titulo, await response.text());
-      } else {
-        console.log('✅ Lembrete agendado:', lembrete.titulo);
-      }
-    } catch (err) {
-      console.error('Erro ao agendar lembrete:', err);
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('❌ Falha ao agendar lembretes:', data);
+    } else {
+      console.log('✅ Lembretes processados:', data.resultados);
     }
+  } catch (err) {
+    console.error('❌ Erro ao agendar lembretes:', err);
   }
 };
   // Carregar dados iniciais do Firestore de forma assíncrona alinhado ao UID do usuário logado
