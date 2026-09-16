@@ -32,6 +32,7 @@ self.addEventListener('activate', (event) => {
 });
 
 /* ---------- PUSH (NOVO) ---------- */
+/* ---------- PUSH (MELHORADO) ---------- */
 self.addEventListener('push', (event) => {
   console.log('🔔 Push recebido no SW:', event);
 
@@ -39,7 +40,16 @@ self.addEventListener('push', (event) => {
     title: 'Lembrete',
     body: 'Você tem um lembrete da Samira Estética',
     icon: '/imagens/pwa-192.png',
-    badge: '/imagens/pwa-192.png',
+    badge: '/imagens/badge-72.png',       // ⬅️ NOVO: ícone pequeno monocromático
+    image: '/imagens/notif-banner.jpg',   // ⬅️ NOVO: banner grande (Android/Desktop só)
+    vibrate: [200, 100, 200, 100, 200],   // ⬅️ padrão mais "chamativo"
+    tag: 'lembrete-samira',               // ⬅️ agrupa notificações (evita spam empilhado)
+    renotify: true,                        // ⬅️ re-vibra/avisa se for mesma tag
+    requireInteraction: false,             // ⬅️ true = fica na tela até o usuário fechar
+    silent: false,                         // ⬅️ false = toca o "ding" do sistema
+    timestamp: Date.now(),
+    dir: 'ltr',
+    lang: 'pt-BR',
     url: '/'
   };
 
@@ -51,20 +61,39 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const options = {
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
+    image: data.image,
+    vibrate: data.vibrate,
+    tag: data.tag,
+    renotify: data.renotify,
+    requireInteraction: data.requireInteraction,
+    silent: data.silent,
+    timestamp: data.timestamp,
+    dir: data.dir,
+    lang: data.lang,
+    data: { url: data.url },
+    // ⬇️ Botões de ação (SÓ funciona no Android e Desktop; iOS ignora)
+    actions: [
+      { action: 'abrir',   title: '📖 Ver ficha' },
+      { action: 'fechar',  title: 'Fechar' }
+    ]
+  };
+
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: data.icon,
-      badge: data.badge,
-      vibrate: [200, 100, 200],
-      data: { url: data.url }
-    })
+    self.registration.showNotification(data.title, options)
   );
 });
 
 /* ---------- CLIQUE NA NOTIFICAÇÃO (NOVO) ---------- */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  // Se clicou no botão "Fechar", só fecha
+  if (event.action === 'fechar') return;
+
   const urlToOpen = event.notification.data?.url || '/';
 
   event.waitUntil(
