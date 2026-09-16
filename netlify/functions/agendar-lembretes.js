@@ -49,7 +49,9 @@ exports.handler = async (event) => {
       let sendAt;
       if (lembrete.tipo === 'data_hora') {
         if (!lembrete.valor) continue;
-        sendAt = new Date(lembrete.valor).getTime();
+        const partes = lembrete.valor.split(/[-T:]/);
+        const [ano, mes, dia, hora, min] = partes.map(Number);
+         sendAt = Date.UTC(ano, mes - 1, dia, hora + 3, min); 
       } else {
         const num = parseInt(lembrete.intervaloNumero, 10) || 1;
         const unidade = lembrete.intervaloUnidade || 'horas';
@@ -85,6 +87,9 @@ exports.handler = async (event) => {
           pacienteId: String(pacienteId),
           titulo: lembrete.titulo,
           sendAt,
+          tipo: lembrete.tipo,                              // ← NOVO
+          intervaloNumero: lembrete.intervaloNumero || null, // ← NOVO
+          intervaloUnidade: lembrete.intervaloUnidade || null, // ← NOVO
           enviado: false,
           criadoEm: new Date().toISOString(),
         });

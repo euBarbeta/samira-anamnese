@@ -3,12 +3,17 @@ const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
+const MS = {
+  segundos: 1000,
+  minutos: 60 * 1000,
+  horas: 60 * 60 * 1000,
+  dias: 24 * 60 * 60 * 1000,
+};
+
 exports.handler = async (event) => {
-  // Aceita GET (cron) e POST (manual)
-  // Valida secret para evitar acesso público
-  const secret = event.queryStringParameters?.secret 
+  const secret = event.queryStringParameters?.secret
               || JSON.parse(event.body || '{}')?.secret;
-  
+
   if (secret !== process.env.CRON_SECRET) {
     return { statusCode: 401, body: 'Unauthorized' };
   }
@@ -52,12 +57,17 @@ exports.handler = async (event) => {
     console.log(`📤 ${prontos.length} lembrete(s) para enviar`);
 
     const resultados = [];
+
     for (const doc of prontos) {
       const data = doc.data();
       const subDoc = await db.collection('push_subscriptions').doc(data.pacienteId).get();
 
       if (!subDoc.exists) {
-        await doc.ref.update({ enviado: true, erro: 'sem inscrição', enviadoEm: new Date().toISOString() });
+        await doc.ref.update({
+          enviado: true,
+          erro: 'sem inscrição',
+          enviadoEm: new Date().toISOString(),
+        });
         continue;
       }
 
@@ -68,17 +78,54 @@ exports.handler = async (event) => {
         url: 'https://samira-anamnese.netlify.app',
       });
 
+      let envioOk = false;
+      let erroMsg = null;
+
       try {
         await webpush.sendNotification(subscription, payload);
-        await doc.ref.update({ enviado: true, enviadoEm: new Date().toISOString(), erro: null });
-        resultados.push({ id: doc.id, ok: true });
+        envioOk = true;
+        console.log('✅ Enviado:', data.titulo);
       } catch (e) {
-        await doc.ref.update({ erro: e.message, tentadoEm: new Date().toISOString() });
-        resultados.push({ id: doc.id, ok: false, erro: e.message });
+        erroMsg = e.message;
+        console.error('❌ Falha no envio:', data.titulo, '-', e.message);
+      }
+
+      // ✅ DIFERENÇA PRINCIPAL: reagendar se for recorrente
+      if (data.tipo === 'intervalo' && envioOk) {
+        const num = parseInt(data.intervaloNumero, 10) || 1;
+        const unidade = data.intervaloUnidade || 'horas';
+        const intervaloMs = num * (MS[unidade] || MS.horas);
+
+        // Calcula o próximo horário que está no FUTURO
+        let proximo = data.sendAt + intervaloMs;
+        while (proximo <= agora) {
+          proximo += intervaloMs;
+        }
+
+        await doc.ref.update({
+          sendAt: proximo,
+          ultimoEnvio: new Date().toISOString(),
+          tentativas: (data.tentativas || 0) + 1,
+        });
+
+        console.log(`🔄 Reagendado "${data.titulo}" para ${new Date(proximo).toISOString()}`);
+        resultados.push({ id: doc.id, ok: true, reagendado: true });
+      } else {
+        // Uma vez só (data_hora) ou falha
+        await doc.ref.update({
+          enviado: envioOk,
+          enviadoEm: envioOk ? new Date().toISOString() : null,
+          erro: erroMsg,
+          tentadoEm: new Date().toISOString(),
+        });
+        resultados.push({ id: doc.id, ok: envioOk });
       }
     }
 
-    return { statusCode: 200, body: JSON.stringify({ ok: true, enviados: resultados.length, resultados }) };
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ ok: true, enviados: resultados.length, resultados }),
+    };
 
   } catch (err) {
     console.error('❌ Erro:', err.stack);
