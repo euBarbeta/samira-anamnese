@@ -1,6 +1,7 @@
 // netlify/functions/enviar-push.js
 const webpush = require('web-push');
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -8,12 +9,11 @@ exports.handler = async (event) => {
   }
 
   try {
-    if (!admin.apps.length) {
+    // ✅ Inicializa usando a API MODERNA
+    if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
-      // ✅ CONVERTER snake_case → camelCase
-      admin.initializeApp({
-        credential: admin.credential.cert({
+      initializeApp({
+        credential: cert({
           projectId: sa.project_id,
           clientEmail: sa.client_email,
           privateKey: sa.private_key,
@@ -32,7 +32,8 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
     }
 
-    const db = admin.firestore();
+    // ✅ Firestore pela API MODERNA
+    const db = getFirestore();
     const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
 
     if (!subDoc.exists) {
