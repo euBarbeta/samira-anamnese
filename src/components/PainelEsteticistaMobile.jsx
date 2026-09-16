@@ -38,7 +38,8 @@ export default function PainelEsteticistaMobile({ onLogout }) {
     const auth = getAuth();
 // Adicione esta função auxiliar no topo do componente PainelEsteticista
 const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
-  if (!lembretes || lembretes.length === 0) return;
+  if (!Array.isArray(lembretes)) return;
+  
 
   try {
     const response = await fetch('/.netlify/functions/agendar-lembretes', {

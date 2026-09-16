@@ -273,9 +273,10 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
         });
         setHabitosComIcones(habitosMapeados);
       }
-      if (fichaSelecionada.lembretes && fichaSelecionada.lembretes.length > 0) {
-        setLembretes(fichaSelecionada.lembretes);
-      }
+      if (Array.isArray(fichaSelecionada.lembretes)) {
+  setLembretes(fichaSelecionada.lembretes);
+}
+
     }
   }, [fichaSelecionada]);
 
