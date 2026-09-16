@@ -570,7 +570,7 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
                       transition: 'all 0.25s ease'
                     }}
                   >
-                    Ver Ficha de Anamnese ({isMobile ? 'Modo Mobile' : 'Modo Desktop'})
+                    Ver Ficha de Anamnese ({isMobile ? '' : ''})
                   </button>
 
                   {/* BOTÃO PARA BAIXAR O WEBAPP / PWA */}
