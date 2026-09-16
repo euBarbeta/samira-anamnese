@@ -16,7 +16,6 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Inicializa Firebase
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       initializeApp({
@@ -29,7 +28,6 @@ exports.handler = async (event) => {
     }
     const db = getFirestore();
 
-    // Configura web-push
     webpush.setVapidDetails(
       `mailto:${process.env.VAPID_EMAIL}`,
       process.env.VAPID_PUBLIC_KEY,
@@ -41,7 +39,23 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
     }
 
+    // ✅ PASSO 1: Apaga TODOS os lembretes pendentes desse paciente
+    // (evita que lembretes removidos continuem disparando)
+    const pendentesAntigos = await db.collection('lembretes_pendentes')
+      .where('pacienteId', '==', String(pacienteId))
+      .where('enviado', '==', false)
+      .get();
+
+    if (!pendentesAntigos.empty) {
+      const batch = db.batch();
+      pendentesAntigos.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      console.log(`🗑️ ${pendentesAntigos.size} lembrete(s) antigo(s) removido(s)`);
+    }
+
+    // ✅ PASSO 2: Cria os novos lembretes a partir da ficha atual
     const resultados = [];
+    const agora = Date.now();
 
     for (const lembrete of lembretes) {
       if (!lembrete.titulo || !lembrete.titulo.trim()) continue;
@@ -49,9 +63,11 @@ exports.handler = async (event) => {
       let sendAt;
       if (lembrete.tipo === 'data_hora') {
         if (!lembrete.valor) continue;
+
+        // Ajuste de fuso: input "2026-09-16T14:30" é hora local (BRT = UTC-3)
         const partes = lembrete.valor.split(/[-T:]/);
         const [ano, mes, dia, hora, min] = partes.map(Number);
-         sendAt = Date.UTC(ano, mes - 1, dia, hora + 3, min); 
+        sendAt = Date.UTC(ano, mes - 1, dia, hora + 3, min);
       } else {
         const num = parseInt(lembrete.intervaloNumero, 10) || 1;
         const unidade = lembrete.intervaloUnidade || 'horas';
@@ -60,8 +76,8 @@ exports.handler = async (event) => {
 
       if (isNaN(sendAt)) continue;
 
-      // Envio imediato (dentro de 30 segundos)
-      if (sendAt <= Date.now() + 30000) {
+      // Envio imediato (dentro de 30s)
+      if (sendAt <= agora + 30000) {
         const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
         if (!subDoc.exists) {
           resultados.push({ titulo: lembrete.titulo, tipo: 'imediato', ok: false, erro: 'sem inscrição' });
@@ -87,9 +103,9 @@ exports.handler = async (event) => {
           pacienteId: String(pacienteId),
           titulo: lembrete.titulo,
           sendAt,
-          tipo: lembrete.tipo,                              // ← NOVO
-          intervaloNumero: lembrete.intervaloNumero || null, // ← NOVO
-          intervaloUnidade: lembrete.intervaloUnidade || null, // ← NOVO
+          tipo: lembrete.tipo,
+          intervaloNumero: lembrete.intervaloNumero || null,
+          intervaloUnidade: lembrete.intervaloUnidade || null,
           enviado: false,
           criadoEm: new Date().toISOString(),
         });

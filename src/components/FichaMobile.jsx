@@ -275,9 +275,9 @@ export default function FichaMobile({ onVoltar, onSave, fichaSelecionada, mode =
         });
         setHabitosComIcones(habitosMapeados);
       }
-      if (fichaSelecionada.lembretes && fichaSelecionada.lembretes.length > 0) {
-        setLembretes(fichaSelecionada.lembretes);
-      }
+      if (Array.isArray(fichaSelecionada.lembretes)) {
+  setLembretes(fichaSelecionada.lembretes);
+}
     }
   }, [fichaSelecionada]);
 
@@ -452,7 +452,39 @@ export default function FichaMobile({ onVoltar, onSave, fichaSelecionada, mode =
     novos[index][campo] = valor;
     setLembretes(novos);
   };
+// ✅ Converte "2026-09-16T12:55" → "16/09/2026 12:55"
+const formatarDataHoraBR = (valorISO) => {
+  if (!valorISO) return '';
+  // Se já está no formato BR (com /), retorna como está
+  if (valorISO.includes('/')) return valorISO;
+  
+  try {
+    const [data, hora] = valorISO.split('T');
+    if (!data) return valorISO;
+    const [ano, mes, dia] = data.split('-');
+    const horaFinal = hora ? hora.slice(0, 5) : '';
+    return `${dia}/${mes}/${ano}${horaFinal ? ' ' + horaFinal : ''}`;
+  } catch (e) {
+    return valorISO;
+  }
+};
 
+// ✅ Converte "16/09/2026 12:55" → "2026-09-16T12:55"
+const converterBRParaISO = (valorBR) => {
+  if (!valorBR) return '';
+  // Se já está em ISO, retorna como está
+  if (valorBR.includes('-') && valorBR.includes('T')) return valorBR;
+  
+  try {
+    const [data, hora] = valorBR.split(' ');
+    if (!data) return valorBR;
+    const [dia, mes, ano] = data.split('/');
+    const horaFinal = hora || '00:00';
+    return `${ano}-${mes}-${dia}T${horaFinal}`;
+  } catch (e) {
+    return valorBR;
+  }
+};
   const mascaraData = (valor) => {
     let v = valor.replace(/\D/g, '');
     if (v.length > 8) v = v.substring(0, 8);
@@ -790,18 +822,31 @@ export default function FichaMobile({ onVoltar, onSave, fichaSelecionada, mode =
             {mode === 'view' ? (
               <>
                 <button
-                  type="button"
-                  className="btn-baixar-pdf nao-imprimir"
-                  onClick={() => exportarParaPDF('ficha-container-pdf', nome)}
-                  style={{
-                    backgroundColor: '#2c163a', color: '#D4AF37', border: '1.5px solid #D4AF37',
-                    borderRadius: '6px', padding: '12px 20px', fontSize: '13px', fontWeight: 700,
-                    fontFamily: "'Cinzel', serif", cursor: 'pointer', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', gap: '6px', width: '100%', maxWidth: '220px'
-                  }}
-                >
-                  <MdDownload size={18} /> BAIXAR PDF
-                </button>
+  type="button"
+  className="btn-baixar-pdf nao-imprimir btn-lavanda-hover"
+  onClick={() => exportarParaPDF('ficha-container-pdf', nome)}
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #8a6fa8',
+    padding: '12px 20px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    width: '100%',
+    maxWidth: '220px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  <MdDownload size={18} /> BAIXAR PDF
+</button>
 
                 {onIrParaEdicao && (
                   <button
@@ -1502,160 +1547,173 @@ export default function FichaMobile({ onVoltar, onSave, fichaSelecionada, mode =
             <div style={{ flex: 1, height: '1px', background: 'rgba(200, 162, 74, 0.4)' }} />
           </div>
 
-          {/* MÓDULO 6: LEMBRETES */}
-          <div className="modulo-card-mobile" style={{ marginBottom: '20px' }}>
-            {lembretes.map((lembrete, index) => (
-              <div key={`lembrete_${index}`} style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '4px', 
-                paddingBottom: '6px', 
-                borderBottom: index < lembretes.length - 1 ? '1px dashed rgba(200, 162, 74, 0.4)' : 'none' 
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#C8A24A' }}>Lembrete #{index + 1}</span>
-                  {lembretes.length > 1 && mode !== 'view' && (
-                    <button 
-                      type="button" 
-                      onClick={() => removerLembrete(index)}
-                      style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                    >
-                      <MdDelete size={13} />
-                    </button>
-                  )}
-                </div>
-
-                {/* TÍTULO DO LEMBRETE */}
-                <div>
-                  <label htmlFor={`lembrete-titulo-${index}`} style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>Título do Lembrete:</label>
-                  <input 
-                    type="text" 
-                    id={`lembrete-titulo-${index}`}
-                    name={`lembrete_titulo_${index}`}
-                    placeholder="Ex: Retorno em 30 dias / Usar protetor" 
-                    value={lembrete.titulo}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => atualizarLembrete(index, 'titulo', e.target.value)}
-                    className="habit-input-line lembrete-input-original"
-                  />
-                  <div className="lembrete-div-pdf">
-                    {lembrete.titulo || '-'}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* TIPO */}
-                  <div style={{ flex: 1, minWidth: '140px' }}>
-                    <label htmlFor={`lembrete-tipo-${index}`} style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>Tipo:</label>
-                    {mode === 'view' ? (
-                      <input 
-                        type="text" 
-                        id={`lembrete-tipo-${index}`}
-                        name={`lembrete_tipo_${index}`}
-                        readOnly 
-                        value={lembrete.tipo === 'intervalo' ? 'Intervalo de tempo' : 'Data e Hora específica'} 
-                        className="habit-input-line lembrete-input-original" 
-                      />
-                    ) : (
-                      <select 
-                        id={`lembrete-tipo-${index}`}
-                        name={`lembrete_tipo_${index}`}
-                        value={lembrete.tipo}
-                        onChange={(e) => atualizarLembrete(index, 'tipo', e.target.value)}
-                        style={{ width: '100%', padding: '2px 4px', borderRadius: '4px', border: '1.5px solid #C8A24A', fontSize: '10px', background: '#fff' }}
-                        className="lembrete-input-original"
-                      >
-                        <option value="intervalo">Intervalo de tempo</option>
-                        <option value="data_hora">Data e Hora específica</option>
-                      </select>
-                    )}
-                    <div className="lembrete-div-pdf">
-                      {lembrete.tipo === 'intervalo' ? 'Intervalo de tempo' : 'Data e Hora específica'}
-                    </div>
-                  </div>
-
-                 {/* VALOR / INTERVALO */}
-<div style={{ flex: '1', minWidth: '200px' }}>
-  <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>
-    {lembrete.tipo === 'intervalo' ? 'A cada:' : 'Data e Hora:'}
-  </span>
-
-  {/* INTERVALO: número + unidade */}
-  {lembrete.tipo === 'intervalo' ? (
-    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-      <input
-        type="number"
-        min="1"
-        id={`lembrete_numero_${index}`}
-        name={`lembrete_numero_${index}`}
-        placeholder="Ex: 8"
-        value={lembrete.intervaloNumero || ''}
-        readOnly={mode === 'view'}
-        onChange={(e) => atualizarLembrete(index, 'intervaloNumero', e.target.value)}
-        className="habit-input-line lembrete-input-original"
-        style={{ width: '70px', flexGrow: 0 }}
-      />
-      <select
-        id={`lembrete_unidade_${index}`}
-        name={`lembrete_unidade_${index}`}
-        value={lembrete.intervaloUnidade || 'horas'}
-        disabled={mode === 'view'}
-        onChange={(e) => atualizarLembrete(index, 'intervaloUnidade', e.target.value)}
-        className="lembrete-input-original"
-        style={{
-          padding: '2px 4px',
-          borderRadius: '4px',
-          border: '1.5px solid #C8A24A',
-          fontSize: '10px',
-          background: '#fff'
-        }}
-      >
-        <option value="horas">Horas</option>
-        <option value="dias">Dias</option>
-          <option value="segundos">Segundos</option> 
-  <option value="minutos">Minutos</option>
-      </select>
+      {/* MÓDULO 6: LEMBRETES */}
+<div className="modulo-card-mobile" style={{ marginBottom: '20px' }}>
+  
+  {lembretes.length === 0 ? (
+    <div style={{ textAlign: 'center', padding: '16px 8px', color: '#999', fontSize: '11.5px', fontStyle: 'italic' }}>
+      Nenhum lembrete registrado.
     </div>
   ) : (
-    /* DATA/HORA: input datetime-local */
+    lembretes.map((lembrete, index) => (
+      <div key={`lembrete_${index}`} style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '4px', 
+        paddingBottom: '6px', 
+        borderBottom: index < lembretes.length - 1 ? '1px dashed rgba(200, 162, 74, 0.4)' : 'none' 
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#C8A24A' }}>Lembrete #{index + 1}</span>
+          {mode !== 'view' && (
+            <button 
+              type="button" 
+              onClick={() => removerLembrete(index)}
+              style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              <MdDelete size={13} />
+            </button>
+          )}
+        </div>
+
+        {/* TÍTULO DO LEMBRETE */}
+        <div>
+          <label htmlFor={`lembrete-titulo-${index}`} style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>Título do Lembrete:</label>
+          <input 
+            type="text" 
+            id={`lembrete-titulo-${index}`}
+            name={`lembrete_titulo_${index}`}
+            placeholder="Ex: Retorno em 30 dias / Usar protetor" 
+            value={lembrete.titulo}
+            readOnly={mode === 'view'}
+            onChange={(e) => atualizarLembrete(index, 'titulo', e.target.value)}
+            className="habit-input-line lembrete-input-original"
+          />
+          <div className="lembrete-div-pdf">
+            {lembrete.titulo || '-'}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* TIPO */}
+          <div style={{ flex: 1, minWidth: '140px' }}>
+            <label htmlFor={`lembrete-tipo-${index}`} style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>Tipo:</label>
+            {mode === 'view' ? (
+              <input 
+                type="text" 
+                id={`lembrete-tipo-${index}`}
+                name={`lembrete_tipo_${index}`}
+                readOnly 
+                value={lembrete.tipo === 'intervalo' ? 'Intervalo de tempo' : 'Data e Hora específica'} 
+                className="habit-input-line lembrete-input-original" 
+              />
+            ) : (
+              <select 
+                id={`lembrete-tipo-${index}`}
+                name={`lembrete_tipo_${index}`}
+                value={lembrete.tipo}
+                onChange={(e) => atualizarLembrete(index, 'tipo', e.target.value)}
+                style={{ width: '100%', padding: '2px 4px', borderRadius: '4px', border: '1.5px solid #C8A24A', fontSize: '10px', background: '#fff' }}
+                className="lembrete-input-original"
+              >
+                <option value="intervalo">Intervalo de tempo</option>
+                <option value="data_hora">Data e Hora específica</option>
+              </select>
+            )}
+            <div className="lembrete-div-pdf">
+              {lembrete.tipo === 'intervalo' ? 'Intervalo de tempo' : 'Data e Hora específica'}
+            </div>
+          </div>
+
+          {/* VALOR / INTERVALO */}
+          <div style={{ flex: '1', minWidth: '200px' }}>
+            <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#1A1A1A', display: 'block' }}>
+              {lembrete.tipo === 'intervalo' ? 'A cada:' : 'Data e Hora:'}
+            </span>
+
+            {lembrete.tipo === 'intervalo' ? (
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                <input
+                  type="number"
+                  min="1"
+                  id={`lembrete_numero_${index}`}
+                  name={`lembrete_numero_${index}`}
+                  placeholder="Ex: 8"
+                  value={lembrete.intervaloNumero || ''}
+                  readOnly={mode === 'view'}
+                  onChange={(e) => atualizarLembrete(index, 'intervaloNumero', e.target.value)}
+                  className="habit-input-line lembrete-input-original"
+                  style={{ width: '70px', flexGrow: 0 }}
+                />
+                <select
+                  id={`lembrete_unidade_${index}`}
+                  name={`lembrete_unidade_${index}`}
+                  value={lembrete.intervaloUnidade || 'horas'}
+                  disabled={mode === 'view'}
+                  onChange={(e) => atualizarLembrete(index, 'intervaloUnidade', e.target.value)}
+                  className="lembrete-input-original"
+                  style={{
+                    padding: '2px 4px',
+                    borderRadius: '4px',
+                    border: '1.5px solid #C8A24A',
+                    fontSize: '10px',
+                    background: '#fff'
+                  }}
+                >
+                  <option value="horas">Horas</option>
+                  <option value="dias">Dias</option>
+                  <option value="minutos">Minutos</option>
+                </select>
+              </div>
+           ) : (
+  /* DATA/HORA: input datetime-local (edição) ou texto BR (visualização) */
+  mode === 'view' ? (
     <input 
-      type={mode === 'view' ? 'text' : 'datetime-local'} 
+      type="text"
+      id={`lembrete_valor_${index}`}
+      name={`lembrete_valor_${index}`}
+      value={formatarDataHoraBR(lembrete.valor)}
+      readOnly
+      className="habit-input-line lembrete-input-original"
+    />
+  ) : (
+    <input 
+      type="datetime-local"
       id={`lembrete_valor_${index}`}
       name={`lembrete_valor_${index}`}
       value={lembrete.valor}
-      readOnly={mode === 'view'}
       onChange={(e) => atualizarLembrete(index, 'valor', e.target.value)}
       className="habit-input-line lembrete-input-original"
     />
+  )
+)}
+
+          <div className="lembrete-div-pdf">
+  {lembrete.tipo === 'intervalo' 
+    ? `A cada ${lembrete.intervaloNumero || '?'} ${lembrete.intervaloUnidade || 'horas'}`
+    : (lembrete.valor ? formatarDataHoraBR(lembrete.valor) : '-')
+  }
+</div>
+          </div>
+        </div>
+      </div>
+    ))
   )}
 
-  {/* Div estática visível apenas no PDF */}
-  <div className="lembrete-div-pdf">
-    {lembrete.tipo === 'intervalo' 
-      ? `A cada ${lembrete.intervaloNumero || '?'} ${lembrete.intervaloUnidade || 'horas'}`
-      : (lembrete.valor || '-')
-    }
-  </div>
+  {mode !== 'view' && (
+    <button
+      type="button"
+      onClick={adicionarLembrete}
+      style={{
+        backgroundColor: '#C8A24A', color: '#fff', border: 'none', borderRadius: '4px',
+        padding: '6px', fontSize: '10px', fontWeight: 600, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '4px'
+      }}
+    >
+      <MdAdd size={12} /> {lembretes.length === 0 ? 'Adicionar Lembrete' : 'Outro Lembrete'}
+    </button>
+  )}
 </div>
-                </div>
-              </div>
-            ))}
-
-            {mode !== 'view' && (
-              <button
-                type="button"
-                onClick={adicionarLembrete}
-                style={{
-                  backgroundColor: '#C8A24A', color: '#fff', border: 'none', borderRadius: '4px',
-                  padding: '6px', fontSize: '10px', fontWeight: 600, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '4px'
-                }}
-              >
-                <MdAdd size={12} /> Outro Lembrete
-              </button>
-            )}
-          </div>
-
         </div>
       </div>
     </div>
