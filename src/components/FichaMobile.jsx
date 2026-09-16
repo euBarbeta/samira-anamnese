@@ -35,9 +35,10 @@ import {
   MdDateRange,
   MdDownload
 } from 'react-icons/md';
-
-export default function FichaMobile({ onVoltar, onSave, fichaSelecionada, mode = 'edit', onIrParaEdicao }) {
+export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode = 'edit', onIrParaEdicao, onSalvarSucesso }) {
   // Dados básicos
+  const [salvando, setSalvando] = useState(false);
+const [salvoSucesso, setSalvoSucesso] = useState(false);
   const [nome, setNome] = useState('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -527,8 +528,8 @@ const converterBRParaISO = (valorBR) => {
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
 
-  const salvarFicha = () => {
-    if (mode === 'view') return;
+ const salvarFicha = async () => {
+    if (mode === 'view' || salvando || salvoSucesso) return;
     if (!nome.trim()) {
       alert('Por favor, preencha o nome do paciente.');
       return;
@@ -536,11 +537,8 @@ const converterBRParaISO = (valorBR) => {
 
     const agora = new Date();
     const dataModificacao = agora.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
 
     const habitosParaSalvar = habitosComIcones.map(h => ({
@@ -570,13 +568,25 @@ const converterBRParaISO = (valorBR) => {
       lembretes
     };
 
-    if (onSave) {
-      onSave(dadosAnamnese);
-    } else {
-      alert('Ficha salva com sucesso!');
+    setSalvando(true);
+    try {
+      if (onSave) {
+        await onSave(dadosAnamnese);
+      }
+      setSalvando(false);
+      setSalvoSucesso(true);
+
+      setTimeout(() => {
+        setSalvoSucesso(false);
+        const destino = onSalvarSucesso || onVoltar;
+        if (destino) destino();
+      }, 1400);
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+      setSalvando(false);
+      alert('Erro ao salvar ficha. Tente novamente.');
     }
   };
-
   const voltarFicha = () => {
     if (onVoltar) {
       onVoltar();
@@ -864,18 +874,45 @@ const converterBRParaISO = (valorBR) => {
                 )}
               </>
             ) : (
-              <button
-                type="button"
-                onClick={salvarFicha}
-                style={{
-                  backgroundColor: '#D4AF37', color: '#FFFFFF', border: 'none', borderRadius: '6px',
-                  padding: '12px 20px', fontSize: '13px', fontWeight: 700, fontFamily: "'Cinzel', serif",
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: '6px', width: '100%', maxWidth: '220px'
-                }}
-              >
-                <MdSave size={18} /> SALVAR FICHA
-              </button>
+             <button
+  type="button"
+  onClick={salvarFicha}
+  disabled={salvando || salvoSucesso}
+  style={{
+    backgroundColor: salvoSucesso ? '#16a34a' : '#D4AF37',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    padding: '12px 20px',
+    fontSize: '13px',
+    fontWeight: 700,
+    fontFamily: "'Cinzel', serif",
+    cursor: (salvando || salvoSucesso) ? 'default' : 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    width: '100%',
+    maxWidth: '220px',
+    transition: 'all 0.3s ease'
+  }}
+>
+  {salvando ? (
+    <>
+      <span className="spinner-salvar" />
+      SALVANDO...
+    </>
+  ) : salvoSucesso ? (
+    <>
+      <MdCheckCircle size={18} />
+      SALVO!
+    </>
+  ) : (
+    <>
+      <MdSave size={18} /> SALVAR FICHA
+    </>
+  )}
+</button>
             )}
 
             <button

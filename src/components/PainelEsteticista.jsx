@@ -205,8 +205,7 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
   await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
 }
       
-      alert(`Ficha salva e Acesso criado com sucesso!`);
-      setTelaAtual('lista');
+      
 
     } catch (error) {
       console.error("Erro geral ao salvar ficha:", error);

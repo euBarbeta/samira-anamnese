@@ -150,3 +150,27 @@ body:not(.sendo-exportado) .lembrete-div-pdf {
     display: none !important;
   }
 }
+.spinner-salvar {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: girarSalvar 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes girarSalvar {
+  to { transform: rotate(360deg); }
+}
+.spinner-salvar {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: girarSalvar 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes girarSalvar {
+  to { transform: rotate(360deg); }
+}

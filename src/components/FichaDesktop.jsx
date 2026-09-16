@@ -34,7 +34,9 @@ import {
   MdEco
 } from 'react-icons/md';
 
-export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode = 'edit', onIrParaEdicao }) {
+export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode = 'edit', onIrParaEdicao, onSalvarSucesso }) {
+  const [salvando, setSalvando] = useState(false);
+const [salvoSucesso, setSalvoSucesso] = useState(false);
   const [nome, setNome] = useState('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -514,8 +516,8 @@ const converterBRParaISO = (valorBR) => {
     return v;
   };
 
-  const salvarFicha = () => {
-    if (mode === 'view') return;
+ const salvarFicha = async () => {
+    if (mode === 'view' || salvando || salvoSucesso) return;
     if (!nome.trim()) {
       alert('Por favor, preencha o nome do paciente.');
       return;
@@ -523,11 +525,8 @@ const converterBRParaISO = (valorBR) => {
 
     const agora = new Date();
     const dataModificacao = agora.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
 
     const habitosParaSalvar = habitosComIcones.map(h => ({
@@ -557,10 +556,23 @@ const converterBRParaISO = (valorBR) => {
       lembretes
     };
 
-    if (onSave) {
-      onSave(dadosAnamnese);
-    } else {
-      alert('Ficha salva com sucesso!');
+    setSalvando(true);
+    try {
+      if (onSave) {
+        await onSave(dadosAnamnese);
+      }
+      setSalvando(false);
+      setSalvoSucesso(true);
+
+      setTimeout(() => {
+        setSalvoSucesso(false);
+        const destino = onSalvarSucesso || onVoltar;
+        if (destino) destino();
+      }, 1400);
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+      setSalvando(false);
+      alert('Erro ao salvar ficha. Tente novamente.');
     }
   };
 
@@ -2018,14 +2030,38 @@ const converterBRParaISO = (valorBR) => {
                 )}
               </>
             ) : (
-              <button
-                type="button"
-                className="btn-salvar-ficha"
-                onClick={salvarFicha}
-              >
-                <MdSave size={20} />
-                SALVAR FICHA
-              </button>
+             <button
+  type="button"
+  className="btn-salvar-ficha"
+  onClick={salvarFicha}
+  disabled={salvando || salvoSucesso}
+  style={{
+    background: salvoSucesso
+      ? 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)'
+      : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+    borderColor: salvoSucesso ? '#16a34a' : '#9c7826',
+    cursor: (salvando || salvoSucesso) ? 'default' : 'pointer',
+    transition: 'all 0.3s ease',
+    opacity: 1
+  }}
+>
+  {salvando ? (
+    <>
+      <span className="spinner-salvar" />
+      SALVANDO...
+    </>
+  ) : salvoSucesso ? (
+    <>
+      <MdCheckCircle size={20} />
+      SALVO COM SUCESSO!
+    </>
+  ) : (
+    <>
+      <MdSave size={20} />
+      SALVAR FICHA
+    </>
+  )}
+</button>
             )}
             
             <button

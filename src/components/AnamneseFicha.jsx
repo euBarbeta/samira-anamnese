@@ -290,10 +290,6 @@ const handleSalvarFicha = async (dadosNovaFicha) => {
         atualizadoEm: new Date()
       }, { merge: true });
       
-
-      alert('Ficha salva e acesso do paciente gerado com sucesso!');
-      setFichaSelecionada(null);
-      setAbaAtiva('painel');
     } catch (error) {
       console.error("Erro ao salvar ficha:", error);
       alert('Erro ao salvar na nuvem.');
@@ -402,14 +398,27 @@ const handleSalvarFicha = async (dadosNovaFicha) => {
     );
   }
 
-  if (abaAtiva === 'editar-anamnese') {
+ if (abaAtiva === 'editar-anamnese') {
     return isMobile ? (
-      <FichaMobile key={`anamnese-edit-${abaAtiva}`} fichaSelecionada={fichaSelecionada} mode="edit" onVoltar={() => setAbaAtiva('anamnese')} onSave={handleSalvarFicha} />
+      <FichaMobile 
+        key={`anamnese-edit-${abaAtiva}`} 
+        fichaSelecionada={fichaSelecionada} 
+        mode="edit" 
+        onVoltar={() => setAbaAtiva('anamnese')} 
+        onSalvarSucesso={() => { setFichaSelecionada(null); setAbaAtiva('painel'); }}
+        onSave={handleSalvarFicha} 
+      />
     ) : (
-      <FichaDesktop key={`anamnese-edit-${abaAtiva}`} fichaSelecionada={fichaSelecionada} mode="edit" onVoltar={() => setAbaAtiva('anamnese')} onSave={handleSalvarFicha} />
+      <FichaDesktop 
+        key={`anamnese-edit-${abaAtiva}`} 
+        fichaSelecionada={fichaSelecionada} 
+        mode="edit" 
+        onVoltar={() => setAbaAtiva('anamnese')} 
+        onSalvarSucesso={() => { setFichaSelecionada(null); setAbaAtiva('painel'); }}
+        onSave={handleSalvarFicha} 
+      />
     );
   }
-
   if (abaAtiva === 'evolucao') {
     return isMobile ? (
       <FichaEvoMobile key={`evolucao-view-${abaAtiva}`} initialData={fichaSelecionada} pacienteSelecionado={fichaSelecionada} mode="view" onVoltar={() => { setFichaSelecionada(null); setAbaAtiva('painel'); }} onIrParaEdicao={() => setAbaAtiva('editar-evolucao')} />
