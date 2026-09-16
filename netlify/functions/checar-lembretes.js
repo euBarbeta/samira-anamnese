@@ -3,7 +3,16 @@ const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
-exports.handler = async () => {
+exports.handler = async (event) => {
+  // Aceita GET (cron) e POST (manual)
+  // Valida secret para evitar acesso público
+  const secret = event.queryStringParameters?.secret 
+              || JSON.parse(event.body || '{}')?.secret;
+  
+  if (secret !== process.env.CRON_SECRET) {
+    return { statusCode: 401, body: 'Unauthorized' };
+  }
+
   try {
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -64,7 +73,7 @@ exports.handler = async () => {
         await doc.ref.update({ enviado: true, enviadoEm: new Date().toISOString(), erro: null });
         resultados.push({ id: doc.id, ok: true });
       } catch (e) {
-        await doc.ref.update({ enviado: false, erro: e.message, tentadoEm: new Date().toISOString() });
+        await doc.ref.update({ erro: e.message, tentadoEm: new Date().toISOString() });
         resultados.push({ id: doc.id, ok: false, erro: e.message });
       }
     }
@@ -73,6 +82,6 @@ exports.handler = async () => {
 
   } catch (err) {
     console.error('❌ Erro:', err.stack);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message, stack: err.stack }) };
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
