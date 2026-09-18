@@ -296,6 +296,7 @@ export default function PainelPaciente({
 
   const handleMsg = (event) => {
     if (event.data?.tipo === 'ABRIR_ANAMNESE') {
+       } else if (event.data?.tipo === 'RESUBSCRIBE_PUSH') {
       // Empurra uma entrada no histórico pra que o botão voltar
       // continue funcionando corretamente
       window.history.pushState(
@@ -316,7 +317,20 @@ export default function PainelPaciente({
     setPermissaoNotificacao(Notification.permission);
   }, []);
   // No PainelPaciente.jsx, dentro do componente, junto aos outros useEffects
- 
+ useEffect(() => {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') return;
+  if (!pacienteData?.id) return;
+
+  (async () => {
+    try {
+      const { inscreverPush } = await import('./push-notifications');
+      await inscreverPush(pacienteData.id);
+    } catch (e) {
+      console.warn('Falha ao re-registrar push:', e);
+    }
+  })();
+}, [pacienteData?.id]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);

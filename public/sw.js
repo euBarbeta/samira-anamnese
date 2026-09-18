@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samira-estetica-v8';
+const CACHE_NAME = 'samira-estetica-v9';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
@@ -27,6 +27,35 @@ self.addEventListener('activate', (event) => {
         keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
       );
       await self.clients.claim();
+    })()
+  );
+});
+/* ---------- RENOVAÇÃO AUTOMÁTICA DA SUBSCRIPTION ---------- */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const reg = self.registration;
+        const oldSub = event.oldSubscription;
+        const newSub = event.newSubscription || await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: oldSub?.options?.applicationServerKey
+        });
+
+        // Avisa as janelas abertas do app pra regravar no Firestore
+        const clientList = await clients.matchAll({
+          type: 'window',
+          includeUncontrolled: true
+        });
+        clientList.forEach((client) => {
+          client.postMessage({
+            tipo: 'RESUBSCRIBE_PUSH',
+            subscription: newSub.toJSON()
+          });
+        });
+      } catch (e) {
+        console.warn('Falha ao renovar subscription:', e);
+      }
     })()
   );
 });
