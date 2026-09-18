@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import FichaDesktop from './FichaDesktop';
 import { exportarParaPDF } from '../utils/gerarPdf';
 import { 
   MdFace, 
@@ -39,6 +40,7 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
   // Dados básicos
   const [salvando, setSalvando] = useState(false);
 const [salvoSucesso, setSalvoSucesso] = useState(false);
+const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
   const [nome, setNome] = useState('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -224,6 +226,27 @@ const [salvoSucesso, setSalvoSucesso] = useState(false);
     { label: "Hirsutismo", name: "alt_hirsutismo" }
   ]);
   const [novaAltCutaneaTexto, setNovaAltCutaneaTexto] = useState('');
+  // ⬇️ Quando o usuário clica em "Baixar PDF", renderizamos a versão
+//    desktop oculta, esperamos montar e exportamos o PDF a partir dela.
+useEffect(() => {
+  if (!pdfDesktopRenderizando) return;
+
+  // Delay para garantir que as imagens da moldura carregaram
+  const timer = setTimeout(async () => {
+    try {
+      await exportarParaPDF(
+        'ficha-container',
+        fichaSelecionada?.nome || nome
+      );
+    } catch (err) {
+      console.error('Erro ao gerar PDF (modo desktop):', err);
+    } finally {
+      setPdfDesktopRenderizando(false);
+    }
+  }, 900); // 900ms é seguro; pode reduzir se quiser
+
+  return () => clearTimeout(timer);
+}, [pdfDesktopRenderizando, fichaSelecionada, nome]);
 
   // Fechar dropdown se clicar fora
   useEffect(() => {
@@ -831,10 +854,11 @@ const converterBRParaISO = (valorBR) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', alignItems: 'center' }}>
             {mode === 'view' ? (
               <>
-                <button
+              <button
   type="button"
   className="btn-baixar-pdf nao-imprimir btn-lavanda-hover"
-  onClick={() => exportarParaPDF('ficha-container-pdf', nome)}
+  onClick={() => setPdfDesktopRenderizando(true)}
+  disabled={pdfDesktopRenderizando}
   style={{
     fontFamily: "'Cinzel', serif",
     background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
@@ -844,7 +868,7 @@ const converterBRParaISO = (valorBR) => {
     borderRadius: '20px',
     fontSize: '13px',
     fontWeight: 700,
-    cursor: 'pointer',
+    cursor: pdfDesktopRenderizando ? 'wait' : 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -852,10 +876,20 @@ const converterBRParaISO = (valorBR) => {
     width: '100%',
     maxWidth: '220px',
     boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
-    transition: 'all 0.25s ease'
+    transition: 'all 0.25s ease',
+    opacity: pdfDesktopRenderizando ? 0.7 : 1
   }}
 >
-  <MdDownload size={18} /> BAIXAR PDF
+ {pdfDesktopRenderizando ? (
+  <>
+    <span className="spinner-pdf" />
+    GERANDO PDF...
+  </>
+) : (
+    <>
+      <MdDownload size={18} /> BAIXAR PDF
+    </>
+  )}
 </button>
 
                 {onIrParaEdicao && (
@@ -1753,6 +1787,26 @@ const converterBRParaISO = (valorBR) => {
 </div>
         </div>
       </div>
+      {/* ⬇️ VERSÃO DESKTOP OCULTA PARA EXPORTAÇÃO DE PDF NO MOBILE */}
+{pdfDesktopRenderizando && (
+  <div
+    aria-hidden="true"
+    style={{
+      position: 'fixed',
+      left: '-99999px',
+      top: 0,
+      width: '1175px', // largura máxima da FichaDesktop
+      zIndex: -1,
+      pointerEvents: 'none',
+      opacity: 0.01 // 0.01 evita otimizações do navegador que pulam render
+    }}
+  >
+    <FichaDesktop
+      mode="view"
+      fichaSelecionada={fichaSelecionada}
+    />
+  </div>
+)}
     </div>
   );
 }

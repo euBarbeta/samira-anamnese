@@ -174,3 +174,13 @@ body:not(.sendo-exportado) .lembrete-div-pdf {
 @keyframes girarSalvar {
   to { transform: rotate(360deg); }
 }
+/* Spinner para o botão de PDF (fundo lavanda claro → spinner escuro) */
+.spinner-pdf {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(44, 22, 58, 0.25);
+  border-top-color: #2c163a;
+  border-radius: 50%;
+  animation: girarSalvar 0.7s linear infinite;
+  display: inline-block;
+}
