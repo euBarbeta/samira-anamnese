@@ -11,5 +11,3 @@
   to = "/index.html"
   status = 200
   
-[functions."checar-lembretes"]
-  schedule = "* * * * *"
