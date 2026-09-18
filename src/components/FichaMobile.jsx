@@ -235,9 +235,10 @@ useEffect(() => {
   const timer = setTimeout(async () => {
     try {
       await exportarParaPDF(
-        'ficha-container',
-        fichaSelecionada?.nome || nome
-      );
+  'ficha-container',
+  fichaSelecionada?.nome || nome,
+  { compartilhar: true }  
+);
     } catch (err) {
       console.error('Erro ao gerar PDF (modo desktop):', err);
     } finally {
