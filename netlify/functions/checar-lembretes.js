@@ -6,9 +6,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 // ✅ AGENDAMENTO AUTOMÁTICO — roda a cada 1 minuto
 // Netlify executa essa function sozinho em produção,
 // mesmo com o app fechado. É ISSO que envia os pushes.
-exports.config = {
-  schedule: "* * * * *"   // a cada minuto
-};
+
 
 const MS = {
   segundos: 1000,
