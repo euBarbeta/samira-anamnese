@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samira-estetica-v5';
+const CACHE_NAME = 'samira-estetica-v8';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
