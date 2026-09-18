@@ -78,7 +78,7 @@ self.addEventListener('push', (event) => {
     },
     actions: [
       { action: 'abrir', title: '📖 Ver ficha' },
-      { action: 'fechar', title: 'Fechar' }
+  
     ]
   };
 
@@ -87,24 +87,39 @@ self.addEventListener('push', (event) => {
   );
 });
 
-/* ---------- CLIQUE NA NOTIFICAÇÃO ---------- */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  if (event.action === 'fechar') return;
 
-  const urlToOpen = event.notification.data?.url || '/';
+  // ✅ Só abre o app se foi o botão "Ver ficha" OU toque no corpo (action vazia)
+  // Qualquer outro valor desconhecido → apenas fecha.
+  if (event.action && event.action !== 'abrir') {
+    return; // ação desconhecida, não faz nada
+  }
+
+  // Descobre a URL correta
+  const urlDestino = new URL('/', self.location.origin);
+
+  // Se veio do botão "abrir", vai direto pra anamnese
+  if (event.action === 'abrir') {
+    urlDestino.searchParams.set('abrir', 'anamnese');
+  }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Se já tem uma janela do app aberta, foca ela
+      // Se já tem janela aberta → foca e (se for o caso) navega pra anamnese
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
+          if (event.action === 'abrir') {
+            try {
+              client.postMessage({ tipo: 'ABRIR_ANAMNESE' });
+            } catch (e) { /* ignora */ }
+          }
           return client.focus();
         }
       }
-      // Senão abre uma nova
+      // Senão abre nova janela
       if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
+        return clients.openWindow(urlDestino.toString());
       }
     })
   );

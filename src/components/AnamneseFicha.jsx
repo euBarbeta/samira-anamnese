@@ -37,6 +37,7 @@ export default function AnamneseFicha() {
   const [carregandoNuvem, setCarregandoNuvem] = useState(false);
   const [fichaSelecionada, setFichaSelecionada] = useState(null);
   const [pacienteDocPath, setPacienteDocPath] = useState(null);
+  const [pedidoAbrirAnamnese, setPedidoAbrirAnamnese] = useState(false);
 
   // Flag para não re-disparar o handleLoginSucesso a cada render
   const processandoLoginRef = useRef(false);
@@ -81,6 +82,22 @@ const ultimoUidRef = useRef(null);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  useEffect(() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('abrir') === 'anamnese') {
+      setPedidoAbrirAnamnese(true);
+
+      params.delete('abrir');
+      const queryLimpa = params.toString();
+      const novaURL =
+        window.location.pathname + (queryLimpa ? '?' + queryLimpa : '');
+      window.history.replaceState(window.history.state, '', novaURL);
+    }
+  } catch (e) {
+    console.warn('Falha ao ler parâmetro abrir=anamnese:', e);
+  }
+}, []);
 
   // ============================================================
   // OBSERVER DE AUTH (login automático ao abrir/refrescar)
@@ -412,14 +429,15 @@ useEffect(() => {
   }
 
   // ✅ 5. Painel do Paciente
-  if (abaAtiva === 'painelPaciente') {
-    return (
-      <PainelPaciente
-        pacienteData={dadosPaciente}
-        onLogout={handleLogout}
-      />
-    );
-  }
+if (abaAtiva === 'painelPaciente') {
+  return (
+    <PainelPaciente
+      pacienteData={dadosPaciente}
+      onLogout={handleLogout}
+      abrirAnamneseInicial={pedidoAbrirAnamnese}
+    />
+  );
+}
 
   // ✅ 6. Painel da Esteticista
   if (abaAtiva === 'painel') {

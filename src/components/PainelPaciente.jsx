@@ -241,9 +241,15 @@ const listaEstilo = {
 /* ============================================================
    PAINEL DO PACIENTE
    ============================================================ */
-export default function PainelPaciente({ pacienteData, onLogout }) {
+export default function PainelPaciente({
+  pacienteData,
+  onLogout,
+  abrirAnamneseInicial = false,
+}) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [telaAtual, setTelaAtual] = useState('detalhe_pasta');
+  const [telaAtual, setTelaAtual] = useState(
+    abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta'
+  );
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
   // Estados para gerenciar a instalação do WebApp (PWA)
@@ -263,14 +269,15 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
     );
     setTelaAtual(novaTela);
   }, [telaAtual]);
-   useEffect(() => {
-    window.history.replaceState(
-      { ...(window.history.state || {}), painelPacienteTela: 'detalhe_pasta' },
-      '',
-      window.location.pathname
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => {
+  const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
+  window.history.replaceState(
+    { ...(window.history.state || {}), painelPacienteTela: telaInicial },
+    '',
+    window.location.pathname
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
    useEffect(() => {
     const onPop = (e) => {
       const st = e.state;
@@ -284,6 +291,25 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+  useEffect(() => {
+  if (!('serviceWorker' in navigator)) return;
+
+  const handleMsg = (event) => {
+    if (event.data?.tipo === 'ABRIR_ANAMNESE') {
+      // Empurra uma entrada no histórico pra que o botão voltar
+      // continue funcionando corretamente
+      window.history.pushState(
+        { ...(window.history.state || {}), painelPacienteTela: 'ver_anamnese' },
+        '',
+        window.location.pathname
+      );
+      setTelaAtual('ver_anamnese');
+    }
+  };
+
+  navigator.serviceWorker.addEventListener('message', handleMsg);
+  return () => navigator.serviceWorker.removeEventListener('message', handleMsg);
+}, []);
 
   useEffect(() => {
     if (typeof Notification === 'undefined') return;
