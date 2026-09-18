@@ -65,12 +65,12 @@ self.addEventListener('push', (event) => {
     `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const options = {
-    body: data.body,
-    icon: data.icon,
-    badge: data.badge,
-    vibrate: data.vibrate,
-    tag: tagFinal,                       // ⬅️ única!
-    renotify: true,                       // notifica mesmo se for a mesma tag
+  body: data.body,
+  icon: data.icon,
+  badge: data.badge,
+  vibrate: data.vibrate,
+  tag: data.tag || `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  renotify: true,                      // notifica mesmo se for a mesma tag
     requireInteraction: data.requireInteraction,
     silent: data.silent,
     timestamp: data.timestamp,

@@ -92,35 +92,37 @@ exports.handler = async (event) => {
       }
 
       // ✅ DIFERENÇA PRINCIPAL: reagendar se for recorrente
-      if (data.tipo === 'intervalo' && envioOk) {
-        const num = parseInt(data.intervaloNumero, 10) || 1;
-        const unidade = data.intervaloUnidade || 'horas';
-        const intervaloMs = num * (MS[unidade] || MS.horas);
+// ✅ DIFERENÇA PRINCIPAL: reagendar se for recorrente
+if (data.tipo === 'intervalo' && envioOk) {
+  const num = parseInt(data.intervaloNumero, 10) || 1;
+  const unidade = data.intervaloUnidade || 'horas';
+  const intervaloMs = num * (MS[unidade] || MS.horas);
 
-        // Calcula o próximo horário que está no FUTURO
-        let proximo = data.sendAt + intervaloMs;
-        while (proximo <= agora) {
-          proximo += intervaloMs;
-        }
+  // ✅ Calcula a partir de AGORA, não do sendAt antigo (evita atraso acumulado)
+  let proximo = Date.now() + intervaloMs;
 
-        await doc.ref.update({
-          sendAt: proximo,
-          ultimoEnvio: new Date().toISOString(),
-          tentativas: (data.tentativas || 0) + 1,
-        });
 
-        console.log(`🔄 Reagendado "${data.titulo}" para ${new Date(proximo).toISOString()}`);
-        resultados.push({ id: doc.id, ok: true, reagendado: true });
-      } else {
-        // Uma vez só (data_hora) ou falha
-        await doc.ref.update({
-          enviado: envioOk,
-          enviadoEm: envioOk ? new Date().toISOString() : null,
-          erro: erroMsg,
-          tentadoEm: new Date().toISOString(),
-        });
-        resultados.push({ id: doc.id, ok: envioOk });
-      }
+  const novaTag = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+  await doc.ref.update({
+    sendAt: proximo,
+    tag: novaTag,                                        // ⬅️ NOVO
+    ultimoEnvio: new Date().toISOString(),
+    tentativas: (data.tentativas || 0) + 1,
+  });
+
+  console.log(`🔄 Reagendado "${data.titulo}" para ${new Date(proximo).toISOString()}`);
+  resultados.push({ id: doc.id, ok: true, reagendado: true });
+} else {
+  // Uma vez só (data_hora) ou falha
+  await doc.ref.update({
+    enviado: envioOk,
+    enviadoEm: envioOk ? new Date().toISOString() : null,
+    erro: erroMsg,
+    tentadoEm: new Date().toISOString(),
+  });
+  resultados.push({ id: doc.id, ok: envioOk });
+}
     }
 
     return {

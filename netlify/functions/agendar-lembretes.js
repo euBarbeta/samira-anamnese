@@ -85,7 +85,7 @@ exports.handler = async (event) => {
         }
 
         const subscription = subDoc.data().subscription;
-        const payload = JSON.stringify({
+     const payload = JSON.stringify({
   title: lembrete.titulo,
   body: 'Você tem um lembrete da Samira Estética',
   tag: `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -108,9 +108,7 @@ exports.handler = async (event) => {
   intervaloNumero: lembrete.intervaloNumero || null,
   intervaloUnidade: lembrete.intervaloUnidade || null,
   enviado: false,
-  criadoEm: new Date().toISOString(),
-  // ✅ guarda uma tag única por lembrete (será usado no push)
-  tag: `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  
 });
         resultados.push({
           titulo: lembrete.titulo,
