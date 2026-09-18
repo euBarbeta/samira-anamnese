@@ -22,15 +22,6 @@ function ModalInstalacao({ onClose }) {
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
   const isDesktop = !isIOS && !isAndroid;
-  const [permissaoNotificacao, setPermissaoNotificacao] = useState(
-  typeof Notification !== 'undefined' ? Notification.permission : 'denied'
-);
-
-useEffect(() => {
-  if (typeof Notification === 'undefined') return;
-  setPermissaoNotificacao(Notification.permission);
-}, []);
-
   return (
     <div
       onClick={onClose}
@@ -259,6 +250,15 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [appInstalado, setAppInstalado] = useState(false);
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
+    // ✅ ESTADO DE PERMISSÃO DE NOTIFICAÇÃO (faltava isso!)
+  const [permissaoNotificacao, setPermissaoNotificacao] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
+
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return;
+    setPermissaoNotificacao(Notification.permission);
+  }, []);
   // No PainelPaciente.jsx, dentro do componente, junto aos outros useEffects
  
   useEffect(() => {
