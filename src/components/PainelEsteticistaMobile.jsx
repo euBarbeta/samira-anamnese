@@ -62,8 +62,7 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
   // Carregar dados iniciais do Firestore de forma assíncrona alinhado ao UID do usuário logado
   // Dentro do componente, após os useState
 useEffect(() => {
-  // Empurra um estado inicial sempre que muda de tela
-  window.history.pushState({ painelEsteticista: telaAtual }, '', window.location.pathname);
+  window.history.replaceState({ painelEsteticista: telaAtual }, '', window.location.pathname);
 }, [telaAtual]);
 
 useEffect(() => {

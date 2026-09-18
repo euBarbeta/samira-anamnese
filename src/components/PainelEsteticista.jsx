@@ -51,12 +51,9 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     console.error('❌ Erro ao agendar lembretes:', err);
   }
 };
-// Dentro do componente, após os useState
 useEffect(() => {
-  // Empurra um estado inicial sempre que muda de tela
-  window.history.pushState({ painelEsteticista: telaAtual }, '', window.location.pathname);
+  window.history.replaceState({ painelEsteticista: telaAtual }, '', window.location.pathname);
 }, [telaAtual]);
-
 useEffect(() => {
   const onPop = (e) => {
     const st = e.state;
