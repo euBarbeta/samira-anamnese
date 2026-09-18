@@ -450,7 +450,82 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
           background: rgba(231, 76, 60, 0.1) !important;
         }
       `}</style>
+{permissaoNotificacao === 'default' && (
+  <div style={{
+    margin: '0 20px 20px 20px',
+    padding: '16px',
+    background: 'linear-gradient(135deg, #fdf4ff 0%, #f5e6ff 100%)',
+    border: '1.5px solid #C8A24A',
+    borderRadius: '14px',
+    boxShadow: '0 4px 12px rgba(200, 162, 74, 0.15)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  }}>
+    <Bell size={22} color="#C8A24A" style={{ flexShrink: 0 }} />
+    <div style={{ flex: 1 }}>
+      <p style={{
+        fontFamily: "'Cinzel', serif",
+        color: '#2c163a',
+        fontSize: '12px',
+        fontWeight: 700,
+        margin: '0 0 4px 0'
+      }}>
+        Ativar lembretes?
+      </p>
+      <p style={{
+        fontSize: '11px',
+        color: '#555',
+        margin: 0,
+        lineHeight: 1.5
+      }}>
+        Receba notificações dos seus lembretes de tratamento direto no celular.
+      </p>
+    </div>
+    <button
+      type="button"
+      onClick={async () => {
+        const resultado = await Notification.requestPermission();
+        setPermissaoNotificacao(resultado);
+        if (resultado === 'granted' && pacienteData?.id) {
+          const { inscreverPush } = await import('./push-notifications');
+          await inscreverPush(pacienteData.id);
+        }
+      }}
+      style={{
+        fontFamily: "'Cinzel', serif",
+        background: '#C8A24A',
+        color: '#fff',
+        border: 'none',
+        padding: '10px 16px',
+        borderRadius: '20px',
+        fontSize: '10px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)'
+      }}
+    >
+      ATIVAR
+    </button>
+  </div>
+)}
 
+{/* AVISO SE NEGOU ANTES */}
+{permissaoNotificacao === 'denied' && (
+  <div style={{
+    margin: '0 20px 20px 20px',
+    padding: '12px 16px',
+    background: '#fff3e0',
+    border: '1.5px solid #ffb74d',
+    borderRadius: '12px',
+    fontSize: '11px',
+    color: '#5d4037',
+    lineHeight: 1.5
+  }}>
+    <strong>⚠️ Notificações bloqueadas.</strong> Para ativar, toque no cadeado 🔒 da barra de endereço → <strong>Notificações → Permitir</strong>.
+  </div>
+)}
       {/* CONTEÚDO PRINCIPAL */}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         {/* CABEÇALHO DO PACIENTE */}
@@ -654,82 +729,7 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
         </div>
       </div>
       {/* BANNER DE PERMISSÃO DE NOTIFICAÇÃO */}
-{permissaoNotificacao === 'default' && (
-  <div style={{
-    margin: '0 20px 20px 20px',
-    padding: '16px',
-    background: 'linear-gradient(135deg, #fdf4ff 0%, #f5e6ff 100%)',
-    border: '1.5px solid #C8A24A',
-    borderRadius: '14px',
-    boxShadow: '0 4px 12px rgba(200, 162, 74, 0.15)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px'
-  }}>
-    <Bell size={22} color="#C8A24A" style={{ flexShrink: 0 }} />
-    <div style={{ flex: 1 }}>
-      <p style={{
-        fontFamily: "'Cinzel', serif",
-        color: '#2c163a',
-        fontSize: '12px',
-        fontWeight: 700,
-        margin: '0 0 4px 0'
-      }}>
-        Ativar lembretes?
-      </p>
-      <p style={{
-        fontSize: '11px',
-        color: '#555',
-        margin: 0,
-        lineHeight: 1.5
-      }}>
-        Receba notificações dos seus lembretes de tratamento direto no celular.
-      </p>
-    </div>
-    <button
-      type="button"
-      onClick={async () => {
-        const resultado = await Notification.requestPermission();
-        setPermissaoNotificacao(resultado);
-        if (resultado === 'granted' && pacienteData?.id) {
-          const { inscreverPush } = await import('./push-notifications');
-          await inscreverPush(pacienteData.id);
-        }
-      }}
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: '#C8A24A',
-        color: '#fff',
-        border: 'none',
-        padding: '10px 16px',
-        borderRadius: '20px',
-        fontSize: '10px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)'
-      }}
-    >
-      ATIVAR
-    </button>
-  </div>
-)}
 
-{/* AVISO SE NEGOU ANTES */}
-{permissaoNotificacao === 'denied' && (
-  <div style={{
-    margin: '0 20px 20px 20px',
-    padding: '12px 16px',
-    background: '#fff3e0',
-    border: '1.5px solid #ffb74d',
-    borderRadius: '12px',
-    fontSize: '11px',
-    color: '#5d4037',
-    lineHeight: 1.5
-  }}>
-    <strong>⚠️ Notificações bloqueadas.</strong> Para ativar, toque no cadeado 🔒 da barra de endereço → <strong>Notificações → Permitir</strong>.
-  </div>
-)}
 
       {/* MODAL DE INSTALAÇÃO (renderizado por cima de tudo) */}
       {mostrarModalInstalacao && (
