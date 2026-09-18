@@ -51,6 +51,26 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     console.error('❌ Erro ao agendar lembretes:', err);
   }
 };
+// Dentro do componente, após os useState
+useEffect(() => {
+  // Empurra um estado inicial sempre que muda de tela
+  window.history.pushState({ painelEsteticista: telaAtual }, '', window.location.pathname);
+}, [telaAtual]);
+
+useEffect(() => {
+  const onPop = (e) => {
+    const st = e.state;
+    if (st?.painelEsteticista) {
+      setTelaAtual(st.painelEsteticista);
+    } else {
+      // Sem state → volta pra lista
+      setTelaAtual('lista');
+      setPacienteSelecionado(null);
+    }
+  };
+  window.addEventListener('popstate', onPop);
+  return () => window.removeEventListener('popstate', onPop);
+}, []);
 
   // Carregar dados do Firestore ao iniciar
   useEffect(() => {
@@ -435,7 +455,10 @@ if (telaAtual === 'criar_anamnese') {
         mode="edit" 
         fichaSelecionada={pacienteSelecionado.anamnese} 
         onSave={handleAtualizarAnamnese} 
-        onVoltar={() => setTelaAtual('detalhe_pasta')} 
+        onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
       />
     );
   }
@@ -720,12 +743,12 @@ if (telaAtual === 'criar_anamnese') {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                   <button
-                    type="button"
-                    onClick={() => setTelaAtual('lista')}
-                    style={{ background: 'transparent', border: 'none', color: '#2c163a', cursor: 'pointer', fontWeight: 600, marginBottom: '5px', fontSize: '12px', display: 'block', padding: 0 }}
-                  >
-                    ← Voltar para lista de pacientes
-                  </button>
+                  type="button"
+                  onClick={() => {window.history.pushState({ painelEsteticista: 'lista' }, '', window.location.pathname);setTelaAtual('lista');setPacienteSelecionado(null);}}
+                  style={{ background: 'transparent', border: 'none', color: '#2c163a', cursor: 'pointer', fontWeight: 600, fontSize: '11px', padding: 0, marginBottom: '8px' }}
+                >
+                  ← Voltar para lista de pacientes
+                </button>
                   <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0 }}>
                     📁 {pacienteSelecionado.nome}
                   </h2>
@@ -927,7 +950,10 @@ if (telaAtual === 'criar_anamnese') {
                   ...evolucaoSelecionada,
                   onIrParaEdicao: () => setTelaAtual('editar_evolucao')
                 }} 
-                onVoltar={() => setTelaAtual('detalhe_pasta')} 
+                onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
               />
             </div>
           )}
@@ -939,7 +965,10 @@ if (telaAtual === 'criar_anamnese') {
                 pacienteSelecionado={pacienteSelecionado}
                 pacienteNomeProp={pacienteSelecionado?.nome}
                 onSave={handleSalvarEvolucao} 
-                onVoltar={() => setTelaAtual('detalhe_pasta')} 
+              onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
               />
             </div>
           )}
@@ -950,7 +979,10 @@ if (telaAtual === 'criar_anamnese') {
                 mode="edit" 
                 initialData={evolucaoSelecionada} 
                 onSave={handleAtualizarEvolucao} 
-                onVoltar={() => setTelaAtual('detalhe_pasta')} 
+                onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
               />
             </div>
           )}

@@ -32,16 +32,15 @@ self.addEventListener('activate', (event) => {
 });
 
 /* ---------- PUSH ---------- */
+/* ---------- PUSH ---------- */
 self.addEventListener('push', (event) => {
-  console.log('🔔 Push recebido no SW:', event);
-
   let data = {
     title: 'Lembrete',
     body: 'Você tem um lembrete da Samira Estética',
     icon: '/imagens/pwa-192.png',
     badge: '/imagens/badge-72.png',
     vibrate: [200, 100, 200, 100, 200],
-    requireInteraction: false,
+    requireInteraction: true,          // ⬅️ mantém visível até interagir
     silent: false,
     timestamp: Date.now(),
     dir: 'ltr',
@@ -57,27 +56,24 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  // ✅ TAG ÚNICA POR NOTIFICAÇÃO
-  // Se o backend mandar 'tag', usa ela.
-  // Senão, gera uma única com timestamp + random.
   const tagFinal =
     data.tag ||
     `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const options = {
-  body: data.body,
-  icon: data.icon,
-  badge: data.badge,
-  vibrate: data.vibrate,
-  tag: data.tag || `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  renotify: true,                      // notifica mesmo se for a mesma tag
-    requireInteraction: data.requireInteraction,
-    silent: data.silent,
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
+    vibrate: data.vibrate,
+    tag: tagFinal,
+    renotify: true,
+    requireInteraction: true,           // ⬅️ também aqui
+    silent: false,
     timestamp: data.timestamp,
     dir: data.dir,
     lang: data.lang,
     data: {
-      url: data.url,
+      url: data.url || '/',
       lembreteId: data.lembreteId || null
     },
     actions: [
@@ -100,11 +96,13 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Se já tem uma janela do app aberta, foca ela
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           return client.focus();
         }
       }
+      // Senão abre uma nova
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

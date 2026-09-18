@@ -42,11 +42,7 @@ export default function TelaInicial({ onLoginSucesso }) {
       const user = userCredential.user;
 
       setCarregando(false);
-      if (onLoginSucesso) {
-        onLoginSucesso(user);
-      } else {
-        alert('Login efetuado com sucesso!');
-      }
+     
     } catch (error) {
       console.error("Erro no login:", error);
       setCarregando(false);

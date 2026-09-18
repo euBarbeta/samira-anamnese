@@ -53,13 +53,33 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     if (!response.ok) {
       console.error('❌ Falha ao agendar lembretes:', data);
     } else {
-      console.log('✅ Lembretes processados:', data.resultados);
+     
     }
   } catch (err) {
     console.error('❌ Erro ao agendar lembretes:', err);
   }
 };
   // Carregar dados iniciais do Firestore de forma assíncrona alinhado ao UID do usuário logado
+  // Dentro do componente, após os useState
+useEffect(() => {
+  // Empurra um estado inicial sempre que muda de tela
+  window.history.pushState({ painelEsteticista: telaAtual }, '', window.location.pathname);
+}, [telaAtual]);
+
+useEffect(() => {
+  const onPop = (e) => {
+    const st = e.state;
+    if (st?.painelEsteticista) {
+      setTelaAtual(st.painelEsteticista);
+    } else {
+      // Sem state → volta pra lista
+      setTelaAtual('lista');
+      setPacienteSelecionado(null);
+    }
+  };
+  window.addEventListener('popstate', onPop);
+  return () => window.removeEventListener('popstate', onPop);
+}, []);
   useEffect(() => {
     async function carregarDadosDaNuvem() {
       try {
@@ -466,7 +486,10 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
         mode="edit" 
         fichaSelecionada={pacienteSelecionado.anamnese} 
         onSave={handleAtualizarAnamnese} 
-        onVoltar={() => setTelaAtual('detalhe_pasta')} 
+        onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
       />
     );
   }
@@ -799,7 +822,7 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
               <div style={{ marginBottom: '15px' }}>
                 <button
                   type="button"
-                  onClick={() => setTelaAtual('lista')}
+                  onClick={() => {window.history.pushState({ painelEsteticista: 'lista' }, '', window.location.pathname);setTelaAtual('lista');setPacienteSelecionado(null);}}
                   style={{ background: 'transparent', border: 'none', color: '#2c163a', cursor: 'pointer', fontWeight: 600, fontSize: '11px', padding: 0, marginBottom: '8px' }}
                 >
                   ← Voltar para lista de pacientes
@@ -978,7 +1001,10 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
                   ...evolucaoSelecionada,
                   onIrParaEdicao: () => setTelaAtual('editar_evolucao')
                 }} 
-                onVoltar={() => setTelaAtual('detalhe_pasta')} 
+                onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
               />
             </div>
           )}
@@ -991,7 +1017,10 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
                 pacienteSelecionado={pacienteSelecionado}
                 pacienteNomeProp={pacienteSelecionado?.nome}
                 onSave={handleSalvarEvolucao} 
-                onVoltar={() => setTelaAtual('detalhe_pasta')} 
+               onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
               />
             </div>
           )}
@@ -1003,7 +1032,10 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
                 mode="edit" 
                 initialData={evolucaoSelecionada} 
                 onSave={handleAtualizarEvolucao} 
-                onVoltar={() => setTelaAtual('detalhe_pasta')} 
+              onVoltar={() => {
+  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+  setTelaAtual('detalhe_pasta');
+}}
               />
             </div>
           )}

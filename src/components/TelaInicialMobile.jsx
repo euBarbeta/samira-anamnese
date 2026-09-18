@@ -42,12 +42,7 @@ export default function TelaInicialMobile({ onLoginSucesso }) {
       const user = userCredential.user;
 
       setCarregando(false);
-      if (onLoginSucesso) {
-        onLoginSucesso(user);
-      } else {
-        alert('Login efetuado com sucesso!');
-      }
-    } catch (error) {
+      } catch (error) {
       console.error("Erro no login:", error);
       setCarregando(false);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
