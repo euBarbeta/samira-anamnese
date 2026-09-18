@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { inscreverPush } from './push-notifications';
 import {
   DownloadCloud,
@@ -254,6 +254,36 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
   const [permissaoNotificacao, setPermissaoNotificacao] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
+  const irParaTela = useCallback((novaTela) => {
+    if (novaTela === telaAtual) return;
+    window.history.pushState(
+      { ...(window.history.state || {}), painelPacienteTela: novaTela },
+      '',
+      window.location.pathname
+    );
+    setTelaAtual(novaTela);
+  }, [telaAtual]);
+   useEffect(() => {
+    window.history.replaceState(
+      { ...(window.history.state || {}), painelPacienteTela: 'detalhe_pasta' },
+      '',
+      window.location.pathname
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+   useEffect(() => {
+    const onPop = (e) => {
+      const st = e.state;
+      if (st?.painelPacienteTela) {
+        setTelaAtual(st.painelPacienteTela);
+      } else {
+        // Sem state nosso → volta pro menu da pasta
+        setTelaAtual('detalhe_pasta');
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   useEffect(() => {
     if (typeof Notification === 'undefined') return;
@@ -631,27 +661,27 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
                   <button
-                    type="button"
-                    onClick={() => setTelaAtual('ver_anamnese')}
-                    className="painel-btn-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '14px 18px',
-                      borderRadius: '16px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      width: '100%',
-                      textAlign: 'center',
-                      boxShadow: '0 4px 12px rgba(200, 162, 74, 0.25)',
-                      transition: 'all 0.25s ease'
-                    }}
-                  >
-                    Ver Ficha de Anamnese 
-                  </button>
+  type="button"
+  onClick={() => irParaTela('ver_anamnese')}   // ⬅️ era setTelaAtual
+  className="painel-btn-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '14px 18px',
+    borderRadius: '16px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'center',
+    boxShadow: '0 4px 12px rgba(200, 162, 74, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  Ver Ficha de Anamnese
+</button>
 
                   {/* BOTÃO PARA BAIXAR O WEBAPP / PWA */}
                   {!appInstalado && (
@@ -689,43 +719,43 @@ export default function PainelPaciente({ pacienteData, onLogout }) {
 
           {/* TELA DE VISUALIZAÇÃO DA ANAMNESE */}
           {telaAtual === 'ver_anamnese' && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setTelaAtual('detalhe_pasta')}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.8)',
-                  border: '1px solid rgba(226, 210, 245, 0.8)',
-                  color: '#2c163a',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  marginBottom: '16px',
-                  fontSize: '11px',
-                  padding: '10px 16px',
-                  borderRadius: '14px',
-                  boxShadow: '0 2px 6px rgba(44, 22, 58, 0.04)',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                ← Voltar para o menu da pasta
-              </button>
-              <div style={{ opacity: 0.98 }}>
-                {isMobile ? (
-                  <FichaMobile
-                    mode="view"
-                    fichaSelecionada={pacienteData.anamnese || pacienteData}
-                    onVoltar={() => setTelaAtual('detalhe_pasta')}
-                  />
-                ) : (
-                  <FichaDesktop
-                    mode="view"
-                    fichaSelecionada={pacienteData.anamnese || pacienteData}
-                    onVoltar={() => setTelaAtual('detalhe_pasta')}
-                  />
-                )}
-              </div>
-            </div>
-          )}
+  <div>
+    <button
+      type="button"
+      onClick={() => window.history.back()}   // ⬅️ usa o próprio histórico
+      style={{
+        background: 'rgba(255, 255, 255, 0.8)',
+        border: '1px solid rgba(226, 210, 245, 0.8)',
+        color: '#2c163a',
+        cursor: 'pointer',
+        fontWeight: 600,
+        marginBottom: '16px',
+        fontSize: '11px',
+        padding: '10px 16px',
+        borderRadius: '14px',
+        boxShadow: '0 2px 6px rgba(44, 22, 58, 0.04)',
+        transition: 'all 0.2s ease'
+      }}
+    >
+      ← Voltar para o menu da pasta
+    </button>
+    <div style={{ opacity: 0.98 }}>
+      {isMobile ? (
+        <FichaMobile
+          mode="view"
+          fichaSelecionada={pacienteData.anamnese || pacienteData}
+          onVoltar={() => window.history.back()}   // ⬅️ botão interno também
+        />
+      ) : (
+        <FichaDesktop
+          mode="view"
+          fichaSelecionada={pacienteData.anamnese || pacienteData}
+          onVoltar={() => window.history.back()}   // ⬅️ botão interno também
+        />
+      )}
+    </div>
+  </div>
+)}
         </div>
       </div>
       {/* BANNER DE PERMISSÃO DE NOTIFICAÇÃO */}
