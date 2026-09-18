@@ -3,10 +3,8 @@ const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
-// ✅ AGENDAMENTO AUTOMÁTICO — roda a cada 1 minuto
-// Netlify executa essa function sozinho em produção,
-// mesmo com o app fechado. É ISSO que envia os pushes.
-
+// ❌ SEM exports.config → agendador nativo DESATIVADO
+// ✅ Quem chama agora é o cron-job.org externo
 
 const MS = {
   segundos: 1000,
@@ -15,19 +13,45 @@ const MS = {
   dias: 24 * 60 * 60 * 1000,
 };
 
-exports.handler = async (event) => {
-  // Quando é chamada agendada, o Netlify manda event.httpMethod = 'POST'
-  // e o secret vem do próprio Netlify (não precisa validar em scheduled).
-  const isScheduled = event.headers?.['x-nf-event'] === 'schedule' 
-                   || event.headers?.['X-Nf-Event'] === 'schedule';
+// Cabeçalhos que liberam o cron externo
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Content-Type': 'application/json',
+};
 
-  // Mantém a validação de secret apenas para chamadas manuais via HTTP
-  if (!isScheduled) {
-    const secret = event.queryStringParameters?.secret
-                || (event.body ? JSON.parse(event.body).secret : null);
-    if (secret !== process.env.CRON_SECRET) {
-      return { statusCode: 401, body: 'Unauthorized' };
+exports.handler = async (event) => {
+  // ✅ Responde OPTIONS (preflight) — alguns crons fazem isso antes
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+  }
+
+  // ✅ Aceita GET e POST (cron-job.org costuma usar GET)
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+    };
+  }
+
+  // ✅ Valida o secret
+  let secret = event.queryStringParameters?.secret;
+  if (!secret && event.body) {
+    try {
+      secret = JSON.parse(event.body).secret;
+    } catch (e) {
+      // corpo não era JSON, ignora
     }
+  }
+
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return {
+      statusCode: 401,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: 'Unauthorized' }),
+    };
   }
 
   try {
@@ -50,26 +74,40 @@ exports.handler = async (event) => {
     );
 
     const agora = Date.now();
-    const snap = await db.collection('lembretes_pendentes').where('enviado', '==', false).get();
+    const snap = await db
+      .collection('lembretes_pendentes')
+      .where('enviado', '==', false)
+      .get();
 
     if (snap.empty) {
-      return { statusCode: 200, body: JSON.stringify({ ok: true, enviados: 0 }) };
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ ok: true, enviados: 0 }),
+      };
     }
 
-    const prontos = snap.docs.filter(d => {
+    const prontos = snap.docs.filter((d) => {
       const s = d.data().sendAt;
       return typeof s === 'number' && s <= agora;
     });
 
     if (prontos.length === 0) {
-      return { statusCode: 200, body: JSON.stringify({ ok: true, enviados: 0 }) };
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ ok: true, enviados: 0 }),
+      };
     }
 
     const resultados = [];
 
     for (const doc of prontos) {
       const data = doc.data();
-      const subDoc = await db.collection('push_subscriptions').doc(data.pacienteId).get();
+      const subDoc = await db
+        .collection('push_subscriptions')
+        .doc(data.pacienteId)
+        .get();
 
       if (!subDoc.exists) {
         await doc.ref.update({
@@ -86,7 +124,7 @@ exports.handler = async (event) => {
         body: 'Você tem um lembrete da Samira Estética',
         tag: data.tag || `lembrete-${doc.id}`,
         lembreteId: doc.id,
-        url: '/'
+        url: '/',
       });
 
       let envioOk = false;
@@ -106,7 +144,9 @@ exports.handler = async (event) => {
         const intervaloMs = num * (MS[unidade] || MS.horas);
         const proximo = Date.now() + intervaloMs;
 
-        const novaTag = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const novaTag = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`;
 
         await doc.ref.update({
           sendAt: proximo,
@@ -129,11 +169,19 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ ok: true, enviados: resultados.length, resultados }),
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        ok: true,
+        enviados: resultados.length,
+        resultados,
+      }),
     };
-
   } catch (err) {
     console.error('❌ Erro:', err.stack);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    return {
+      statusCode: 500,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: err.message }),
+    };
   }
 };
