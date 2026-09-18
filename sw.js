@@ -31,8 +31,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-/* ---------- PUSH (NOVO) ---------- */
-/* ---------- PUSH (MELHORADO) ---------- */
+/* ---------- PUSH ---------- */
 self.addEventListener('push', (event) => {
   console.log('🔔 Push recebido no SW:', event);
 
@@ -40,13 +39,10 @@ self.addEventListener('push', (event) => {
     title: 'Lembrete',
     body: 'Você tem um lembrete da Samira Estética',
     icon: '/imagens/pwa-192.png',
-    badge: '/imagens/badge-72.png',       // ⬅️ NOVO: ícone pequeno monocromático
-    image: '/imagens/notif-banner.jpg',   // ⬅️ NOVO: banner grande (Android/Desktop só)
-    vibrate: [200, 100, 200, 100, 200],   // ⬅️ padrão mais "chamativo"
-    tag: 'lembrete-samira',               // ⬅️ agrupa notificações (evita spam empilhado)
-    renotify: true,                        // ⬅️ re-vibra/avisa se for mesma tag
-    requireInteraction: false,             // ⬅️ true = fica na tela até o usuário fechar
-    silent: false,                         // ⬅️ false = toca o "ding" do sistema
+    badge: '/imagens/badge-72.png',
+    vibrate: [200, 100, 200, 100, 200],
+    requireInteraction: false,
+    silent: false,
     timestamp: Date.now(),
     dir: 'ltr',
     lang: 'pt-BR',
@@ -61,24 +57,32 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  // ✅ TAG ÚNICA POR NOTIFICAÇÃO
+  // Se o backend mandar 'tag', usa ela.
+  // Senão, gera uma única com timestamp + random.
+  const tagFinal =
+    data.tag ||
+    `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
   const options = {
     body: data.body,
     icon: data.icon,
     badge: data.badge,
-    image: data.image,
     vibrate: data.vibrate,
-    tag: data.tag,
-    renotify: data.renotify,
+    tag: tagFinal,                       // ⬅️ única!
+    renotify: true,                       // notifica mesmo se for a mesma tag
     requireInteraction: data.requireInteraction,
     silent: data.silent,
     timestamp: data.timestamp,
     dir: data.dir,
     lang: data.lang,
-    data: { url: data.url },
-    // ⬇️ Botões de ação (SÓ funciona no Android e Desktop; iOS ignora)
+    data: {
+      url: data.url,
+      lembreteId: data.lembreteId || null
+    },
     actions: [
-      { action: 'abrir',   title: '📖 Ver ficha' },
-      { action: 'fechar',  title: 'Fechar' }
+      { action: 'abrir', title: '📖 Ver ficha' },
+      { action: 'fechar', title: 'Fechar' }
     ]
   };
 
@@ -87,11 +91,9 @@ self.addEventListener('push', (event) => {
   );
 });
 
-/* ---------- CLIQUE NA NOTIFICAÇÃO (NOVO) ---------- */
+/* ---------- CLIQUE NA NOTIFICAÇÃO ---------- */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
-  // Se clicou no botão "Fechar", só fecha
   if (event.action === 'fechar') return;
 
   const urlToOpen = event.notification.data?.url || '/';
@@ -109,7 +111,6 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
-
 /* ---------- FETCH (MANTIDO) ---------- */
 const CACHEABLE_DESTINATIONS = ['image', 'style', 'script', 'font'];
 

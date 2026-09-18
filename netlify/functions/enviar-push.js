@@ -41,12 +41,12 @@ exports.handler = async (event) => {
     }
 
     const subscription = subDoc.data().subscription;
-    const payload = JSON.stringify({
-      title: lembrete.titulo || 'Lembrete',
-      body: 'Você tem um lembrete da Samira Estética',
-      url: 'https://samira-anamnese.netlify.app',
-    });
-
+const payload = JSON.stringify({
+  title: lembrete.titulo || 'Lembrete',
+  body: 'Você tem um lembrete da Samira Estética',
+  tag: `lembrete-${pacienteId}-${Date.now()}`,
+  lembreteId: String(Date.now())
+});
     await webpush.sendNotification(subscription, payload);
 
     return {

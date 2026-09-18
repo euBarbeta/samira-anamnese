@@ -46,9 +46,7 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
 
     if (!response.ok) {
       console.error('❌ Falha ao agendar lembretes:', data);
-    } else {
-      console.log('✅ Lembretes processados:', data.resultados);
-    }
+    } 
   } catch (err) {
     console.error('❌ Erro ao agendar lembretes:', err);
   }

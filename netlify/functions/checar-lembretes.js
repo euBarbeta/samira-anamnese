@@ -41,7 +41,7 @@ exports.handler = async (event) => {
     const snap = await db.collection('lembretes_pendentes').where('enviado', '==', false).get();
 
     if (snap.empty) {
-      console.log('Nenhum lembrete pendente');
+     
       return { statusCode: 200, body: JSON.stringify({ ok: true, enviados: 0 }) };
     }
 
@@ -73,10 +73,11 @@ exports.handler = async (event) => {
 
       const subscription = subDoc.data().subscription;
       const payload = JSON.stringify({
-        title: data.titulo,
-        body: 'Você tem um lembrete da Samira Estética',
-        url: 'https://samira-anamnese.netlify.app',
-      });
+  title: data.titulo,
+  body: 'Você tem um lembrete da Samira Estética',
+  tag: data.tag || `lembrete-${doc.id}`,
+  lembreteId: doc.id
+});
 
       let envioOk = false;
       let erroMsg = null;
