@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { inscreverPush } from './push-notifications';
+import AvisoNotificacoes from './AvisoNotificacoes';
 import {
   DownloadCloud,
   X,
@@ -254,10 +255,6 @@ export default function PainelPaciente({
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [appInstalado, setAppInstalado] = useState(false);
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
-    // ✅ ESTADO DE PERMISSÃO DE NOTIFICAÇÃO (faltava isso!)
-  const [permissaoNotificacao, setPermissaoNotificacao] = useState(
-    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
-  );
   const irParaTela = useCallback((novaTela) => {
     if (novaTela === telaAtual) return;
     window.history.pushState(
@@ -290,12 +287,6 @@ export default function PainelPaciente({
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-
-  useEffect(() => {
-    if (typeof Notification === 'undefined') return;
-    setPermissaoNotificacao(Notification.permission);
-  }, []);
-  // No PainelPaciente.jsx, dentro do componente, junto aos outros useEffects
  useEffect(() => {
   if (typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
@@ -309,6 +300,22 @@ export default function PainelPaciente({
       console.warn('Falha ao re-registrar push:', e);
     }
   })();
+}, [pacienteData?.id]);
+// ✅ Re-registra push quando o app volta ao primeiro plano
+useEffect(() => {
+  const handleVisibility = () => {
+    if (document.visibilityState !== 'visible') return;
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
+    if (!pacienteData?.id) return;
+
+    import('./push-notifications').then(({ inscreverPush }) => {
+      inscreverPush(pacienteData.id).catch(() => {});
+    });
+  };
+
+  document.addEventListener('visibilitychange', handleVisibility);
+  return () => document.removeEventListener('visibilitychange', handleVisibility);
 }, [pacienteData?.id]);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -498,84 +505,11 @@ export default function PainelPaciente({
         .painel-sair-hover:hover {
           background: rgba(231, 76, 60, 0.1) !important;
         }
+         
       `}</style>
-{permissaoNotificacao === 'default' && (
-  <div style={{
-    margin: '0 20px 20px 20px',
-    padding: '16px',
-    background: 'linear-gradient(135deg, #fdf4ff 0%, #f5e6ff 100%)',
-    border: '1.5px solid #C8A24A',
-    borderRadius: '14px',
-    boxShadow: '0 4px 12px rgba(200, 162, 74, 0.15)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px'
-  }}>
-    <Bell size={22} color="#C8A24A" style={{ flexShrink: 0 }} />
-    <div style={{ flex: 1 }}>
-      <p style={{
-        fontFamily: "'Cinzel', serif",
-        color: '#2c163a',
-        fontSize: '12px',
-        fontWeight: 700,
-        margin: '0 0 4px 0'
-      }}>
-        Ativar lembretes?
-      </p>
-      <p style={{
-        fontSize: '11px',
-        color: '#555',
-        margin: 0,
-        lineHeight: 1.5
-      }}>
-        Receba notificações dos seus lembretes de tratamento direto no celular.
-      </p>
-    </div>
-    <button
-      type="button"
-      onClick={async () => {
-        const resultado = await Notification.requestPermission();
-        setPermissaoNotificacao(resultado);
-        if (resultado === 'granted' && pacienteData?.id) {
-          const { inscreverPush } = await import('./push-notifications');
-          await inscreverPush(pacienteData.id);
-        }
-      }}
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: '#C8A24A',
-        color: '#fff',
-        border: 'none',
-        padding: '10px 16px',
-        borderRadius: '20px',
-        fontSize: '10px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)'
-      }}
-    >
-      ATIVAR
-    </button>
-  </div>
-)}
-
-{/* AVISO SE NEGOU ANTES */}
-{permissaoNotificacao === 'denied' && (
-  <div style={{
-    margin: '0 20px 20px 20px',
-    padding: '12px 16px',
-    background: '#fff3e0',
-    border: '1.5px solid #ffb74d',
-    borderRadius: '12px',
-    fontSize: '11px',
-    color: '#5d4037',
-    lineHeight: 1.5
-  }}>
-    <strong>⚠️ Notificações bloqueadas.</strong> Para ativar, toque no cadeado 🔒 da barra de endereço → <strong>Notificações → Permitir</strong>.
-  </div>
-)}
-      {/* CONTEÚDO PRINCIPAL */}
+       <AvisoNotificacoes pacienteId={pacienteData?.id} />
+   
+    {/* CONTEÚDO PRINCIPAL */}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         {/* CABEÇALHO DO PACIENTE */}
         <div
