@@ -893,23 +893,36 @@ const converterBRParaISO = (valorBR) => {
   )}
 </button>
 
-                {onIrParaEdicao && (
-                  <button
-                    type="button"
-                    onClick={onIrParaEdicao}
-                    style={{
-                      backgroundColor: '#D4AF37', color: '#FFFFFF', border: 'none', borderRadius: '6px',
-                      padding: '12px 20px', fontSize: '13px', fontWeight: 700, fontFamily: "'Cinzel', serif",
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      gap: '6px', width: '100%', maxWidth: '220px'
-                    }}
-                  >
-                    EDITAR FICHA
-                  </button>
-                )}
+              {onIrParaEdicao && (
+  <button
+    type="button"
+    onClick={onIrParaEdicao}
+    style={{
+      backgroundColor: '#D4AF37',
+      color: '#FFFFFF',
+      border: 'none',
+      borderRadius: '20px',
+      padding: '12px 20px',
+      fontSize: '13px',
+      fontWeight: 700,
+      fontFamily: "'Cinzel', serif",
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
+      width: '100%',
+      maxWidth: '220px',
+      boxShadow: '0 3px 10px rgba(200, 162, 74, 0.25)',
+      transition: 'all 0.25s ease'
+    }}
+  >
+    EDITAR FICHA
+  </button>
+)}
               </>
             ) : (
-             <button
+<button
   type="button"
   onClick={salvarFicha}
   disabled={salvando || salvoSucesso}
@@ -917,7 +930,7 @@ const converterBRParaISO = (valorBR) => {
     backgroundColor: salvoSucesso ? '#16a34a' : '#D4AF37',
     color: '#FFFFFF',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '20px',
     padding: '12px 20px',
     fontSize: '13px',
     fontWeight: 700,
@@ -929,6 +942,9 @@ const converterBRParaISO = (valorBR) => {
     gap: '6px',
     width: '100%',
     maxWidth: '220px',
+    boxShadow: salvoSucesso
+      ? '0 3px 10px rgba(22, 163, 74, 0.25)'
+      : '0 3px 10px rgba(200, 162, 74, 0.25)',
     transition: 'all 0.3s ease'
   }}
 >
@@ -950,18 +966,31 @@ const converterBRParaISO = (valorBR) => {
 </button>
             )}
 
-            <button
-              type="button"
-              onClick={voltarFicha}
-              style={{
-                backgroundColor: '#D4AF37', color: '#FFFFFF', border: 'none', borderRadius: '6px',
-                padding: '12px 20px', fontSize: '13px', fontWeight: 700, fontFamily: "'Cinzel', serif",
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: '6px', width: '100%', maxWidth: '220px'
-              }}
-            >
-              <MdArrowBack size={18} /> VOLTAR
-            </button>
+           <button
+  type="button"
+  onClick={voltarFicha}
+  style={{
+    backgroundColor: '#D4AF37',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '20px',
+    padding: '12px 20px',
+    fontSize: '13px',
+    fontWeight: 700,
+    fontFamily: "'Cinzel', serif",
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    width: '100%',
+    maxWidth: '220px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  <MdArrowBack size={18} /> VOLTAR
+</button>
           </div>
         </div>
 

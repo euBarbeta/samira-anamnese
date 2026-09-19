@@ -507,7 +507,10 @@ useEffect(() => {
         }
          
       `}</style>
-       <AvisoNotificacoes pacienteId={pacienteData?.id} />
+     <AvisoNotificacoes
+  pacienteId={pacienteData?.id}
+  appInstalado={appInstalado}
+/>
    
     {/* CONTEÚDO PRINCIPAL */}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>

@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Smartphone, Monitor, AlertTriangle } from 'lucide-react';
 
-export default function AvisoNotificacoes({ pacienteId }) {
+const STORAGE_KEY = 'aviso_segundo_plano_aceito';
+
+export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) {
   const [plataforma, setPlataforma] = useState('desconhecido');
   const [permissao, setPermissao] = useState('default');
+  const [avisoSegundoPlanoAceito, setAvisoSegundoPlanoAceito] = useState(true);
 
   useEffect(() => {
+    // Verifica se já aceitou o aviso de segundo plano antes
+    try {
+      const aceito = localStorage.getItem(STORAGE_KEY) === 'ok';
+      setAvisoSegundoPlanoAceito(aceito);
+    } catch (e) {
+      setAvisoSegundoPlanoAceito(false);
+    }
+
     if (typeof Notification !== 'undefined') {
       setPermissao(Notification.permission);
     }
@@ -21,26 +32,26 @@ export default function AvisoNotificacoes({ pacienteId }) {
     else setPlataforma('desktop');
   }, []);
 
-  const abrirConfiguracoesAndroid = () => {
-    // Tenta abrir as configurações de otimização de bateria do app
-    // O formato do intent pode variar conforme o navegador
-    const intentUrl =
-      'intent:#Intent;action=android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;end';
-
+  const aceitarAvisoSegundoPlano = () => {
     try {
-      window.location.href = intentUrl;
+      localStorage.setItem(STORAGE_KEY, 'ok');
     } catch (e) {
-      // Fallback: abre as configurações gerais do app
-      window.location.href = 'package:com.android.settings';
+      // ignora erros de localStorage cheio/indisponível
     }
+    setAvisoSegundoPlanoAceito(true);
   };
 
-  // Não mostra nada se a permissão já foi concedida
-  if (permissao === 'granted') return null;
+  // ✅ Só mostra as instruções de segundo plano se:
+  //    1. O app foi INSTALADO
+  //    2. O usuário ainda NÃO clicou em "Entendi"
+  const mostrarAvisoSegundoPlano = appInstalado && !avisoSegundoPlanoAceito;
 
   return (
     <div style={estilos.container}>
-      {/* Bloco de permissão de notificação */}
+      {/* ============================================== */}
+      {/* BLOCO 1: PERMISSÃO DE NOTIFICAÇÃO              */}
+      {/* (comportamento normal — some quando concedida) */}
+      {/* ============================================== */}
       {permissao === 'default' && (
         <div style={estilos.blocoPermissao}>
           <Bell size={22} color="#C8A24A" style={{ flexShrink: 0 }} />
@@ -67,7 +78,6 @@ export default function AvisoNotificacoes({ pacienteId }) {
         </div>
       )}
 
-      {/* Aviso de permissão negada */}
       {permissao === 'denied' && (
         <div style={estilos.blocoNegado}>
           <AlertTriangle size={18} color="#e65100" style={{ flexShrink: 0 }} />
@@ -78,72 +88,123 @@ export default function AvisoNotificacoes({ pacienteId }) {
         </div>
       )}
 
-      {/* Instruções específicas por plataforma */}
-      {plataforma === 'android' && (
-        <div style={estilos.blocoInstrucoes}>
-          <div style={estilos.headerInstrucoes}>
-            <Smartphone size={16} color="#C8A24A" />
-            <span style={estilos.tituloInstrucoes}>Android: Garanta lembretes em segundo plano</span>
-          </div>
-          <p style={estilos.textoInstrucoes}>
-            Para que as notificações cheguem mesmo com o app fechado, desative a opção
-            <strong> "Gerenciar aplicativo se não usado"</strong> nas configurações do sistema.
-          </p>
-          <button type="button" onClick={abrirConfiguracoesAndroid} style={estilos.botaoAndroid}>
-            Abrir Configurações do App
-          </button>
-          <p style={estilos.passos}>
-            1. Acesse as <strong>Configurações</strong> do celular.
-            <br />
-            2. Vá em <strong>Aplicativos</strong> → <strong>Samira Ferreira</strong>.
-            <br />
-            3. Desative <strong>"Gerenciar aplicativo se não usado"</strong>.
-          </p>
-        </div>
-      )}
+      {/* ============================================== */}
+      {/* BLOCO 2: GARANTIA EM SEGUNDO PLANO             */}
+      {/* (só aparece depois do PWA instalado e some      */}
+      {/*  só quando clicar em "Entendi")                 */}
+      {/* ============================================== */}
+      {mostrarAvisoSegundoPlano && (
+        <>
+          {plataforma === 'android' && (
+            <div style={estilos.blocoInstrucoes}>
+              <div style={estilos.headerInstrucoes}>
+                <Smartphone size={16} color="#C8A24A" />
+                <span style={estilos.tituloInstrucoes}>
+                  Android: garanta que os lembretes toquem mesmo com o app fechado
+                </span>
+              </div>
+              <p style={estilos.textoInstrucoes}>
+                O Android pode "hibernar" o app se não for usado por muito tempo, e isso
+                <strong> cancela as notificações</strong>. Siga os passos abaixo para evitar:
+              </p>
+              <p style={estilos.passos}>
+                1. Acesse as <strong>Configurações</strong> do celular.
+                <br />
+                2. Vá em <strong>Aplicativos</strong> → <strong>Samira Ferreira</strong>.
+                <br />
+                3. Desative <strong>"Gerenciar aplicativo se não usado"</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={aceitarAvisoSegundoPlano}
+                style={estilos.botaoEntendi}
+              >
+                ENTENDI
+              </button>
+            </div>
+          )}
 
-      {plataforma === 'ios' && (
-        <div style={estilos.blocoInstrucoes}>
-          <div style={estilos.headerInstrucoes}>
-            <Smartphone size={16} color="#C8A24A" />
-            <span style={estilos.tituloInstrucoes}>iPhone / iPad</span>
-          </div>
-          <p style={estilos.textoInstrucoes}>
-            No iOS, as notificações push funcionam apenas com o app instalado na Tela de Início
-            (iOS 16.4 ou superior). O sistema não permite execução em segundo plano.
-          </p>
-          <p style={estilos.passos}>
-            1. Certifique-se de que o app foi <strong>adicionado à Tela de Início</strong>.
-            <br />
-            2. Verifique se as notificações estão permitidas em
-            <strong> Ajustes → Samira Ferreira → Notificações</strong>.
-            <br />
-            3. Mantenha o app aberto ou minimize-o (não feche totalmente) para maior
-            confiabilidade.
-          </p>
-        </div>
-      )}
+          {plataforma === 'ios' && (
+            <div style={estilos.blocoInstrucoes}>
+              <div style={estilos.headerInstrucoes}>
+                <Smartphone size={16} color="#C8A24A" />
+                <span style={estilos.tituloInstrucoes}>
+                  iPhone / iPad: dicas para receber sempre
+                </span>
+              </div>
+              <p style={estilos.textoInstrucoes}>
+                No iOS, as notificações push funcionam apenas com o app instalado na Tela de
+                Início (iOS 16.4 ou superior).
+              </p>
+              <p style={estilos.passos}>
+                1. Certifique-se de que o app foi <strong>adicionado à Tela de Início</strong>.
+                <br />
+                2. Verifique se as notificações estão permitidas em
+                <strong> Ajustes → Samira Ferreira → Notificações</strong>.
+                <br />
+                3. Mantenha o app aberto ou minimize-o para maior confiabilidade.
+              </p>
+              <button
+                type="button"
+                onClick={aceitarAvisoSegundoPlano}
+                style={estilos.botaoEntendi}
+              >
+                ENTENDI
+              </button>
+            </div>
+          )}
 
-      {plataforma === 'windows' && (
-        <div style={estilos.blocoInstrucoes}>
-          <div style={estilos.headerInstrucoes}>
-            <Monitor size={16} color="#C8A24A" />
-            <span style={estilos.tituloInstrucoes}>Windows</span>
-          </div>
-          <p style={estilos.textoInstrucoes}>
-            No Windows, as notificações só funcionam com o app aberto ou em segundo plano
-            (quando minimizado). O sistema não permite que PWAs rodem após serem fechados.
-          </p>
-          <p style={estilos.passos}>
-            1. Vá em <strong>Configurações → Aplicativos → Aplicativos instalados</strong>.
-            <br />
-            2. Encontre <strong>Samira Ferreira</strong> e clique em
-            <strong> Opções avançadas</strong>.
-            <br />
-            3. Em <strong>Execução em segundo plano</strong>, selecione
-            <strong> "Ativado"</strong>.
-          </p>
-        </div>
+          {plataforma === 'windows' && (
+            <div style={estilos.blocoInstrucoes}>
+              <div style={estilos.headerInstrucoes}>
+                <Monitor size={16} color="#C8A24A" />
+                <span style={estilos.tituloInstrucoes}>
+                  Windows: mantenha as notificações ativas
+                </span>
+              </div>
+              <p style={estilos.textoInstrucoes}>
+                O Windows pode suspender apps em segundo plano. Ajuste para garantir os
+                lembretes:
+              </p>
+              <p style={estilos.passos}>
+                1. Vá em <strong>Configurações → Aplicativos → Aplicativos instalados</strong>.
+                <br />
+                2. Encontre <strong>Samira Ferreira</strong> e clique em
+                <strong> Opções avançadas</strong>.
+                <br />
+                3. Em <strong>Execução em segundo plano</strong>, selecione
+                <strong> "Ativado"</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={aceitarAvisoSegundoPlano}
+                style={estilos.botaoEntendi}
+              >
+                ENTENDI
+              </button>
+            </div>
+          )}
+
+          {plataforma === 'desktop' && (
+            <div style={estilos.blocoInstrucoes}>
+              <div style={estilos.headerInstrucoes}>
+                <Monitor size={16} color="#C8A24A" />
+                <span style={estilos.tituloInstrucoes}>Mantenha as notificações ativas</span>
+              </div>
+              <p style={estilos.textoInstrucoes}>
+                Para receber os lembretes, mantenha o navegador ou o app instalado aberto. Se
+                fechá-lo, as notificações podem não chegar.
+              </p>
+              <button
+                type="button"
+                onClick={aceitarAvisoSegundoPlano}
+                style={estilos.botaoEntendi}
+              >
+                ENTENDI
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -186,7 +247,7 @@ const estilos = {
     borderRadius: '14px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px'
+    gap: '10px'
   },
   headerInstrucoes: {
     display: 'flex',
@@ -197,7 +258,8 @@ const estilos = {
     fontFamily: "'Cinzel', serif",
     fontSize: '12px',
     fontWeight: 700,
-    color: '#2c163a'
+    color: '#2c163a',
+    lineHeight: 1.4
   },
   titulo: {
     fontFamily: "'Cinzel', serif",
@@ -225,7 +287,7 @@ const estilos = {
     whiteSpace: 'nowrap',
     boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)'
   },
-  botaoAndroid: {
+  botaoEntendi: {
     fontFamily: "'Cinzel', serif",
     background: '#2c163a',
     color: '#C8A24A',
@@ -236,7 +298,8 @@ const estilos = {
     fontWeight: 700,
     cursor: 'pointer',
     width: '100%',
-    textAlign: 'center'
+    textAlign: 'center',
+    letterSpacing: '1px'
   },
   textoInstrucoes: {
     fontSize: '11px',
@@ -248,7 +311,7 @@ const estilos = {
     fontSize: '11px',
     color: '#555',
     margin: 0,
-    lineHeight: 1.6,
-    paddingLeft: '16px'
+    lineHeight: 1.7,
+    paddingLeft: '4px'
   }
 };
