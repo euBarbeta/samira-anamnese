@@ -82,12 +82,10 @@ const ultimoUidRef = useRef(null);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  useEffect(() => {
+useEffect(() => {
   try {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('abrir') === 'anamnese') {
-      setPedidoAbrirAnamnese(true);
-
+    if (params.get('abrir')) {
       params.delete('abrir');
       const queryLimpa = params.toString();
       const novaURL =
@@ -95,7 +93,7 @@ const ultimoUidRef = useRef(null);
       window.history.replaceState(window.history.state, '', novaURL);
     }
   } catch (e) {
-    console.warn('Falha ao ler parâmetro abrir=anamnese:', e);
+    console.warn('Falha ao limpar query string:', e);
   }
 }, []);
 
@@ -434,7 +432,7 @@ if (abaAtiva === 'painelPaciente') {
     <PainelPaciente
       pacienteData={dadosPaciente}
       onLogout={handleLogout}
-      abrirAnamneseInicial={pedidoAbrirAnamnese}
+      abrirAnamneseInicial={false}
     />
   );
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samira-estetica-v9';
+const CACHE_NAME = 'samira-estetica-v10';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
@@ -31,6 +31,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 /* ---------- RENOVAÇÃO AUTOMÁTICA DA SUBSCRIPTION ---------- */
+/* ---------- RENOVAÇÃO AUTOMÁTICA DA SUBSCRIPTION ---------- */
 self.addEventListener('pushsubscriptionchange', (event) => {
   event.waitUntil(
     (async () => {
@@ -42,7 +43,29 @@ self.addEventListener('pushsubscriptionchange', (event) => {
           applicationServerKey: oldSub?.options?.applicationServerKey
         });
 
-        // Avisa as janelas abertas do app pra regravar no Firestore
+        const subJson = newSub.toJSON();
+
+        // ✅ 1. Envia a nova subscription DIRETO para o backend
+        //    (funciona mesmo se o app estiver fechado)
+        const pacienteId = await reg.pushManager
+          .getSubscription()
+          .then(s => s && extractPacienteId(s));
+
+        // Tenta descobrir o pacienteId via IndexedDB/localStorage gravado antes
+        const pacienteIdSalvo = await getPacienteIdSalvo();
+
+        if (pacienteIdSalvo) {
+          await fetch('/.netlify/functions/atualizar-subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pacienteId: pacienteIdSalvo,
+              subscription: subJson
+            })
+          }).catch(() => {});
+        }
+
+        // ✅ 2. Também avisa janelas abertas (redundância)
         const clientList = await clients.matchAll({
           type: 'window',
           includeUncontrolled: true
@@ -50,7 +73,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
         clientList.forEach((client) => {
           client.postMessage({
             tipo: 'RESUBSCRIBE_PUSH',
-            subscription: newSub.toJSON()
+            subscription: subJson
           });
         });
       } catch (e) {
@@ -58,6 +81,34 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       }
     })()
   );
+});
+
+// Helpers para o SW guardar o pacienteId localmente
+async function getPacienteIdSalvo() {
+  try {
+    const cache = await caches.open('sw-paciente-id');
+    const resp = await cache.match('/paciente-id');
+    if (!resp) return null;
+    return await resp.text();
+  } catch (e) {
+    return null;
+  }
+}
+
+function extractPacienteId(subscription) {
+  // não usamos mais, mantido por compatibilidade
+  return null;
+}
+
+// ✅ Ouvir mensagem do app para guardar o pacienteId no CacheStorage
+self.addEventListener('message', (event) => {
+  if (event.data?.tipo === 'SALVAR_PACIENTE_ID' && event.data?.pacienteId) {
+    event.waitUntil(
+      caches.open('sw-paciente-id').then((cache) =>
+        cache.put('/paciente-id', new Response(String(event.data.pacienteId)))
+      )
+    );
+  }
 });
 
 /* ---------- PUSH ---------- */
@@ -119,34 +170,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // ✅ Só abre o app se foi o botão "Ver ficha" OU toque no corpo (action vazia)
-  // Qualquer outro valor desconhecido → apenas fecha.
-  if (event.action && event.action !== 'abrir') {
-    return; // ação desconhecida, não faz nada
-  }
-
-  // Descobre a URL correta
+  // ✅ Qualquer clique (corpo ou botão "Ver ficha") abre a PASTA do paciente
   const urlDestino = new URL('/', self.location.origin);
-
-  // Se veio do botão "abrir", vai direto pra anamnese
-  if (event.action === 'abrir') {
-    urlDestino.searchParams.set('abrir', 'anamnese');
-  }
+  // NÃO adiciona ?abrir=anamnese → abre no detalhe_pasta por padrão
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Se já tem janela aberta → foca e (se for o caso) navega pra anamnese
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          if (event.action === 'abrir') {
-            try {
-              client.postMessage({ tipo: 'ABRIR_ANAMNESE' });
-            } catch (e) { /* ignora */ }
-          }
+          // Só foca, sem mandar mensagem — o app já está na pasta
           return client.focus();
         }
       }
-      // Senão abre nova janela
       if (clients.openWindow) {
         return clients.openWindow(urlDestino.toString());
       }

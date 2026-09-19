@@ -247,9 +247,7 @@ export default function PainelPaciente({
   abrirAnamneseInicial = false,
 }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [telaAtual, setTelaAtual] = useState(
-    abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta'
-  );
+ const [telaAtual, setTelaAtual] = useState('detalhe_pasta'); // ✅ sempre começa na pasta
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
   // Estados para gerenciar a instalação do WebApp (PWA)
@@ -291,26 +289,7 @@ export default function PainelPaciente({
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  useEffect(() => {
-  if (!('serviceWorker' in navigator)) return;
 
-  const handleMsg = (event) => {
-    if (event.data?.tipo === 'ABRIR_ANAMNESE') {
-       } else if (event.data?.tipo === 'RESUBSCRIBE_PUSH') {
-      // Empurra uma entrada no histórico pra que o botão voltar
-      // continue funcionando corretamente
-      window.history.pushState(
-        { ...(window.history.state || {}), painelPacienteTela: 'ver_anamnese' },
-        '',
-        window.location.pathname
-      );
-      setTelaAtual('ver_anamnese');
-    }
-  };
-
-  navigator.serviceWorker.addEventListener('message', handleMsg);
-  return () => navigator.serviceWorker.removeEventListener('message', handleMsg);
-}, []);
 
   useEffect(() => {
     if (typeof Notification === 'undefined') return;

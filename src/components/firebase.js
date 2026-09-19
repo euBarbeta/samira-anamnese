@@ -1,5 +1,12 @@
 import { initializeApp } from "firebase/app";
-import { initializeAuth, browserLocalPersistence, getAuth } from "firebase/auth";
+import {
+  initializeAuth,
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
+  getAuth
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -13,9 +20,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Persistência local = sessão sobrevive a fechar/reabrir o app
+// ✅ Persistência em cadeia: tenta IndexedDB (mais resistente em PWA/iOS),
+//    depois localStorage, depois sessionStorage, e por último memória.
 export const auth = initializeAuth(app, {
-  persistence: browserLocalPersistence
+  persistence: [
+    indexedDBLocalPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+    inMemoryPersistence
+  ]
 });
 
 export const db = getFirestore(app);

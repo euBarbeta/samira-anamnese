@@ -26,7 +26,6 @@ export async function inscreverPush(pacienteId) {
   }
 
   try {
-    // Só pede se ainda não foi decidido
     if (Notification.permission === 'default') {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return null;
@@ -36,6 +35,16 @@ export async function inscreverPush(pacienteId) {
     }
 
     const registration = await navigator.serviceWorker.ready;
+
+    // ✅ Avisa o Service Worker qual é o pacienteId,
+    //    para que ele possa salvar a subscription sozinho se renovar
+    if (registration.active) {
+      registration.active.postMessage({
+        tipo: 'SALVAR_PACIENTE_ID',
+        pacienteId: String(pacienteId)
+      });
+    }
+
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
