@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samira-estetica-v10';
+const CACHE_NAME = 'samira-estetica-v11';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
@@ -120,7 +120,7 @@ self.addEventListener('push', (event) => {
     icon: '/imagens/pwa-192.png',
     badge: '/imagens/badge-72.png',
     vibrate: [200, 100, 200, 100, 200],
-    requireInteraction: true,          // ⬅️ mantém visível até interagir
+    requireInteraction: false,          // ⬅️ mantém visível até interagir
     silent: false,
     timestamp: Date.now(),
     dir: 'ltr',
@@ -147,7 +147,7 @@ self.addEventListener('push', (event) => {
     vibrate: data.vibrate,
     tag: tagFinal,
     renotify: true,
-    requireInteraction: true,           // ⬅️ também aqui
+    requireInteraction: false,           // ⬅️ também aqui
     silent: false,
     timestamp: data.timestamp,
     dir: data.dir,

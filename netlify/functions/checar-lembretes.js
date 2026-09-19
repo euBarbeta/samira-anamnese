@@ -100,10 +100,21 @@ exports.handler = async (event) => {
       };
     }
 
+    // ✅ Ordena por sendAt (mais antigos primeiro)
+    const prontosOrdenados = [...prontos].sort(
+      (a, b) => (a.data().sendAt || 0) - (b.data().sendAt || 0)
+    );
+
+    // ✅ Limita para não estourar o timeout do Netlify (10s padrão)
+    const LIMITE_POR_EXECUCAO = 6;
+    const prontosParaEnviar = prontosOrdenados.slice(0, LIMITE_POR_EXECUCAO);
+
     const resultados = [];
 
-    for (const doc of prontos) {
+    for (let i = 0; i < prontosParaEnviar.length; i++) {
+      const doc = prontosParaEnviar[i];
       const data = doc.data();
+
       const subDoc = await db
         .collection('push_subscriptions')
         .doc(data.pacienteId)
@@ -119,10 +130,16 @@ exports.handler = async (event) => {
       }
 
       const subscription = subDoc.data().subscription;
+
+      // ✅ Tag SEMPRE única (mesmo se data.tag for reusada)
+      const tagUnica = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+
       const payload = JSON.stringify({
         title: data.titulo,
         body: 'Você tem um lembrete da Samira Estética',
-        tag: data.tag || `lembrete-${doc.id}`,
+        tag: tagUnica,
         lembreteId: doc.id,
         url: '/',
       });
@@ -165,7 +182,15 @@ exports.handler = async (event) => {
         });
         resultados.push({ id: doc.id, ok: envioOk });
       }
+
+      // ✅ Delay de 1s entre notificações (exceto na última)
+      if (i < prontosParaEnviar.length - 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
     }
+
+    // ✅ Informa quantos ficaram para o próximo ciclo
+    const restantes = prontosOrdenados.length - prontosParaEnviar.length;
 
     return {
       statusCode: 200,
@@ -173,6 +198,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         ok: true,
         enviados: resultados.length,
+        restantes,
         resultados,
       }),
     };
