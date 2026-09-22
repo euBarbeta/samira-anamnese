@@ -10,7 +10,8 @@ import {
   MoreVertical,
   Monitor,
   Smartphone,
-  Bell
+  Bell,
+  AlertTriangle   // ← adicionar
 } from 'lucide-react';
 import FichaDesktop from './FichaDesktop';
 import FichaMobile from './FichaMobile';
@@ -25,6 +26,13 @@ function ModalInstalacao({ onClose }) {
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
   const isDesktop = !isIOS && !isAndroid;
+
+  // Detecta se é Chrome/Firefox/Edge no iOS (todos NÃO suportam PWA)
+  const isIOSChrome = isIOS && /CriOS/i.test(ua);
+  const isIOSFirefox = isIOS && /FxiOS/i.test(ua);
+  const isIOSEdge = isIOS && /EdgiOS/i.test(ua);
+  const isIOSNaoSafari = isIOSChrome || isIOSFirefox || isIOSEdge;
+
   return (
     <div
       onClick={onClose}
@@ -56,7 +64,6 @@ function ModalInstalacao({ onClose }) {
           position: 'relative'
         }}
       >
-        {/* Botão fechar */}
         <button
           type="button"
           onClick={onClose}
@@ -94,8 +101,31 @@ function ModalInstalacao({ onClose }) {
           Siga os passos abaixo de acordo com o seu aparelho.
         </p>
 
-        {/* ============ iOS ============ */}
-        {isIOS && (
+        {/* ============ iOS — Chrome / Firefox / Edge ============ */}
+        {isIOSNaoSafari && (
+          <div style={{ ...blocoEstilo, border: '1.5px solid #ffb74d', background: '#fff3e0' }}>
+            <div style={headerBloco}>
+              <AlertTriangle size={16} color="#e65100" />
+              <span style={{ ...tituloBloco, color: '#e65100' }}>
+                ⚠️ Use o Safari para instalar
+              </span>
+            </div>
+            <p style={{ fontSize: '12px', color: '#5d4037', margin: '0 0 8px 0', lineHeight: 1.5 }}>
+              No iPhone/iPad, <strong>apenas o Safari</strong> consegue instalar Web Apps. O
+              Chrome, Firefox e Edge no iOS <strong>não suportam</strong> essa função.
+            </p>
+            <p style={{ fontSize: '12px', color: '#5d4037', margin: 0, lineHeight: 1.5 }}>
+              1. Copie o link deste site.
+              <br />
+              2. Abra no <strong>Safari</strong>.
+              <br />
+              3. Siga as instruções abaixo.
+            </p>
+          </div>
+        )}
+
+        {/* ============ iOS Safari ============ */}
+        {isIOS && !isIOSNaoSafari && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
               <Smartphone size={16} color="#C8A24A" />
@@ -103,19 +133,23 @@ function ModalInstalacao({ onClose }) {
             </div>
             <ol style={listaEstilo}>
               <li>
-                Abra este site no <strong>Safari</strong> (não funciona pelo Chrome no iOS).
-              </li>
-              <li>
                 Toque no botão <strong>Compartilhar</strong>{' '}
                 <Share size={14} style={{ verticalAlign: 'middle' }} /> na barra inferior.
               </li>
               <li>
-                Role e toque em <strong>"Adicionar à Tela de Início"</strong>.
+                Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>.
               </li>
               <li>
                 Confirme tocando em <strong>"Adicionar"</strong>.
               </li>
+              <li>
+                O ícone aparecerá na sua Tela de Início como um app normal.
+              </li>
             </ol>
+            <p style={{ fontSize: '11px', color: '#666', margin: '10px 0 0 0', lineHeight: 1.5 }}>
+              💡 <strong>Dica:</strong> depois de instalar, abra o app pela Tela de Início (não
+              pelo Safari) para receber notificações.
+            </p>
           </div>
         )}
 
@@ -140,6 +174,10 @@ function ModalInstalacao({ onClose }) {
                 Confirme tocando em <strong>"Instalar"</strong>.
               </li>
             </ol>
+            <p style={{ fontSize: '11px', color: '#666', margin: '10px 0 0 0', lineHeight: 1.5 }}>
+              💡 Prefere o app nativo? Baixe o <strong>APK da Samira</strong> — tem notificações
+              mais confiáveis.
+            </p>
           </div>
         )}
 
@@ -155,18 +193,22 @@ function ModalInstalacao({ onClose }) {
                 Olhe para a <strong>barra de endereços</strong> no topo do navegador.
               </li>
               <li>
-                Clique no ícone de <strong>instalação</strong> (parece um monitor com uma seta ↓ ou
-                um ⊕).
+                Clique no ícone de <strong>instalação</strong> (parece um monitor com uma seta ↓
+                ou um ⊕).
               </li>
               <li>
                 Se não aparecer, clique no menu <strong>⋮</strong> e procure por{' '}
-                <strong>"Instalar Samira Estética"</strong>.
+                <strong>"Instalar Samira Ferreira"</strong>.
               </li>
               <li>
-                Confirme. O app será aberto como uma janela própria e o atalho ficará na área de
+                Confirme. O app abrirá como uma janela própria e o atalho ficará na área de
                 trabalho.
               </li>
             </ol>
+            <p style={{ fontSize: '11px', color: '#666', margin: '10px 0 0 0', lineHeight: 1.5 }}>
+              💡 <strong>Não aparece o ícone?</strong> Acesse em outro navegador (Edge, Brave) ou
+              limpe os dados do site nas configurações.
+            </p>
           </div>
         )}
 
@@ -182,8 +224,7 @@ function ModalInstalacao({ onClose }) {
           </p>
           <p style={{ fontSize: '11px', color: '#555', margin: 0, lineHeight: 1.5 }}>
             Se você negou sem querer, vá em:{' '}
-            <strong>Configurações do celular → Apps → Samira Estética → Notificações</strong> e
-            ative.
+            <strong>Configurações → Apps → Samira Estética → Notificações</strong> e ative.
           </p>
         </div>
 
@@ -377,52 +418,66 @@ useEffect(() => {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
-  const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
+ const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
 
-  const handleInstalarApp = async () => {
-    // ✅ ANDROID → baixa o APK direto
-    if (isAndroid) {
-      const confirmar = window.confirm(
-        '📱 Download do aplicativo Samira Ferreira\n\n' +
-        'Após o download:\n' +
-        '1. Abra o arquivo .apk\n' +
-        '2. Permita "Instalar de fontes desconhecidas"\n' +
-        '3. Confirme a instalação\n\n' +
-        'Deseja baixar agora?'
-      );
+const handleInstalarApp = async () => {
+  // ✅ ANDROID → baixa o APK direto
+  if (isAndroid) {
+    const confirmar = window.confirm(
+      '📱 Download do aplicativo Samira Ferreira\n\n' +
+      'Após o download:\n' +
+      '1. Abra o arquivo .apk\n' +
+      '2. Permita "Instalar de fontes desconhecidas"\n' +
+      '3. Confirme a instalação\n\n' +
+      'Deseja baixar agora?'
+    );
 
-      if (!confirmar) return;
+    if (!confirmar) return;
 
-      const link = document.createElement('a');
-      link.href = APK_URL;
-      link.download = 'samira-ferreira.apk';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return;
-    }
+    const link = document.createElement('a');
+    link.href = APK_URL;
+    link.download = 'samira-ferreira.apk';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
 
-    // 🍎 iOS / 💻 Desktop → comportamento PWA antigo
-    const prompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPrompt : null);
+  // ✅ iOS → SEMPRE abre o modal (iOS nunca tem prompt nativo)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isIOS) {
+    setMostrarModalInstalacao(true);
+    return;
+  }
 
-    if (prompt) {
-      prompt.prompt();
+  // ✅ Desktop → tenta prompt nativo, senão abre modal
+  const prompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPrompt : null);
+
+  if (prompt && typeof prompt.prompt === 'function') {
+    try {
+      await prompt.prompt();
       const { outcome } = await prompt.userChoice;
 
+      setDeferredPrompt(null);
+      window.__deferredPrompt = null;
+
       if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-        window.__deferredPrompt = null;
         setAppInstalado(true);
-      } else {
-        setDeferredPrompt(null);
-        window.__deferredPrompt = null;
-        setMostrarModalInstalacao(true);
+        return;
       }
-    } else {
+      // Cancelou → abre modal com instruções
       setMostrarModalInstalacao(true);
+      return;
+    } catch (e) {
+      console.warn('beforeinstallprompt falhou, abrindo modal:', e);
+      // Cai no modal
     }
-  };
+  }
+
+  // Sem prompt nativo → modal custom
+  setMostrarModalInstalacao(true);
+};
 
   if (!pacienteData) {
     return (
