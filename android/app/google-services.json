@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "898422145244",
+    "project_id": "samiraestetica",
+    "storage_bucket": "samiraestetica.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:898422145244:android:a86686f8190c5940d8f419",
+        "android_client_info": {
+          "package_name": "com.samira.estetica"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5hdPkx5dk9MLnl9jadvEAy-bD9YhWvtk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

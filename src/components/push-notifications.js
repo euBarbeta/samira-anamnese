@@ -1,7 +1,10 @@
+// src/components/push-notifications.js
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { isNativo, inscreverPushNativo } from './push-notifications-native';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -14,7 +17,18 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+/**
+ * Registra push escolhendo automaticamente entre:
+ *   - Nativo (APK/Android) → FCM via Capacitor
+ *   - Navegador (PWA)      → web-push via Service Worker
+ */
 export async function inscreverPush(pacienteId) {
+  // ✅ Se estiver rodando como app nativo (APK), usa FCM
+  if (isNativo()) {
+    return inscreverPushNativo(pacienteId);
+  }
+
+  // ❌ Se estiver no navegador (PWA), usa web-push (lógica antiga)
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     console.warn('❌ Push não suportado.');
     return null;
@@ -36,12 +50,10 @@ export async function inscreverPush(pacienteId) {
 
     const registration = await navigator.serviceWorker.ready;
 
-    // ✅ Avisa o Service Worker qual é o pacienteId,
-    //    para que ele possa salvar a subscription sozinho se renovar
     if (registration.active) {
       registration.active.postMessage({
         tipo: 'SALVAR_PACIENTE_ID',
-        pacienteId: String(pacienteId)
+        pacienteId: String(pacienteId),
       });
     }
 
@@ -60,6 +72,7 @@ export async function inscreverPush(pacienteId) {
       {
         pacienteId: String(pacienteId),
         subscription: subJson,
+        plataforma: 'web',
         atualizadoEm: new Date().toISOString(),
       },
       { merge: true }

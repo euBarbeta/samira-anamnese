@@ -2,6 +2,7 @@
 const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const admin = require('firebase-admin');
 
 // ❌ SEM exports.config → agendador nativo DESATIVADO
 // ✅ Quem chama agora é o cron-job.org externo
@@ -22,12 +23,12 @@ const CORS_HEADERS = {
 };
 
 exports.handler = async (event) => {
-  // ✅ Responde OPTIONS (preflight) — alguns crons fazem isso antes
+  // ✅ Responde OPTIONS (preflight)
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
   }
 
-  // ✅ Aceita GET e POST (cron-job.org costuma usar GET)
+  // ✅ Aceita GET e POST
   if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -55,6 +56,7 @@ exports.handler = async (event) => {
   }
 
   try {
+    // ✅ Inicializa Firebase Admin (uma única vez)
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       initializeApp({
@@ -129,32 +131,82 @@ exports.handler = async (event) => {
         continue;
       }
 
-      const subscription = subDoc.data().subscription;
+      const subData = subDoc.data(); // ✅ AGORA DEFINIDO
 
-      // ✅ Tag SEMPRE única (mesmo se data.tag for reusada)
+      // ✅ Tag única (mesma para FCM e web-push)
       const tagUnica = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}`;
 
-      const payload = JSON.stringify({
-        title: data.titulo,
-        body: 'Você tem um lembrete da Samira Estética',
-        tag: tagUnica,
-        lembreteId: doc.id,
-        url: '/',
-      });
+      const titulo = data.titulo || 'Lembrete';
+      const corpo = 'Você tem um lembrete da Samira Estética';
 
       let envioOk = false;
       let erroMsg = null;
 
-      try {
-        await webpush.sendNotification(subscription, payload);
-        envioOk = true;
-      } catch (e) {
-        erroMsg = e.message;
-        console.error('❌ Falha no envio:', data.titulo, '-', e.message);
+      // ============================================================
+      // ✅ 1. Envia via FCM (app nativo / APK)
+      // ============================================================
+      if (subData.fcmToken) {
+        try {
+          await admin.messaging().send({
+            token: subData.fcmToken,
+            notification: {
+              title: titulo,
+              body: corpo,
+            },
+            data: {
+              lembreteId: String(doc.id),
+              url: '/',
+              tag: tagUnica,
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                channelId: 'lembretes',
+                sound: 'default',
+                tag: tagUnica,
+              },
+            },
+          });
+          envioOk = true;
+        } catch (e) {
+          erroMsg = e.message;
+          console.error('❌ Falha no envio FCM:', titulo, '-', e.message);
+        }
+      }
+      // ============================================================
+      // ✅ 2. Envia via web-push (PWA no navegador)
+      // ============================================================
+      else if (subData.subscription) {
+        try {
+          const payloadWeb = JSON.stringify({
+            title: titulo,
+            body: corpo,
+            tag: tagUnica,
+            lembreteId: doc.id,
+            url: '/',
+          });
+          await webpush.sendNotification(subData.subscription, payloadWeb);
+          envioOk = true;
+        } catch (e) {
+          erroMsg = e.message;
+          console.error('❌ Falha no envio web-push:', titulo, '-', e.message);
+        }
+      }
+      // ============================================================
+      // ❌ 3. Sem inscrição (nem FCM nem web-push)
+      // ============================================================
+      else {
+        await doc.ref.update({
+          enviado: true,
+          erro: 'sem inscrição',
+          enviadoEm: new Date().toISOString(),
+        });
+        continue;
       }
 
+      // ✅ Atualiza o lembrete conforme o tipo
       if (data.tipo === 'intervalo' && envioOk) {
         const num = parseInt(data.intervaloNumero, 10) || 1;
         const unidade = data.intervaloUnidade || 'horas';
@@ -189,7 +241,6 @@ exports.handler = async (event) => {
       }
     }
 
-    // ✅ Informa quantos ficaram para o próximo ciclo
     const restantes = prontosOrdenados.length - prontosParaEnviar.length;
 
     return {

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
+import { isNativo } from './push-notifications-native';
+import { Capacitor } from '@capacitor/core';
 import {
   DownloadCloud,
   X,
@@ -287,14 +289,23 @@ export default function PainelPaciente({
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
- useEffect(() => {
-  if (typeof Notification === 'undefined') return;
-  if (Notification.permission !== 'granted') return;
+// ✅ Re-registra push ao logar — funciona em nativo E navegador
+useEffect(() => {
   if (!pacienteData?.id) return;
 
   (async () => {
     try {
       const { inscreverPush } = await import('./push-notifications');
+
+      if (isNativo()) {
+        // ✅ Nativo: tenta registrar direto (a função interna já checa permissão)
+        await inscreverPush(pacienteData.id);
+        return;
+      }
+
+      // 🌐 Navegador: só registra se permissão já foi concedida
+      if (typeof Notification === 'undefined') return;
+      if (Notification.permission !== 'granted') return;
       await inscreverPush(pacienteData.id);
     } catch (e) {
       console.warn('Falha ao re-registrar push:', e);
@@ -305,12 +316,18 @@ export default function PainelPaciente({
 useEffect(() => {
   const handleVisibility = () => {
     if (document.visibilityState !== 'visible') return;
-    if (typeof Notification === 'undefined') return;
-    if (Notification.permission !== 'granted') return;
     if (!pacienteData?.id) return;
 
     import('./push-notifications').then(({ inscreverPush }) => {
-      inscreverPush(pacienteData.id).catch(() => {});
+      if (isNativo()) {
+        // Nativo: tenta sempre
+        inscreverPush(pacienteData.id).catch(() => {});
+      } else {
+        // Navegador: só se permissão concedida
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          inscreverPush(pacienteData.id).catch(() => {});
+        }
+      }
     });
   };
 
@@ -321,16 +338,18 @@ useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
 
-    // ⬇️ RECUPERA O PROMPT CAPTURADO GLOBALMENTE NO main.jsx
-    //    Isso resolve o problema do evento disparar na tela de login
-    //    antes do PainelPaciente montar.
+    // ✅ Se for APK nativo → considera "instalado" (esconde o botão Baixar)
+    if (isNativo()) {
+      setAppInstalado(true);
+    }
+
+    // Recupera prompt global (capturado no main.jsx)
     if (window.__deferredPrompt) {
       setDeferredPrompt(window.__deferredPrompt);
     }
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
-      // Guarda também no global (redundância saudável)
       window.__deferredPrompt = e;
       setDeferredPrompt(e);
     };
@@ -357,7 +376,6 @@ useEffect(() => {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
-
   const handleInstalarApp = async () => {
     // ⬇️ Usa o prompt do estado OU o global (o que estiver disponível)
     const prompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPrompt : null);

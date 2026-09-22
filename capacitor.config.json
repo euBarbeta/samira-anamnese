@@ -1,0 +1,13 @@
+{
+  "appId": "com.samira.estetica",
+  "appName": "Samira Estética",
+  "webDir": "dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

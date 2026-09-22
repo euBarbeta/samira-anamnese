@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Smartphone, Monitor, AlertTriangle } from 'lucide-react';
+import { isNativo } from './push-notifications-native';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 const STORAGE_KEY = 'aviso_segundo_plano_aceito';
 
@@ -9,18 +11,29 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
   const [avisoSegundoPlanoAceito, setAvisoSegundoPlanoAceito] = useState(true);
 
   useEffect(() => {
-    // Verifica se já aceitou o aviso de segundo plano antes
-    try {
-      const aceito = localStorage.getItem(STORAGE_KEY) === 'ok';
-      setAvisoSegundoPlanoAceito(aceito);
-    } catch (e) {
-      setAvisoSegundoPlanoAceito(false);
-    }
+    const checarPermissao = async () => {
+      // ✅ APP NATIVO (APK) — usa PushNotifications do Capacitor
+      if (isNativo()) {
+        try {
+          const status = await PushNotifications.checkPermissions();
+          const perm = status.receive; // 'granted' | 'denied' | 'prompt'
+          // ✅ Normaliza 'prompt' → 'default' para casar com a lógica do JSX
+          setPermissao(perm === 'prompt' ? 'default' : perm);
+        } catch (e) {
+          console.warn('Erro ao checar permissão nativa:', e);
+          setPermissao('default');
+        }
+      } else {
+        // 🌐 NAVEGADOR (PWA)
+        if (typeof Notification !== 'undefined') {
+          setPermissao(Notification.permission);
+        }
+      }
+    };
 
-    if (typeof Notification !== 'undefined') {
-      setPermissao(Notification.permission);
-    }
+    checarPermissao();
 
+    // Detecta plataforma
     const ua = navigator.userAgent || '';
     const isAndroid = /Android/i.test(ua);
     const isIOS = /iPhone|iPad|iPod/i.test(ua);
@@ -30,6 +43,14 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
     else if (isIOS) setPlataforma('ios');
     else if (isWindows) setPlataforma('windows');
     else setPlataforma('desktop');
+
+    // Verifica se já aceitou o aviso de segundo plano
+    try {
+      const aceito = localStorage.getItem(STORAGE_KEY) === 'ok';
+      setAvisoSegundoPlanoAceito(aceito);
+    } catch (e) {
+      setAvisoSegundoPlanoAceito(false);
+    }
   }, []);
 
   const aceitarAvisoSegundoPlano = () => {
@@ -41,16 +62,12 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
     setAvisoSegundoPlanoAceito(true);
   };
 
-  // ✅ Só mostra as instruções de segundo plano se:
-  //    1. O app foi INSTALADO
-  //    2. O usuário ainda NÃO clicou em "Entendi"
   const mostrarAvisoSegundoPlano = appInstalado && !avisoSegundoPlanoAceito;
 
   return (
     <div style={estilos.container}>
       {/* ============================================== */}
       {/* BLOCO 1: PERMISSÃO DE NOTIFICAÇÃO              */}
-      {/* (comportamento normal — some quando concedida) */}
       {/* ============================================== */}
       {permissao === 'default' && (
         <div style={estilos.blocoPermissao}>
@@ -64,11 +81,26 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
           <button
             type="button"
             onClick={async () => {
-              const resultado = await Notification.requestPermission();
-              setPermissao(resultado);
-              if (resultado === 'granted' && pacienteId) {
-                const { inscreverPush } = await import('./push-notifications');
-                await inscreverPush(pacienteId);
+              if (isNativo()) {
+                // ✅ App nativo
+                const result = await PushNotifications.requestPermissions();
+                if (result.receive === 'granted') {
+                  setPermissao('granted');
+                  if (pacienteId) {
+                    const { inscreverPush } = await import('./push-notifications');
+                    await inscreverPush(pacienteId);
+                  }
+                } else {
+                  setPermissao('denied');
+                }
+              } else {
+                // 🌐 Navegador
+                const resultado = await Notification.requestPermission();
+                setPermissao(resultado);
+                if (resultado === 'granted' && pacienteId) {
+                  const { inscreverPush } = await import('./push-notifications');
+                  await inscreverPush(pacienteId);
+                }
               }
             }}
             style={estilos.botaoAtivar}
@@ -78,20 +110,31 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
         </div>
       )}
 
+      {/* ============================================== */}
+      {/* BLOCO 2: PERMISSÃO NEGADA                      */}
+      {/* ============================================== */}
       {permissao === 'denied' && (
         <div style={estilos.blocoNegado}>
           <AlertTriangle size={18} color="#e65100" style={{ flexShrink: 0 }} />
           <div>
-            <strong>Notificações bloqueadas.</strong> Para ativar, toque no cadeado 🔒 da barra
-            de endereço → <strong>Notificações → Permitir</strong>.
+            {isNativo() ? (
+              <>
+                <strong>Notificações bloqueadas.</strong> Para ativar, vá em{' '}
+                <strong>Configurações → Aplicativos → Samira Estética → Notificações</strong>{' '}
+                e permita.
+              </>
+            ) : (
+              <>
+                <strong>Notificações bloqueadas.</strong> Para ativar, toque no cadeado 🔒 da
+                barra de endereço → <strong>Notificações → Permitir</strong>.
+              </>
+            )}
           </div>
         </div>
       )}
 
       {/* ============================================== */}
-      {/* BLOCO 2: GARANTIA EM SEGUNDO PLANO             */}
-      {/* (só aparece depois do PWA instalado e some      */}
-      {/*  só quando clicar em "Entendi")                 */}
+      {/* BLOCO 3: GARANTIA EM SEGUNDO PLANO             */}
       {/* ============================================== */}
       {mostrarAvisoSegundoPlano && (
         <>
@@ -110,9 +153,11 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
               <p style={estilos.passos}>
                 1. Acesse as <strong>Configurações</strong> do celular.
                 <br />
-                2. Vá em <strong>Aplicativos</strong> → <strong>Samira Ferreira</strong>.
+                2. Vá em <strong>Aplicativos</strong> → <strong>Samira Estética</strong>.
                 <br />
                 3. Desative <strong>"Gerenciar aplicativo se não usado"</strong>.
+                <br />
+                4. Em <strong>Bateria</strong>, marque <strong>"Sem restrições"</strong>.
               </p>
               <button
                 type="button"
@@ -140,7 +185,7 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
                 1. Certifique-se de que o app foi <strong>adicionado à Tela de Início</strong>.
                 <br />
                 2. Verifique se as notificações estão permitidas em
-                <strong> Ajustes → Samira Ferreira → Notificações</strong>.
+                <strong> Ajustes → Samira Estética → Notificações</strong>.
                 <br />
                 3. Mantenha o app aberto ou minimize-o para maior confiabilidade.
               </p>
@@ -169,7 +214,7 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
               <p style={estilos.passos}>
                 1. Vá em <strong>Configurações → Aplicativos → Aplicativos instalados</strong>.
                 <br />
-                2. Encontre <strong>Samira Ferreira</strong> e clique em
+                2. Encontre <strong>Samira Estética</strong> e clique em
                 <strong> Opções avançadas</strong>.
                 <br />
                 3. Em <strong>Execução em segundo plano</strong>, selecione
