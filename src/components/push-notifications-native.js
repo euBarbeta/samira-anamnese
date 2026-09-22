@@ -10,7 +10,7 @@ import { db } from './firebase';
 export function isNativo() {
   const isNative = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
-  console.log('🔍 isNativo():', isNative, '| platform:', platform);
+  return Capacitor.isNativePlatform();
   return isNative;
 }
 export async function inscreverPushNativo(pacienteId) {
