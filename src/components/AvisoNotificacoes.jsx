@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Smartphone, Monitor, AlertTriangle } from 'lucide-react';
 import { isNativo } from './push-notifications-native';
 import { PushNotifications } from '@capacitor/push-notifications';
+const [verificando, setVerificando] = useState(true);
 
 const STORAGE_KEY = 'aviso_segundo_plano_aceito';
 
@@ -10,48 +11,47 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
   const [permissao, setPermissao] = useState('default');
   const [avisoSegundoPlanoAceito, setAvisoSegundoPlanoAceito] = useState(true);
 
-  useEffect(() => {
-    const checarPermissao = async () => {
-      // ✅ APP NATIVO (APK) — usa PushNotifications do Capacitor
-      if (isNativo()) {
-        try {
-          const status = await PushNotifications.checkPermissions();
-          const perm = status.receive; // 'granted' | 'denied' | 'prompt'
-          // ✅ Normaliza 'prompt' → 'default' para casar com a lógica do JSX
-          setPermissao(perm === 'prompt' ? 'default' : perm);
-        } catch (e) {
-          console.warn('Erro ao checar permissão nativa:', e);
-          setPermissao('default');
-        }
-      } else {
-        // 🌐 NAVEGADOR (PWA)
-        if (typeof Notification !== 'undefined') {
-          setPermissao(Notification.permission);
-        }
+useEffect(() => {
+  const checarPermissao = async () => {
+    if (isNativo()) {
+      try {
+        const status = await PushNotifications.checkPermissions();
+        const perm = status.receive;
+        setPermissao(perm === 'prompt' ? 'default' : perm);
+      } catch (e) {
+        console.warn('Erro ao checar permissão nativa:', e);
+        setPermissao('default');
       }
-    };
-
-    checarPermissao();
-
-    // Detecta plataforma
-    const ua = navigator.userAgent || '';
-    const isAndroid = /Android/i.test(ua);
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
-    const isWindows = /Windows/i.test(ua);
-
-    if (isAndroid) setPlataforma('android');
-    else if (isIOS) setPlataforma('ios');
-    else if (isWindows) setPlataforma('windows');
-    else setPlataforma('desktop');
-
-    // Verifica se já aceitou o aviso de segundo plano
-    try {
-      const aceito = localStorage.getItem(STORAGE_KEY) === 'ok';
-      setAvisoSegundoPlanoAceito(aceito);
-    } catch (e) {
-      setAvisoSegundoPlanoAceito(false);
+    } else {
+      if (typeof Notification !== 'undefined') {
+        setPermissao(Notification.permission);
+      }
     }
-  }, []);
+
+    // ✅ Libera a renderização depois de checar
+    setVerificando(false);
+  };
+
+  checarPermissao();
+
+  // Detecta plataforma
+  const ua = navigator.userAgent || '';
+  const isAndroid = /Android/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isWindows = /Windows/i.test(ua);
+
+  if (isAndroid) setPlataforma('android');
+  else if (isIOS) setPlataforma('ios');
+  else if (isWindows) setPlataforma('windows');
+  else setPlataforma('desktop');
+
+  try {
+    const aceito = localStorage.getItem(STORAGE_KEY) === 'ok';
+    setAvisoSegundoPlanoAceito(aceito);
+  } catch (e) {
+    setAvisoSegundoPlanoAceito(false);
+  }
+}, []);
 
   const aceitarAvisoSegundoPlano = () => {
     try {
@@ -63,6 +63,14 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
   };
 
   const mostrarAvisoSegundoPlano = appInstalado && !avisoSegundoPlanoAceito;
+  // ✅ Enquanto verifica a sessão/permissão, não mostra NADA
+  if (verificando) return null;
+
+  return (
+    <div style={estilos.container}>
+      {/* ...resto igual */}
+    </div>
+  );
 
   return (
     <div style={estilos.container}>

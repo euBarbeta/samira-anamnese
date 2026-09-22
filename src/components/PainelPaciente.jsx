@@ -257,6 +257,7 @@ export default function PainelPaciente({
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [appInstalado, setAppInstalado] = useState(false);
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
+   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
   const irParaTela = useCallback((novaTela) => {
     if (novaTela === telaAtual) return;
     window.history.pushState(
@@ -376,8 +377,33 @@ useEffect(() => {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+  const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
+
   const handleInstalarApp = async () => {
-    // ⬇️ Usa o prompt do estado OU o global (o que estiver disponível)
+    // ✅ ANDROID → baixa o APK direto
+    if (isAndroid) {
+      const confirmar = window.confirm(
+        '📱 Download do aplicativo Samira Ferreira\n\n' +
+        'Após o download:\n' +
+        '1. Abra o arquivo .apk\n' +
+        '2. Permita "Instalar de fontes desconhecidas"\n' +
+        '3. Confirme a instalação\n\n' +
+        'Deseja baixar agora?'
+      );
+
+      if (!confirmar) return;
+
+      const link = document.createElement('a');
+      link.href = APK_URL;
+      link.download = 'samira-ferreira.apk';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // 🍎 iOS / 💻 Desktop → comportamento PWA antigo
     const prompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPrompt : null);
 
     if (prompt) {
@@ -389,13 +415,11 @@ useEffect(() => {
         window.__deferredPrompt = null;
         setAppInstalado(true);
       } else {
-        // Cancelou: o prompt nativo morre, mas abrimos o modal com instruções manuais
         setDeferredPrompt(null);
         window.__deferredPrompt = null;
         setMostrarModalInstalacao(true);
       }
     } else {
-      // iOS, Firefox, ou prompt já usado — abre o modal manual
       setMostrarModalInstalacao(true);
     }
   };
@@ -657,35 +681,35 @@ useEffect(() => {
   Ver Ficha de Anamnese
 </button>
 
-                  {/* BOTÃO PARA BAIXAR O WEBAPP / PWA */}
-                  {!appInstalado && (
-                    <button
-  type="button"
-  onClick={handleInstalarApp}
-  className="painel-btn-lavanda-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-    color: '#2c163a',
-    border: '1.2px solid #8a6fa8',
-    padding: '14px 18px',
-    borderRadius: '16px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
-    transition: 'all 0.25s ease'
-  }}
->
-  <DownloadCloud size={16} color="#2c163a" />
-  Baixar Web App
-</button>
-                  )}
+{!appInstalado && (
+  <button
+    type="button"
+    onClick={handleInstalarApp}
+    className="painel-btn-lavanda-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.2px solid #8a6fa8',
+      padding: '14px 18px',
+      borderRadius: '16px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      width: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease'
+    }}
+  >
+    <DownloadCloud size={16} color="#2c163a" />
+    {isAndroid ? 'Baixar App' : 'Baixar Web App'}
+  </button>
+)}
+
                 </div>
               </div>
             </div>
