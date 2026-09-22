@@ -2,7 +2,7 @@
 const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
-const admin = require('firebase-admin');
+const { getMessaging } = require('firebase-admin/messaging'); // ✅ API modular
 
 // ❌ SEM exports.config → agendador nativo DESATIVADO
 // ✅ Quem chama agora é o cron-job.org externo
@@ -23,12 +23,10 @@ const CORS_HEADERS = {
 };
 
 exports.handler = async (event) => {
-  // ✅ Responde OPTIONS (preflight)
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
   }
 
-  // ✅ Aceita GET e POST
   if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -37,14 +35,11 @@ exports.handler = async (event) => {
     };
   }
 
-  // ✅ Valida o secret
   let secret = event.queryStringParameters?.secret;
   if (!secret && event.body) {
     try {
       secret = JSON.parse(event.body).secret;
-    } catch (e) {
-      // corpo não era JSON, ignora
-    }
+    } catch (e) {}
   }
 
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
@@ -56,7 +51,6 @@ exports.handler = async (event) => {
   }
 
   try {
-    // ✅ Inicializa Firebase Admin (uma única vez)
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       initializeApp({
@@ -102,12 +96,10 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Ordena por sendAt (mais antigos primeiro)
     const prontosOrdenados = [...prontos].sort(
       (a, b) => (a.data().sendAt || 0) - (b.data().sendAt || 0)
     );
 
-    // ✅ Limita para não estourar o timeout do Netlify (10s padrão)
     const LIMITE_POR_EXECUCAO = 6;
     const prontosParaEnviar = prontosOrdenados.slice(0, LIMITE_POR_EXECUCAO);
 
@@ -131,9 +123,8 @@ exports.handler = async (event) => {
         continue;
       }
 
-      const subData = subDoc.data(); // ✅ AGORA DEFINIDO
+      const subData = subDoc.data();
 
-      // ✅ Tag única (mesma para FCM e web-push)
       const tagUnica = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}`;
@@ -149,7 +140,7 @@ exports.handler = async (event) => {
       // ============================================================
       if (subData.fcmToken) {
         try {
-          await admin.messaging().send({
+          await getMessaging().send({
             token: subData.fcmToken,
             notification: {
               title: titulo,
@@ -173,6 +164,20 @@ exports.handler = async (event) => {
         } catch (e) {
           erroMsg = e.message;
           console.error('❌ Falha no envio FCM:', titulo, '-', e.message);
+
+          // ✅ Se o token FCM for inválido, remove do Firestore
+          const errosInvalidos = [
+            'messaging/registration-token-not-registered',
+            'messaging/invalid-registration-token',
+            'messaging/invalid-argument',
+          ];
+          if (errosInvalidos.some((code) => e.message.includes(code))) {
+            console.log('🗑️ Removendo fcmToken inválido do paciente:', data.pacienteId);
+            await subDoc.ref.update({
+              fcmToken: null,
+              atualizadoEm: new Date().toISOString(),
+            });
+          }
         }
       }
       // ============================================================
@@ -192,6 +197,16 @@ exports.handler = async (event) => {
         } catch (e) {
           erroMsg = e.message;
           console.error('❌ Falha no envio web-push:', titulo, '-', e.message);
+
+          // ✅ Se a subscription expirou (410/404), remove do Firestore
+          const statusCode = e.statusCode || 0;
+          if (statusCode === 410 || statusCode === 404) {
+            console.log('🗑️ Removendo subscription expirada do paciente:', data.pacienteId);
+            await subDoc.ref.update({
+              subscription: null,
+              atualizadoEm: new Date().toISOString(),
+            });
+          }
         }
       }
       // ============================================================
@@ -206,7 +221,6 @@ exports.handler = async (event) => {
         continue;
       }
 
-      // ✅ Atualiza o lembrete conforme o tipo
       if (data.tipo === 'intervalo' && envioOk) {
         const num = parseInt(data.intervaloNumero, 10) || 1;
         const unidade = data.intervaloUnidade || 'horas';
@@ -235,7 +249,6 @@ exports.handler = async (event) => {
         resultados.push({ id: doc.id, ok: envioOk });
       }
 
-      // ✅ Delay de 1s entre notificações (exceto na última)
       if (i < prontosParaEnviar.length - 1) {
         await new Promise((r) => setTimeout(r, 1000));
       }
