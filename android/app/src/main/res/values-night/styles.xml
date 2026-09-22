@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- ✅ Mesmo no modo escuro, usamos as mesmas cores claras -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-        <!-- ✅ Força tema claro mesmo em modo escuro do sistema -->
         <item name="android:isLightTheme">true</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>
@@ -13,11 +13,9 @@
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <!-- ✅ Define a cor de fundo diretamente -->
         <item name="android:windowBackground">@color/splashBackground</item>
         <item name="android:colorBackground">@color/splashBackground</item>
         <item name="android:background">@color/splashBackground</item>
-        <!-- ✅ Impede dark mode automático -->
         <item name="android:isLightTheme">true</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>
