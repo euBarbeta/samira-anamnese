@@ -8,10 +8,9 @@ import { db } from './firebase';
  * Verifica se está rodando como app nativo (Capacitor/APK)
  */
 export function isNativo() {
-  const isNative = Capacitor.isNativePlatform();
-  const platform = Capacitor.getPlatform();
-  return Capacitor.isNativePlatform();
-  return isNative;
+
+ return Capacitor.isNativePlatform();
+
 }
 export async function inscreverPushNativo(pacienteId) {
   if (!isNativo()) {
