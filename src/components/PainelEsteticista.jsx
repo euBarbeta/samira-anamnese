@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch, MdPhotoLibrary, MdArrowBack } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
@@ -1045,33 +1045,34 @@ if (telaAtual === 'criar_anamnese') {
     </span>
   )}
 
-  <button
-    type="button"
-    onClick={() => setMostrarTermoPDF(true)}
-    className="btn-efeito-hover"
-    style={{
-      width: '100%',
-      fontFamily: "'Cinzel', serif",
-      background: pacienteSelecionado.consentimentoLGPD?.aceito
-        ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
-        : '#f0f0f0',
-      color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
-      border: pacienteSelecionado.consentimentoLGPD?.aceito
-        ? '1.5px solid #9c7826'
-        : '1.5px solid #ccc',
-      padding: '10px',
-      borderRadius: '15px',
-      fontSize: '11px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-    }}
-  >
-    📄 Ver Termo Assinado
-  </button>
+ <button
+  type="button"
+  onClick={() => setMostrarTermoPDF(true)}
+  className="btn-efeito-hover"
+  style={{
+    width: '100%',
+    fontFamily: "'Cinzel', serif",
+    background: pacienteSelecionado.consentimentoLGPD?.aceito
+      ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
+      : '#f0f0f0',
+    color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
+    border: pacienteSelecionado.consentimentoLGPD?.aceito
+      ? '1.5px solid #9c7826'
+      : '1.5px solid #ccc',
+    padding: '10px',
+    borderRadius: '15px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+  }}
+>
+  <MdDescription size={16} />
+  Ver Termo Assinado
+</button>
 </div>
             </div>
           )}
