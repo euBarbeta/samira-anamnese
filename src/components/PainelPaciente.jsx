@@ -3,6 +3,7 @@ import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
 import GaleriaPaciente from './GaleriaPaciente';
 import { isNativo } from './push-notifications-native';
+import { MdSearch, MdPhotoLibrary, MdArrowBack } from 'react-icons/md';
 import { Capacitor } from '@capacitor/core';
 import {
   DownloadCloud,
@@ -800,22 +801,32 @@ const handleInstalarApp = async () => {
           {telaAtual === 'galeria' && (
   <div>
     <button
-      type="button"
-      onClick={() => window.history.back()}
-      style={{
-        background: 'rgba(255, 255, 255, 0.8)',
-        border: '1px solid rgba(226, 210, 245, 0.8)',
-        color: '#2c163a',
-        cursor: 'pointer',
-        fontWeight: 600,
-        marginBottom: '16px',
-        fontSize: '11px',
-        padding: '10px 16px',
-        borderRadius: '14px',
-      }}
-    >
-      ← Voltar para o menu da pasta
-    </button>
+  type="button"
+  onClick={() => window.history.back()}
+  className="btn-voltar-lista"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #C8A24A',
+    padding: '10px 20px',
+    borderRadius: '25px',
+    fontSize: '12px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '16px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+    transition: 'all 0.25s ease',
+    backdropFilter: 'blur(6px)',
+  }}
+>
+  <MdArrowBack size={15} color="#C8A24A" />
+  Voltar para o menu da pasta
+</button>
   <GaleriaPaciente
   pacienteId={pacienteData.id}
   uidEsteticista={pacienteData.criadoPorUid}
@@ -829,24 +840,32 @@ const handleInstalarApp = async () => {
           {telaAtual === 'ver_anamnese' && (
   <div>
     <button
-      type="button"
-      onClick={() => window.history.back()}   // ⬅️ usa o próprio histórico
-      style={{
-        background: 'rgba(255, 255, 255, 0.8)',
-        border: '1px solid rgba(226, 210, 245, 0.8)',
-        color: '#2c163a',
-        cursor: 'pointer',
-        fontWeight: 600,
-        marginBottom: '16px',
-        fontSize: '11px',
-        padding: '10px 16px',
-        borderRadius: '14px',
-        boxShadow: '0 2px 6px rgba(44, 22, 58, 0.04)',
-        transition: 'all 0.2s ease'
-      }}
-    >
-      ← Voltar para o menu da pasta
-    </button>
+  type="button"
+  onClick={() => window.history.back()}
+  className="btn-voltar-lista"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #C8A24A',
+    padding: '10px 20px',
+    borderRadius: '25px',
+    fontSize: '12px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '16px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+    transition: 'all 0.25s ease',
+    backdropFilter: 'blur(6px)',
+  }}
+>
+  <MdArrowBack size={15} color="#C8A24A" />
+  Voltar para o menu da pasta
+</button>
     <div style={{ opacity: 0.98 }}>
       {isMobile ? (
         <FichaMobile
