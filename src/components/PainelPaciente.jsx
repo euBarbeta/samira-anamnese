@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
+import GaleriaPaciente from './GaleriaPaciente';
 import { isNativo } from './push-notifications-native';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -735,6 +736,28 @@ const handleInstalarApp = async () => {
 >
   Ver Ficha de Anamnese
 </button>
+<button
+  type="button"
+  onClick={() => irParaTela('galeria')}
+  className="painel-btn-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '14px 18px',
+    borderRadius: '16px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'center',
+    boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
+    transition: 'all 0.25s ease',
+  }}
+>
+  📸 Minha Galeria
+</button>
 
 {!appInstalado && (
   <button
@@ -769,6 +792,32 @@ const handleInstalarApp = async () => {
               </div>
             </div>
           )}
+          {telaAtual === 'galeria' && (
+  <div>
+    <button
+      type="button"
+      onClick={() => window.history.back()}
+      style={{
+        background: 'rgba(255, 255, 255, 0.8)',
+        border: '1px solid rgba(226, 210, 245, 0.8)',
+        color: '#2c163a',
+        cursor: 'pointer',
+        fontWeight: 600,
+        marginBottom: '16px',
+        fontSize: '11px',
+        padding: '10px 16px',
+        borderRadius: '14px',
+      }}
+    >
+      ← Voltar para o menu da pasta
+    </button>
+    <GaleriaPaciente
+      pacienteId={pacienteData.id}
+      uidEsteticista={pacienteData.criadoPorUid}
+      modo="paciente"
+    />
+  </div>
+)}
 
           {/* TELA DE VISUALIZAÇÃO DA ANAMNESE */}
           {telaAtual === 'ver_anamnese' && (

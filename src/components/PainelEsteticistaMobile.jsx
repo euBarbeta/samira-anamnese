@@ -12,6 +12,7 @@ import { db } from './firebase';
 import { secondaryAuth } from './firebaseSecondary';  // ⬅️ ADICIONAR
 import FichaMobile from './FichaMobile';
 import FichaEvoMobile from './FichaEvoMobile';
+import GaleriaPaciente from './GaleriaPaciente'; 
 
 export default function PainelEsteticistaMobile({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
@@ -878,6 +879,26 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
 >
   Ver ficha de Anamnese
 </button>
+<button
+  type="button"
+  onClick={() => setTelaAtual('galeria')}
+  className="btn-efeito-hover"
+  style={{
+    width: '100%',
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '10px',
+    borderRadius: '15px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)'
+  }}
+>
+  📸 Galeria do Paciente
+</button>
               
                 <button
                   type="button"
@@ -990,6 +1011,34 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
               </div>
             </div>
           )}
+          {telaAtual === 'galeria' && pacienteSelecionado && (
+  <div>
+    <button
+      type="button"
+      onClick={() => {
+        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+        setTelaAtual('detalhe_pasta');
+      }}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        color: '#2c163a',
+        cursor: 'pointer',
+        fontWeight: 600,
+        fontSize: '11px',
+        padding: 0,
+        marginBottom: '12px'
+      }}
+    >
+      ← Voltar para a pasta do paciente
+    </button>
+    <GaleriaPaciente
+      pacienteId={pacienteSelecionado.id}
+      uidEsteticista={auth.currentUser?.uid}
+      modo="esteticista"
+    />
+  </div>
+)}
 
           {/* VER EVOLUÇÃO MOBILE */}
           {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (

@@ -5,6 +5,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, si
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
+import GaleriaPaciente from './GaleriaPaciente'; 
 import { secondaryAuth } from './firebaseSecondary';
 
 export default function PainelEsteticista({ onLogout }) {
@@ -777,7 +778,26 @@ if (telaAtual === 'criar_anamnese') {
 >
   Ver Ficha de Anamnese
 </button>
-
+<button
+  type="button"
+  onClick={() => setTelaAtual('galeria')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    color: '#fff',
+    border: '1.5px solid #7e22ce',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  📸 Galeria do Paciente
+</button>
                   <button
                     type="button"
                     onClick={() => setTelaAtual('criar_evolucao')}
@@ -938,6 +958,34 @@ if (telaAtual === 'criar_anamnese') {
               </div>
             </div>
           )}
+          {telaAtual === 'galeria' && pacienteSelecionado && (
+  <div>
+    <button
+      type="button"
+      onClick={() => {
+        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+        setTelaAtual('detalhe_pasta');
+      }}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        color: '#2c163a',
+        cursor: 'pointer',
+        fontWeight: 600,
+        fontSize: '11px',
+        padding: 0,
+        marginBottom: '16px'
+      }}
+    >
+      ← Voltar para a pasta do paciente
+    </button>
+    <GaleriaPaciente
+      pacienteId={pacienteSelecionado.id}
+      uidEsteticista={auth.currentUser?.uid}
+      modo="esteticista"
+    />
+  </div>
+)}
 
           {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
             <div>
