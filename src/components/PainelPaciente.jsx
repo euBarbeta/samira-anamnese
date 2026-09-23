@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import {
   DownloadCloud,
   X,
+  Images,  
   Share,
   MoreVertical,
   Monitor,
@@ -751,12 +752,16 @@ const handleInstalarApp = async () => {
     fontWeight: 700,
     cursor: 'pointer',
     width: '100%',
-    textAlign: 'center',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
     boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
     transition: 'all 0.25s ease',
   }}
 >
-  📸 Minha Galeria
+  <Images size={16} color="#fff" />
+  Minha Galeria
 </button>
 
 {!appInstalado && (

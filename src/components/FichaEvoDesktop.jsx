@@ -25,22 +25,22 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
       textarea.style.height = `${Math.max(400, textarea.scrollHeight)}px`;
     }
   };
-  const [fotosVinculadas, setFotosVinculadas] = useState([]);
+  // ✅ Fotos vinculadas a esta evolução
+const [fotosVinculadas, setFotosVinculadas] = useState([]);
 const [fotoAberta, setFotoAberta] = useState(null);
 
-// ✅ Carrega fotos vinculadas à evolução
 useEffect(() => {
   const pacId = pacienteSelecionado?.id || initialData?.pacienteId;
   const uidEst = pacienteSelecionado?.criadoPorUid;
+  const evoId = initialData?.id;
 
-  if (!pacId || !uidEst) {
+  if (!pacId || !uidEst || !evoId) {
     setFotosVinculadas([]);
     return;
   }
 
   const colRef = collection(db, `usuarios/${uidEst}/pacientes/${pacId}/fotos`);
   const unsub = onSnapshot(colRef, (snap) => {
-    const evoId = initialData?.id;
     const lista = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((f) => (f.vinculadoA || []).includes(evoId));
