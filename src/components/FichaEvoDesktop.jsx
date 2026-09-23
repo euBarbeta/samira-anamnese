@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdArrowBack, MdDateRange, MdImage, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
+import { MdSave, MdArrowBack, MdDateRange, MdImage, MdKeyboardArrowUp, MdKeyboardArrowDown, MdClose, MdEvent } from 'react-icons/md';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -93,6 +93,20 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
     return v;
   };
 
+  // ✅ Formata timestamp do Firestore (data + hora) para exibir embaixo da foto
+  const formatarDataHora = (ts) => {
+    if (!ts) return '';
+    try {
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch {
+      return '';
+    }
+  };
+
   const handleSubmit = () => {
     const dadosEvolucao = {
       id: initialData?.id || Date.now(),
@@ -171,6 +185,14 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
         .btn-fotos-vinculadas:hover {
           transform: translateY(-2px);
           box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
+        }
+
+        .foto-vinculada-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .foto-vinculada-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 8px 20px rgba(168, 85, 247, 0.3) !important;
         }
 
         @media print {
@@ -268,7 +290,7 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
           </div>
         </div>
 
-        {/* 2. MEIO — Agora inclui o botão + galeria DENTRO desta seção para não ser coberto pela BASE */}
+        {/* 2. MEIO — Botão + galeria DENTRO desta seção para não ser coberto pela BASE */}
         <div style={{
           width: '100%',
           backgroundImage: 'url("/imagens/moldura-meio.jpeg")',
@@ -329,7 +351,7 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
               {textoLivre || "Nenhuma evolução registrada."}
             </div>
 
-            {/* ✅ BOTÃO "VER FOTOS VINCULADAS" — Dentro do MEIO */}
+            {/* ✅ BOTÃO "VER FOTOS VINCULADAS" */}
             {fotosVinculadas.length > 0 && (
               <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
                 <button
@@ -349,7 +371,7 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
               </div>
             )}
 
-            {/* ✅ GALERIA EXPANSÍVEL — Dentro do MEIO */}
+            {/* ✅ GALERIA EXPANSÍVEL COM DATA/HORA */}
             {fotosVinculadas.length > 0 && mostrarGaleria && (
               <div style={{
                 width: '100%', background: '#faf5ff',
@@ -363,31 +385,41 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '14px' }}>
                   {fotosVinculadas.map((foto) => (
-                    <div key={foto.id} style={{ background: '#fff', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2d2f5', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+                    <div
+                      key={foto.id}
+                      className="foto-vinculada-card"
+                      style={{
+                        background: '#fff',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        border: '1px solid #e2d2f5',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                      }}
+                    >
                       <img
                         src={foto.thumbUrl}
                         alt="Foto vinculada"
                         onClick={() => setFotoAberta(foto)}
                         style={{ width: '100%', height: '140px', objectFit: 'cover', cursor: 'pointer', display: 'block' }}
                       />
+                      <div style={{
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        color: '#665078',
+                        fontFamily: "'Montserrat', sans-serif",
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        background: '#faf5ff',
+                        borderTop: '1px solid #ede4fb'
+                      }}>
+                        <MdEvent size={12} color="#a855f7" style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+{formatarDataHora(foto.enviadoEm) || 'Data não disponível'}
+                      </div>
                     </div>
                   ))}
                 </div>
-
-                {fotoAberta && (
-                  <div
-                    onClick={() => setFotoAberta(null)}
-                    style={{
-                      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)',
-                      zIndex: 999999, display: 'flex', justifyContent: 'center',
-                      alignItems: 'center', padding: '20px', cursor: 'pointer'
-                    }}
-                  >
-                    <img src={fotoAberta.url} alt="Foto ampliada" style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -424,6 +456,84 @@ export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, 
           </button>
         </div>
       </div>
+
+      {/* ✅ MODAL DE FOTO AMPLIADA — Fora do fluxo do container para não ser coberto por nada */}
+      {fotoAberta && (
+        <div
+          onClick={() => setFotoAberta(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.92)',
+            zIndex: 2147483647,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '40px 20px 60px 20px',
+            cursor: 'zoom-out'
+          }}
+        >
+          {/* Botão X de fechar */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setFotoAberta(null); }}
+            title="Fechar"
+            style={{
+              position: 'fixed',
+              top: '20px',
+              right: '20px',
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.15)',
+              border: '1.5px solid rgba(255,255,255,0.4)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 2147483647,
+              backdropFilter: 'blur(6px)'
+            }}
+          >
+            <MdClose size={24} color="#fff" />
+          </button>
+
+          <img
+            src={fotoAberta.url}
+            alt="Foto ampliada"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 10px 50px rgba(0,0,0,0.6)',
+              cursor: 'default'
+            }}
+          />
+
+          <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#fff',
+            fontSize: '12px',
+            background: 'rgba(0,0,0,0.65)',
+            padding: '8px 18px',
+            borderRadius: '20px',
+            fontFamily: "'Montserrat', sans-serif",
+            whiteSpace: 'nowrap',
+             display: 'flex',           // ← adicionar
+             alignItems: 'center',      // ← adicionar
+             gap: '6px'                 // ← adicionar
+          }}>
+            <MdEvent size={14} color="#fff" style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+Enviada em {formatarDataHora(fotoAberta.enviadoEm) || 'data não disponível'}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

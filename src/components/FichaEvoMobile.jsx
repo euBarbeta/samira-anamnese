@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdDateRange, MdArrowBack, MdImage, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
+import { MdSave, MdDateRange, MdArrowBack, MdImage, MdKeyboardArrowUp, MdKeyboardArrowDown, MdClose, MdEvent } from 'react-icons/md';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -91,6 +91,20 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
     return v;
   };
 
+  // ✅ Formata timestamp do Firestore (data + hora) para exibir embaixo da foto
+  const formatarDataHora = (ts) => {
+    if (!ts) return '';
+    try {
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch {
+      return '';
+    }
+  };
+
   const handleSubmit = () => {
     const dadosEvolucao = {
       id: initialData?.id || Date.now(),
@@ -129,6 +143,13 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
         input, select, textarea {
           color: #1A1A1A !important;
           -webkit-text-fill-color: #1A1A1A !important;
+        }
+
+        .foto-vinculada-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .foto-vinculada-card:active {
+          transform: scale(0.97);
         }
       `}</style>
 
@@ -254,7 +275,7 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
               />
             </div>
 
-            {/* ✅ BOTÃO "VER FOTOS VINCULADAS" — Dentro do MEIO */}
+            {/* ✅ BOTÃO "VER FOTOS VINCULADAS" */}
             {fotosVinculadas.length > 0 && (
               <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
                 <button
@@ -289,7 +310,7 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
               </div>
             )}
 
-            {/* ✅ GALERIA EXPANSÍVEL — Dentro do MEIO */}
+            {/* ✅ GALERIA EXPANSÍVEL COM DATA/HORA */}
             {fotosVinculadas.length > 0 && mostrarGaleria && (
               <div style={{
                 width: '100%', background: '#faf5ff',
@@ -303,29 +324,42 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
                     FOTOS VINCULADAS
                   </span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
                   {fotosVinculadas.map((foto) => (
-                    <img
+                    <div
                       key={foto.id}
-                      src={foto.thumbUrl}
-                      alt="Foto vinculada"
-                      onClick={() => setFotoAberta(foto)}
-                      style={{ width: '100%', height: '110px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e2d2f5' }}
-                    />
+                      className="foto-vinculada-card"
+                      style={{
+                        background: '#fff',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        border: '1px solid #e2d2f5',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                      }}
+                    >
+                      <img
+                        src={foto.thumbUrl}
+                        alt="Foto vinculada"
+                        onClick={() => setFotoAberta(foto)}
+                        style={{ width: '100%', height: '110px', objectFit: 'cover', cursor: 'pointer', display: 'block' }}
+                      />
+                      <div style={{
+                        padding: '5px 6px',
+                        fontSize: '9.5px',
+                        color: '#665078',
+                        fontFamily: "'Montserrat', sans-serif",
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        background: '#faf5ff',
+                        borderTop: '1px solid #ede4fb',
+                         lineHeight: 1.3
+                      }}>
+                    <MdEvent size={11} color="#a855f7" style={{ verticalAlign: 'middle', marginRight: '3px' }} />
+{formatarDataHora(foto.enviadoEm) || 'Sem data'}
+                      </div>
+                    </div>
                   ))}
                 </div>
-                {fotoAberta && (
-                  <div
-                    onClick={() => setFotoAberta(null)}
-                    style={{
-                      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)',
-                      zIndex: 999999, display: 'flex', justifyContent: 'center',
-                      alignItems: 'center', padding: '20px', cursor: 'pointer'
-                    }}
-                  >
-                    <img src={fotoAberta.url} alt="Foto ampliada" style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -391,6 +425,86 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
           </button>
         </div>
       </div>
+
+      {/* ✅ MODAL DE FOTO AMPLIADA — Fora do fluxo do container para não ser coberto por nada */}
+      {fotoAberta && (
+        <div
+          onClick={() => setFotoAberta(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.92)',
+            zIndex: 2147483647,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '40px 12px 70px 12px',
+            cursor: 'zoom-out'
+          }}
+        >
+          {/* Botão X de fechar */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setFotoAberta(null); }}
+            title="Fechar"
+            style={{
+              position: 'fixed',
+              top: '15px',
+              right: '15px',
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.18)',
+              border: '1.5px solid rgba(255,255,255,0.4)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 2147483647,
+              backdropFilter: 'blur(6px)'
+            }}
+          >
+            <MdClose size={22} color="#fff" />
+          </button>
+
+          <img
+            src={fotoAberta.url}
+            alt="Foto ampliada"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 10px 50px rgba(0,0,0,0.6)',
+              cursor: 'default'
+            }}
+          />
+
+          <div style={{
+            position: 'fixed',
+            bottom: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#fff',
+            fontSize: '11px',
+            background: 'rgba(0,0,0,0.65)',
+            padding: '7px 16px',
+            borderRadius: '20px',
+            fontFamily: "'Montserrat', sans-serif",
+            whiteSpace: 'nowrap',
+            maxWidth: '92%',
+            textAlign: 'center',
+            display: 'flex',           
+             alignItems: 'center',    
+             gap: '6px'       
+          }}>
+           <MdEvent size={13} color="#fff" style={{ verticalAlign: 'middle', marginRight: '5px' }} />
+Enviada em {formatarDataHora(fotoAberta.enviadoEm) || 'data não disponível'}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
