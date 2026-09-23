@@ -18,9 +18,9 @@ export default function PainelEsteticista({ onLogout }) {
   const [carregandoNuvem, setCarregandoNuvem] = useState(true);
   
   const [pacientes, setPacientes] = useState([]);
-  const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
+  const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
 
   const [modalExclusao, setModalExclusao] = useState({
     isOpen: false,
@@ -1167,7 +1167,13 @@ if (telaAtual === 'criar_anamnese') {
 )}
         </div>
       </div>
-
+{/* ✅ Modal do Termo de Consentimento */}
+{mostrarTermoPDF && pacienteSelecionado && (
+  <TermoConsentimentoPDF
+    pacienteData={pacienteSelecionado}
+    onFechar={() => setMostrarTermoPDF(false)}
+  />
+)}
       {modalExclusao.isOpen && (
         <div style={{
           position: 'fixed',
