@@ -691,7 +691,7 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
                     width: '100%'
                   }}
                 >
-                  + Novo Paciente
+                  Ficha de Anamnese
                 </button>
               </div>
 
@@ -754,7 +754,7 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
               {pacientes.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
                   <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>Nenhum paciente cadastrado na nuvem ainda.</p>
-                  <span style={{ color: '#C8A24A', fontSize: '11px', fontWeight: 600 }}>Clique em "+ Novo Paciente" para iniciar a primeira ficha.</span>
+                  <span style={{ color: '#C8A24A', fontSize: '11px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
                 </div>
               ) : pacientesFiltradosOrdenados.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
