@@ -1080,49 +1080,53 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
           {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
             <div>
               <FichaEvoMobile 
-                mode="view" 
-                initialData={{
-                  ...evolucaoSelecionada,
-                  onIrParaEdicao: () => setTelaAtual('editar_evolucao')
-                }} 
-                onVoltar={() => {
-  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-  setTelaAtual('detalhe_pasta');
-}}
-              />
-            </div>
-          )}
+               mode="view" 
+      initialData={{
+        ...evolucaoSelecionada,
+        onIrParaEdicao: () => setTelaAtual('editar_evolucao')
+      }} 
+      pacienteSelecionado={pacienteSelecionado}
+      uidEsteticista={auth.currentUser?.uid}
+      onVoltar={() => {
+        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+        setTelaAtual('detalhe_pasta');
+      }}
+    />
+  </div>
+)}
 
           {/* CRIAR EVOLUÇÃO MOBILE */}
           {telaAtual === 'criar_evolucao' && (
             <div>
               <FichaEvoMobile 
-                mode="create" 
-                pacienteSelecionado={pacienteSelecionado}
-                pacienteNomeProp={pacienteSelecionado?.nome}
-                onSave={handleSalvarEvolucao} 
-               onVoltar={() => {
-  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-  setTelaAtual('detalhe_pasta');
-}}
-              />
-            </div>
-          )}
-
+                 mode="create" 
+      pacienteSelecionado={pacienteSelecionado}
+      pacienteNomeProp={pacienteSelecionado?.nome}
+      uidEsteticista={auth.currentUser?.uid}
+      onSave={handleSalvarEvolucao} 
+      onVoltar={() => {
+        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+        setTelaAtual('detalhe_pasta');
+      }}
+    />
+  </div>
+)}
           {/* EDITAR EVOLUÇÃO MOBILE */}
           {telaAtual === 'editar_evolucao' && evolucaoSelecionada && (
             <div>
               <FichaEvoMobile 
-                mode="edit" 
-                initialData={evolucaoSelecionada} 
-                onSave={handleAtualizarEvolucao} 
-              onVoltar={() => {
-  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-  setTelaAtual('detalhe_pasta');
-}}
-              />
-            </div>
-          )}
+               mode="edit" 
+      initialData={evolucaoSelecionada} 
+      pacienteSelecionado={pacienteSelecionado}
+      uidEsteticista={auth.currentUser?.uid}
+      onSave={handleAtualizarEvolucao} 
+      onVoltar={() => {
+        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+        setTelaAtual('detalhe_pasta');
+      }}
+    />
+  </div>
+)}
 
         </div>
       </div>
