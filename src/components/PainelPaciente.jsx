@@ -3,7 +3,9 @@ import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
 import GaleriaPaciente from './GaleriaPaciente';
 import { isNativo } from './push-notifications-native';
-import { MdSearch, MdPhotoLibrary, MdArrowBack } from 'react-icons/md';
+import ModalConsentimentoPrimeiroAcesso from './ModalConsentimentoPrimeiroAcesso';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning} from 'react-icons/md';
+import ModalExclusaoConta from './ModalExclusaoConta';
 import { Capacitor } from '@capacitor/core';
 import {
   DownloadCloud,
@@ -300,7 +302,11 @@ export default function PainelPaciente({
   // Estados para gerenciar a instalação do WebApp (PWA)
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [appInstalado, setAppInstalado] = useState(false);
+
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
+  const [mostrarConsentimento, setMostrarConsentimento] = useState(false);
+const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
+const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
   const irParaTela = useCallback((novaTela) => {
     if (novaTela === telaAtual) return;
@@ -311,6 +317,22 @@ export default function PainelPaciente({
     );
     setTelaAtual(novaTela);
   }, [telaAtual]);
+  // ✅ LGPD — Verifica se o paciente já consentiu com o tratamento de dados
+useEffect(() => {
+  if (!pacienteData) return;
+
+  const consentimento = pacienteData.consentimentoLGPD;
+  const aceito = consentimento?.aceito === true;
+  const versaoOk = consentimento?.versaoTermo === '1.0';
+
+  if (aceito && versaoOk) {
+    setMostrarConsentimento(false);
+    return;
+  }
+
+  // Sem consentimento (ou versão desatualizada) → mostra o modal
+  setMostrarConsentimento(true);
+}, [pacienteData]);
   useEffect(() => {
   const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
   window.history.replaceState(
@@ -414,8 +436,8 @@ useEffect(() => {
     ) {
       setAppInstalado(true);
     }
-
-    return () => {
+   
+     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
@@ -481,7 +503,93 @@ const handleInstalarApp = async () => {
   // Sem prompt nativo → modal custom
   setMostrarModalInstalacao(true);
 };
+// ✅ Tela bloqueante se o paciente recusou o consentimento
+if (consentimentoRecusado) {
+  return (
+    <div style={{
+      width: '100%',
+      minHeight: '100vh',
+      backgroundColor: '#d7cee0',
+      fontFamily: "'Montserrat', sans-serif",
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '20px',
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.98)',
+        borderRadius: '20px',
+        border: '1.5px solid #C8A24A',
+        padding: '36px 28px',
+        maxWidth: '420px',
+        width: '100%',
+        textAlign: 'center',
+        boxShadow: '0 15px 40px rgba(44, 22, 58, 0.25)',
+      }}>
+        <div style={{
+          width: '72px', height: '72px',
+          margin: '0 auto 16px auto',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
+          border: '2px solid #ffb74d',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <MdWarning size={34} color="#e65100" />
+        </div>
 
+        <h2 style={{
+          fontFamily: "'Cinzel', serif",
+          color: '#2c163a',
+          fontSize: '18px',
+          margin: '0 0 12px 0',
+        }}>
+          Consentimento necessário
+        </h2>
+
+        <p style={{
+          fontSize: '13px',
+          color: '#555',
+          lineHeight: 1.6,
+          margin: '0 0 24px 0',
+        }}>
+          Sem autorizar o tratamento dos seus dados, <strong>não podemos</strong> exibir seu
+          prontuário, suas fotos ou enviar lembretes.
+        </p>
+
+        <p style={{
+          fontSize: '12px',
+          color: '#888',
+          fontStyle: 'italic',
+          marginBottom: '20px',
+        }}>
+          Se mudar de ideia, faça login novamente e aceite o termo.
+        </p>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
+            border: '1.5px solid #9c7826',
+            padding: '13px 26px',
+            borderRadius: '24px',
+            fontSize: '12px',
+            fontWeight: 700,
+            letterSpacing: '1px',
+            cursor: 'pointer',
+            width: '100%',
+            boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+          }}
+        >
+          VOLTAR AO LOGIN
+        </button>
+      </div>
+    </div>
+  );
+}
   if (!pacienteData) {
     return (
       <div
@@ -792,7 +900,41 @@ const handleInstalarApp = async () => {
     <DownloadCloud size={16} color="#2c163a" />
     {isAndroid ? 'Baixar App' : 'Baixar Web App'}
   </button>
+  
 )}
+{/* ✅ Excluir minha conta — LGPD (discreto, no rodapé) */}
+<div style={{
+  marginTop: '20px',
+  paddingTop: '16px',
+  borderTop: '1px dashed rgba(198, 40, 40, 0.2)',
+  display: 'flex',
+  justifyContent: 'center',
+}}>
+  <button
+  type="button"
+  onClick={() => setMostrarExclusaoConta(true)}
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: '#b0a8b8',
+    fontFamily: "'Montserrat', sans-serif",
+    fontSize: '10px',
+    fontWeight: 400,
+    letterSpacing: '0.3px',
+    cursor: 'pointer',
+    padding: '6px 12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    transition: 'color 0.25s ease',
+  }}
+  onMouseEnter={(e) => { e.currentTarget.style.color = '#c62828'; }}
+  onMouseLeave={(e) => { e.currentTarget.style.color = '#b0a8b8'; }}
+>
+  <span style={{ fontSize: '9px', opacity: 0.7 }}>ⓘ</span>
+  excluir minha conta
+</button>
+</div>
 
                 </div>
               </div>
@@ -886,7 +1028,33 @@ const handleInstalarApp = async () => {
         </div>
       </div>
       {/* BANNER DE PERMISSÃO DE NOTIFICAÇÃO */}
-
+{/* ✅ Modal de Consentimento LGPD — Bloqueia acesso até aceitar */}
+{mostrarConsentimento && !consentimentoRecusado && (
+  <ModalConsentimentoPrimeiroAcesso
+    pacienteData={pacienteData}
+    onAceitar={(consentimento) => {
+      setMostrarConsentimento(false);
+      // Atualiza o estado local para refletir o consentimento salvo
+      // (o listener do Firestore também vai atualizar, mas isso evita delay visual)
+    }}
+    onRecusar={() => {
+      setMostrarConsentimento(false);
+      setConsentimentoRecusado(true);
+    }}
+  />
+)}
+{/* ✅ Modal de Exclusão de Conta — LGPD */}
+{mostrarExclusaoConta && (
+  <ModalExclusaoConta
+    pacienteData={pacienteData}
+    onFechar={() => setMostrarExclusaoConta(false)}
+    onExcluido={() => {
+      alert('Sua conta foi excluída com sucesso. Todos os seus dados foram removidos.');
+      setMostrarExclusaoConta(false);
+      if (onLogout) onLogout();
+    }}
+  />
+)}
 
       {/* MODAL DE INSTALAÇÃO (renderizado por cima de tudo) */}
       {mostrarModalInstalacao && (

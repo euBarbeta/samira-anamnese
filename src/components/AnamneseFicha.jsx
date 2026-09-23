@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import TelaInicial from './TelaInicial';
 import TelaInicialMobile from './TelaInicialMobile';
+import TelaSemInternet from './TelaSemInternet';
 import FichaDesktop from './FichaDesktop';
 import FichaMobile from './FichaMobile';
 import FichaEvoDesktop from './FichaEvoDesktop';
@@ -27,9 +28,7 @@ export default function AnamneseFicha() {
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [abaAtiva, setAbaAtiva] = useState('telainicial');
 
-  // ✅ NOVO: evita renderizar login/painel antes do Firebase checar a sessão
   const [authVerificado, setAuthVerificado] = useState(false);
-  // ✅ NOVO: evita renderizar painel da esteticista enquanto busca o paciente
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
   const [dadosPaciente, setDadosPaciente] = useState(null);
@@ -39,100 +38,94 @@ export default function AnamneseFicha() {
   const [pacienteDocPath, setPacienteDocPath] = useState(null);
   const [pedidoAbrirAnamnese, setPedidoAbrirAnamnese] = useState(false);
 
-  // Flag para não re-disparar o handleLoginSucesso a cada render
   const processandoLoginRef = useRef(false);
 
   // ============================================================
   // NAVEGAÇÃO — histórico do navegador
   // ============================================================
- const navegarPara = useCallback((novaAba, opcoes = {}) => {
-  if (novaAba === abaAtiva && !opcoes.forcar) return;
-  window.history.pushState({ abaAtiva: novaAba }, '', window.location.pathname);
-  setAbaAtiva(novaAba);
-}, [abaAtiva]);
+  const navegarPara = useCallback((novaAba, opcoes = {}) => {
+    if (novaAba === abaAtiva && !opcoes.forcar) return;
+    window.history.pushState({ abaAtiva: novaAba }, '', window.location.pathname);
+    setAbaAtiva(novaAba);
+  }, [abaAtiva]);
 
   // Listener do botão VOLTAR (navegador e celular)
   useEffect(() => {
-  const handlePopState = (event) => {
-    const estado = event.state;
-    if (estado && estado.abaAtiva) {
-      setAbaAtiva(estado.abaAtiva);
-      return;
-    }
+    const handlePopState = (event) => {
+      const estado = event.state;
+      if (estado && estado.abaAtiva) {
+        setAbaAtiva(estado.abaAtiva);
+        return;
+      }
 
-    // Sem state → comportamento padrão por papel
-    if (autenticado) {
-      const email = usuarioLogado?.email || '';
-      const ehEsteticista = EMAILS_ESTETICISTAS.includes(email)
-        || !email.endsWith('@sistema.local');
-      setAbaAtiva(ehEsteticista ? 'painel' : 'painelPaciente');
-    } else {
-      setAbaAtiva('telainicial');
-    }
-  };
-  window.addEventListener('popstate', handlePopState);
-  return () => window.removeEventListener('popstate', handlePopState);
-}, [autenticado, usuarioLogado]);
-const emLogoutRef = useRef(false);
-const ultimoUidRef = useRef(null);
+      if (autenticado) {
+        const email = usuarioLogado?.email || '';
+        const ehEsteticista = EMAILS_ESTETICISTAS.includes(email)
+          || !email.endsWith('@sistema.local');
+        setAbaAtiva(ehEsteticista ? 'painel' : 'painelPaciente');
+      } else {
+        setAbaAtiva('telainicial');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [autenticado, usuarioLogado]);
 
+  const emLogoutRef = useRef(false);
+  const ultimoUidRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-useEffect(() => {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('abrir')) {
-      params.delete('abrir');
-      const queryLimpa = params.toString();
-      const novaURL =
-        window.location.pathname + (queryLimpa ? '?' + queryLimpa : '');
-      window.history.replaceState(window.history.state, '', novaURL);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('abrir')) {
+        params.delete('abrir');
+        const queryLimpa = params.toString();
+        const novaURL =
+          window.location.pathname + (queryLimpa ? '?' + queryLimpa : '');
+        window.history.replaceState(window.history.state, '', novaURL);
+      }
+    } catch (e) {
+      console.warn('Falha ao limpar query string:', e);
     }
-  } catch (e) {
-    console.warn('Falha ao limpar query string:', e);
-  }
-}, []);
+  }, []);
 
   // ============================================================
   // OBSERVER DE AUTH (login automático ao abrir/refrescar)
   // ============================================================
-  
-useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    // Ignora eventos durante logout manual (evita auto-login)
-    if (emLogoutRef.current) {
-      setAuthVerificado(true);
-      return;
-    }
-
-    if (user) {
-      // Evita reprocessar o mesmo usuário (ex: refresh logo após login)
-      if (ultimoUidRef.current === user.uid) {
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (emLogoutRef.current) {
         setAuthVerificado(true);
         return;
       }
-      ultimoUidRef.current = user.uid;
 
-      await handleLoginSucesso(user, { veioDeRefresh: true });
-    } else {
-      // Sem sessão
-      ultimoUidRef.current = null;
-      setAutenticado(false);
-      setUsuarioLogado(null);
-      setDadosPaciente(null);
-      setPacienteDocPath(null);
-      setAbaAtiva('telainicial');
-    }
-    setAuthVerificado(true);
-  });
-  return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+      if (user) {
+        if (ultimoUidRef.current === user.uid) {
+          setAuthVerificado(true);
+          return;
+        }
+        ultimoUidRef.current = user.uid;
 
+        await handleLoginSucesso(user, { veioDeRefresh: true });
+      } else {
+        ultimoUidRef.current = null;
+        setAutenticado(false);
+        setUsuarioLogado(null);
+        setDadosPaciente(null);
+        setPacienteDocPath(null);
+        setAbaAtiva('telainicial');
+      }
+      setAuthVerificado(true);
+    });
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ============================================================
   // OBSERVER — PACIENTE EM TEMPO REAL
@@ -179,12 +172,12 @@ useEffect(() => {
   // ============================================================
   const handleLoginSucesso = async (user, opcoes = {}) => {
     const { veioDeRefresh = false } = opcoes;
-      if (!user || !user.uid) return;
+    if (!user || !user.uid) return;
 
     setUsuarioLogado(user);
     const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
 
-    // ✅ 1. ESTETICISTA — vai direto, sem passar por 'painel' antes de 'autenticado'
+    // ✅ 1. ESTETICISTA
     if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
       window.history.replaceState({ abaAtiva: 'painel' }, '', window.location.pathname);
       setAbaAtiva('painel');
@@ -192,7 +185,7 @@ useEffect(() => {
       return;
     }
 
-    // ✅ 2. PACIENTE — mostra "buscando..." enquanto procura
+    // ✅ 2. PACIENTE
     setBuscandoPaciente(true);
 
     try {
@@ -263,7 +256,7 @@ useEffect(() => {
         setUsuarioLogado(null);
         setAbaAtiva('telainicial');
       }
-      }catch (error) {
+    } catch (error) {
       console.error("Erro ao carregar pasta do paciente:", error);
       alert("Erro ao acessar ficha do paciente.");
       await signOut(auth);
@@ -273,11 +266,10 @@ useEffect(() => {
     } finally {
       setBuscandoPaciente(false);
     }
-    
   };
 
   // ============================================================
-  // LOGOUT — sempre com signOut(auth)
+  // LOGOUT
   // ============================================================
   const handleLogout = async () => {
     try {
@@ -291,14 +283,16 @@ useEffect(() => {
     setDadosPaciente(null);
     setPacienteDocPath(null);
     setFichaSelecionada(null);
-   window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
-  setAbaAtiva('telainicial');
+    window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
+    setAbaAtiva('telainicial');
     setTimeout(() => {
-    emLogoutRef.current = false;
-  }, 800);
+      emLogoutRef.current = false;
+    }, 800);
   };
 
-  // Helpers de salvar/excluir ficha (mantidos como estavam)
+  // ============================================================
+  // Helpers de salvar/excluir ficha
+  // ============================================================
   const handleSalvarFicha = async (dadosNovaFicha) => {
     try {
       const nomeOriginal = dadosNovaFicha.nome ? dadosNovaFicha.nome.trim() : '';
@@ -370,173 +364,182 @@ useEffect(() => {
   };
 
   // ============================================================
-  // RENDER
+  // RENDER — Função interna que retorna a tela correta
   // ============================================================
+  const renderizarConteudo = () => {
+    // ✅ 1. Tela de carregamento inicial (Firebase ainda verificando)
+    if (!authVerificado) {
+      return (
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          height: '100vh', backgroundColor: '#d7cee0',
+          fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+          fontSize: '16px', fontWeight: 700
+        }}>
+          Verificando sessão...
+        </div>
+      );
+    }
 
-  // ✅ 1. Tela de carregamento inicial (Firebase ainda verificando)
-  if (!authVerificado) {
-    return (
-      <div style={{
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        height: '100vh', backgroundColor: '#d7cee0',
-        fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-        fontSize: '16px', fontWeight: 700
-      }}>
-        Verificando sessão...
-      </div>
-    );
-  }
+    // ✅ 2. Buscando paciente
+    if (buscandoPaciente) {
+      return (
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          height: '100vh', backgroundColor: '#d7cee0',
+          fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+          fontSize: '16px', fontWeight: 700
+        }}>
+          Carregando seu prontuário...
+        </div>
+      );
+    }
 
-  // ✅ 2. Buscando paciente (após login de paciente)
-  if (buscandoPaciente) {
-    return (
-      <div style={{
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        height: '100vh', backgroundColor: '#d7cee0',
-        fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-        fontSize: '16px', fontWeight: 700
-      }}>
-        Carregando seu prontuário...
-      </div>
-    );
-  }
+    // ✅ 3. Não autenticado → tela de login
+    if (!autenticado || abaAtiva === 'telainicial') {
+      return (
+        <div style={{ position: 'relative', width: '100vw', height: '100vh', boxSizing: 'border-box' }}>
+          {isMobile
+            ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
+            : <TelaInicial onLoginSucesso={handleLoginSucesso} />}
+        </div>
+      );
+    }
 
-  // ✅ 3. Não autenticado → tela de login
-  if (!autenticado || abaAtiva === 'telainicial') {
-    return (
-      <div style={{ position: 'relative', width: '100vw', height: '100vh', boxSizing: 'border-box' }}>
-        {isMobile
-          ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
-          : <TelaInicial onLoginSucesso={handleLoginSucesso} />}
-      </div>
-    );
-  }
+    // ✅ 4. Carregando fichas da esteticista
+    if (carregandoNuvem && fichasSalvas.length === 0 && abaAtiva === 'painel') {
+      return (
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          height: '100vh', backgroundColor: '#dfc6fc',
+          fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+          fontSize: '16px', fontWeight: 700
+        }}>
+          Carregando dados da nuvem...
+        </div>
+      );
+    }
 
-  // ✅ 4. Carregando fichas da esteticista
-  if (carregandoNuvem && fichasSalvas.length === 0 && abaAtiva === 'painel') {
-    return (
-      <div style={{
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        height: '100vh', backgroundColor: '#dfc6fc',
-        fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-        fontSize: '16px', fontWeight: 700
-      }}>
-        Carregando dados da nuvem...
-      </div>
-    );
-  }
+    // ✅ 5. Painel do Paciente
+    if (abaAtiva === 'painelPaciente') {
+      return (
+        <PainelPaciente
+          pacienteData={dadosPaciente}
+          onLogout={handleLogout}
+          abrirAnamneseInicial={false}
+        />
+      );
+    }
 
-  // ✅ 5. Painel do Paciente
-if (abaAtiva === 'painelPaciente') {
+    // ✅ 6. Painel da Esteticista
+    if (abaAtiva === 'painel') {
+      return isMobile ? (
+        <PainelEsteticistaMobile
+          fichas={fichasSalvas}
+          onSelectFicha={(ficha) => {
+            setFichaSelecionada(ficha);
+            navegarPara('anamnese');
+          }}
+          onSelectEvolucao={(ficha) => {
+            setFichaSelecionada(ficha);
+            navegarPara('evolucao');
+          }}
+          onExcluirFicha={handleExcluirFicha}
+          onLogout={handleLogout}
+        />
+      ) : (
+        <PainelEsteticista
+          fichas={fichasSalvas}
+          onSelectFicha={(ficha) => {
+            setFichaSelecionada(ficha);
+            navegarPara('anamnese');
+          }}
+          onSelectEvolucao={(ficha) => {
+            setFichaSelecionada(ficha);
+            navegarPara('evolucao');
+          }}
+          onExcluirFicha={handleExcluirFicha}
+          onLogout={handleLogout}
+        />
+      );
+    }
+
+    // ✅ 7. Anamnese (view)
+    if (abaAtiva === 'anamnese') {
+      const Componente = isMobile ? FichaMobile : FichaDesktop;
+      return (
+        <Componente
+          key={`anamnese-view-${abaAtiva}`}
+          fichaSelecionada={fichaSelecionada}
+          mode="view"
+          onVoltar={() => {
+            setFichaSelecionada(null);
+            navegarPara('painel');
+          }}
+          onIrParaEdicao={() => navegarPara('editar-anamnese')}
+        />
+      );
+    }
+
+    // ✅ 8. Editar anamnese
+    if (abaAtiva === 'editar-anamnese') {
+      const Componente = isMobile ? FichaMobile : FichaDesktop;
+      return (
+        <Componente
+          key={`anamnese-edit-${abaAtiva}`}
+          fichaSelecionada={fichaSelecionada}
+          mode="edit"
+          onVoltar={() => navegarPara('anamnese')}
+          onSalvarSucesso={() => {
+            setFichaSelecionada(null);
+            navegarPara('painel', { forcar: true });
+          }}
+          onSave={handleSalvarFicha}
+        />
+      );
+    }
+
+    // ✅ 9. Evolução (view)
+    if (abaAtiva === 'evolucao') {
+      const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
+      return (
+        <Componente
+          key={`evolucao-view-${abaAtiva}`}
+          initialData={fichaSelecionada}
+          pacienteSelecionado={fichaSelecionada}
+          mode="view"
+          onVoltar={() => {
+            setFichaSelecionada(null);
+            navegarPara('painel');
+          }}
+          onIrParaEdicao={() => navegarPara('editar-evolucao')}
+        />
+      );
+    }
+
+    // ✅ 10. Editar evolução
+    if (abaAtiva === 'editar-evolucao') {
+      const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
+      return (
+        <Componente
+          key={`evolucao-edit-${abaAtiva}`}
+          initialData={fichaSelecionada}
+          pacienteSelecionado={fichaSelecionada}
+          mode="edit"
+          onVoltar={() => navegarPara('evolucao')}
+          onSave={handleSalvarFicha}
+        />
+      );
+    }
+
+    return null;
+  };
+
+  // ✅ ÚNICO return — Tela sem internet SEMPRE presente
   return (
-    <PainelPaciente
-      pacienteData={dadosPaciente}
-      onLogout={handleLogout}
-      abrirAnamneseInicial={false}
-    />
+    <>
+      <TelaSemInternet />
+      {renderizarConteudo()}
+    </>
   );
-}
-
-  // ✅ 6. Painel da Esteticista
-  if (abaAtiva === 'painel') {
-    return isMobile ? (
-      <PainelEsteticistaMobile
-        fichas={fichasSalvas}
-        onSelectFicha={(ficha) => {
-          setFichaSelecionada(ficha);
-          navegarPara('anamnese');
-        }}
-        onSelectEvolucao={(ficha) => {
-          setFichaSelecionada(ficha);
-          navegarPara('evolucao');
-        }}
-        onExcluirFicha={handleExcluirFicha}
-        onLogout={handleLogout}
-      />
-    ) : (
-      <PainelEsteticista
-        fichas={fichasSalvas}
-        onSelectFicha={(ficha) => {
-          setFichaSelecionada(ficha);
-          navegarPara('anamnese');
-        }}
-        onSelectEvolucao={(ficha) => {
-          setFichaSelecionada(ficha);
-          navegarPara('evolucao');
-        }}
-        onExcluirFicha={handleExcluirFicha}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // ✅ 7. Anamnese (view)
-  if (abaAtiva === 'anamnese') {
-    const Componente = isMobile ? FichaMobile : FichaDesktop;
-    return (
-      <Componente
-        key={`anamnese-view-${abaAtiva}`}
-        fichaSelecionada={fichaSelecionada}
-        mode="view"
-        onVoltar={() => {
-          setFichaSelecionada(null);
-          navegarPara('painel');
-        }}
-        onIrParaEdicao={() => navegarPara('editar-anamnese')}
-      />
-    );
-  }
-
-  // ✅ 8. Editar anamnese
-  if (abaAtiva === 'editar-anamnese') {
-    const Componente = isMobile ? FichaMobile : FichaDesktop;
-    return (
-      <Componente
-        key={`anamnese-edit-${abaAtiva}`}
-        fichaSelecionada={fichaSelecionada}
-        mode="edit"
-        onVoltar={() => navegarPara('anamnese')}
-        onSalvarSucesso={() => {
-          setFichaSelecionada(null);
-          navegarPara('painel', { forcar: true });
-        }}
-        onSave={handleSalvarFicha}
-      />
-    );
-  }
-
-  // ✅ 9. Evolução (view)
-  if (abaAtiva === 'evolucao') {
-    const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
-    return (
-      <Componente
-        key={`evolucao-view-${abaAtiva}`}
-        initialData={fichaSelecionada}
-        pacienteSelecionado={fichaSelecionada}
-        mode="view"
-        onVoltar={() => {
-          setFichaSelecionada(null);
-          navegarPara('painel');
-        }}
-        onIrParaEdicao={() => navegarPara('editar-evolucao')}
-      />
-    );
-  }
-
-  // ✅ 10. Editar evolução
-  if (abaAtiva === 'editar-evolucao') {
-    const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
-    return (
-      <Componente
-        key={`evolucao-edit-${abaAtiva}`}
-        initialData={fichaSelecionada}
-        pacienteSelecionado={fichaSelecionada}
-        mode="edit"
-        onVoltar={() => navegarPara('evolucao')}
-        onSave={handleSalvarFicha}
-      />
-    );
-  }
-
-  return null;
 }
