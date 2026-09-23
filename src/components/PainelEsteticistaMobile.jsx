@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary } from 'react-icons/md';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -604,7 +604,7 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
       `}</style>
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
-        
+
           {auth.currentUser && (
     <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
   )}
@@ -923,10 +923,15 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
     fontSize: '11px',
     fontWeight: 700,
     cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
     boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)'
   }}
 >
-  📸 Galeria do Paciente
+  <MdPhotoLibrary size={14} color="#fff" />
+  Galeria do Paciente
 </button>
               
                 <button

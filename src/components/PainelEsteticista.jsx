@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
@@ -821,11 +821,15 @@ if (telaAtual === 'criar_anamnese') {
     fontSize: '11px',
     fontWeight: 700,
     cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
     boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)',
     transition: 'all 0.25s ease'
   }}
 >
-  📸 Galeria do Paciente
+  <MdPhotoLibrary size={14} color="#fff" />
+  Galeria do Paciente
 </button>
                   <button
                     type="button"
