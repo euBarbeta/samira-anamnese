@@ -9,6 +9,7 @@ import GaleriaPaciente from './GaleriaPaciente';
 import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import { secondaryAuth } from './firebaseSecondary';
+import TermoConsentimentoPDF from './TermoConsentimentoPDF';
 
 export default function PainelEsteticista({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
@@ -17,7 +18,7 @@ export default function PainelEsteticista({ onLogout }) {
   const [carregandoNuvem, setCarregandoNuvem] = useState(true);
   
   const [pacientes, setPacientes] = useState([]);
-
+  const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
@@ -894,6 +895,8 @@ if (telaAtual === 'criar_anamnese') {
                   </button>
                 </div>
               </div>
+           
+
 
               <div style={{ background: 'rgba(255, 255, 255, 0.92)', padding: '25px', borderRadius: '12px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', backdropFilter: 'blur(5px)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px', flexWrap: 'wrap', gap: '15px' }}>
@@ -1013,6 +1016,63 @@ if (telaAtual === 'criar_anamnese') {
                   </div>
                 )}
               </div>
+              <div style={{
+  marginTop: '15px',
+  background: 'rgba(255, 255, 255, 0.92)',
+  padding: '14px 16px',
+  borderRadius: '12px',
+  border: pacienteSelecionado.consentimentoLGPD?.aceito
+    ? '1.5px solid #86efac'
+    : '1.5px solid #fcd34d',
+}}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+    <span style={{ fontSize: '13px' }}>
+      {pacienteSelecionado.consentimentoLGPD?.aceito ? '✅' : '⚠️'}
+    </span>
+    <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '12px', fontWeight: 700 }}>
+      Consentimento LGPD
+    </span>
+  </div>
+
+  {pacienteSelecionado.consentimentoLGPD?.aceito ? (
+    <span style={{ fontSize: '10px', color: '#555', display: 'block', marginBottom: '10px' }}>
+      Aceito em {new Date(pacienteSelecionado.consentimentoLGPD.dataAceite).toLocaleString('pt-BR')}
+      {' · '}v{pacienteSelecionado.consentimentoLGPD.versaoTermo}
+    </span>
+  ) : (
+    <span style={{ fontSize: '10px', color: '#92400e', display: 'block', marginBottom: '10px' }}>
+      Paciente ainda não autorizou o tratamento de dados.
+    </span>
+  )}
+
+  <button
+    type="button"
+    onClick={() => setMostrarTermoPDF(true)}
+    className="btn-efeito-hover"
+    style={{
+      width: '100%',
+      fontFamily: "'Cinzel', serif",
+      background: pacienteSelecionado.consentimentoLGPD?.aceito
+        ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
+        : '#f0f0f0',
+      color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
+      border: pacienteSelecionado.consentimentoLGPD?.aceito
+        ? '1.5px solid #9c7826'
+        : '1.5px solid #ccc',
+      padding: '10px',
+      borderRadius: '15px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
+    }}
+  >
+    📄 Ver Termo Assinado
+  </button>
+</div>
             </div>
           )}
           {telaAtual === 'galeria' && pacienteSelecionado && (
