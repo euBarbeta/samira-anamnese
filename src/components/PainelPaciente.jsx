@@ -296,7 +296,20 @@ export default function PainelPaciente({
   abrirAnamneseInicial = false,
 }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
- const [telaAtual, setTelaAtual] = useState('detalhe_pasta'); // ✅ sempre começa na pasta
+ const [telaAtual, setTelaAtual] = useState(() => {
+  try {
+    return sessionStorage.getItem('pp_telaAtual') || 'detalhe_pasta';
+  } catch {
+    return 'detalhe_pasta';
+  }
+});
+
+// ✅ Sempre que a tela muda, salva no sessionStorage
+useEffect(() => {
+  try {
+    sessionStorage.setItem('pp_telaAtual', telaAtual);
+  } catch {}
+}, [telaAtual]);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
   // Estados para gerenciar a instalação do WebApp (PWA)

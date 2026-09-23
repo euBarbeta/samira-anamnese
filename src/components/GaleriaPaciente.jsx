@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { isNativo } from './push-notifications-native';
 import {
   collection, addDoc, deleteDoc, doc, onSnapshot,
   query, orderBy, serverTimestamp, updateDoc, arrayUnion, arrayRemove
@@ -48,33 +49,66 @@ export default function GaleriaPaciente({
     return () => unsub();
   }, [pacienteId, uidEsteticista]);
 
-  const escolherFonte = async (source) => {
-    try {
-      const photo = await Camera.getPhoto({
-        quality: 90, allowEditing: false,
-        resultType: CameraResultType.DataUrl,
-        source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
-        width: 1920,
-      });
-
-      let blob;
-      if (photo.dataUrl) {
-        const res = await fetch(photo.dataUrl);
-        blob = await res.blob();
-      } else if (photo.webPath) {
-        const res = await fetch(photo.webPath);
-        blob = await res.blob();
-      } else throw new Error('Nenhum dado de imagem recebido');
-
-      const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      await enviarFoto(file);
-    } catch (err) {
-      const msg = (err?.message || '').toLowerCase();
-      if (msg.includes('cancel') || msg.includes('user cancelled')) return;
-      console.error('Erro ao obter foto:', err);
-      alert('Erro ao obter foto: ' + (err?.message || err));
+ const escolherFonte = async (source) => {
+  // ============================================================
+  // 🌐 WEB / PWA → input file direto (NÃO recarrega a página)
+  // ============================================================
+  if (!isNativo()) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (source === 'camera') {
+      input.capture = 'environment';   // abre a câmera traseira
     }
-  };
+
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        try {
+          await enviarFoto(file);
+        } catch (err) {
+          console.error('Erro ao enviar foto:', err);
+          alert('Erro ao enviar foto: ' + (err?.message || err));
+        }
+      }
+    };
+
+    input.click();
+    return;
+  }
+
+  // ============================================================
+  // 📱 APK / Nativo → Capacitor Camera
+  // ============================================================
+  try {
+    const photo = await Camera.getPhoto({
+      quality: 90,
+      allowEditing: false,
+      resultType: CameraResultType.DataUrl,
+      source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
+      width: 1920,
+    });
+
+    let blob;
+    if (photo.dataUrl) {
+      const res = await fetch(photo.dataUrl);
+      blob = await res.blob();
+    } else if (photo.webPath) {
+      const res = await fetch(photo.webPath);
+      blob = await res.blob();
+    } else {
+      throw new Error('Nenhum dado de imagem recebido');
+    }
+
+    const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    await enviarFoto(file);
+  } catch (err) {
+    const msg = (err?.message || '').toLowerCase();
+    if (msg.includes('cancel') || msg.includes('user cancelled')) return;
+    console.error('Erro ao obter foto:', err);
+    alert('Erro ao obter foto: ' + (err?.message || err));
+  }
+};
 
   const enviarFoto = async (file) => {
     setEnviando(true);

@@ -24,14 +24,28 @@ const EMAILS_ESTETICISTAS = [
 
 export default function AnamneseFicha() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [autenticado, setAutenticado] = useState(false);
+  
   const [usuarioLogado, setUsuarioLogado] = useState(null);
-  const [abaAtiva, setAbaAtiva] = useState('telainicial');
+  
 
-  const [authVerificado, setAuthVerificado] = useState(false);
+ 
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
-  const [dadosPaciente, setDadosPaciente] = useState(null);
+ const [autenticado, setAutenticado] = useState(() => {
+  try { return sessionStorage.getItem('af_autenticado') === '1'; } catch { return false; }
+});
+const [abaAtiva, setAbaAtiva] = useState(() => {
+  try { return sessionStorage.getItem('af_abaAtiva') || 'telainicial'; } catch { return 'telainicial'; }
+});
+const [authVerificado, setAuthVerificado] = useState(() => {
+  try { return sessionStorage.getItem('af_authVerificado') === '1'; } catch { return false; }
+});
+const [dadosPaciente, setDadosPaciente] = useState(() => {
+  try {
+    const s = sessionStorage.getItem('af_dadosPaciente');
+    return s ? JSON.parse(s) : null;
+  } catch { return null; }
+});
   const [fichasSalvas, setFichasSalvas] = useState([]);
   const [carregandoNuvem, setCarregandoNuvem] = useState(false);
   const [fichaSelecionada, setFichaSelecionada] = useState(null);
@@ -79,6 +93,18 @@ export default function AnamneseFicha() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  useEffect(() => {
+  try {
+    sessionStorage.setItem('af_abaAtiva', abaAtiva);
+    sessionStorage.setItem('af_authVerificado', authVerificado ? '1' : '0');
+    sessionStorage.setItem('af_autenticado', autenticado ? '1' : '0');   // 👈 ADICIONE
+    if (dadosPaciente) {
+      sessionStorage.setItem('af_dadosPaciente', JSON.stringify(dadosPaciente));
+    } else {
+      sessionStorage.removeItem('af_dadosPaciente');
+    }
+  } catch {}
+}, [abaAtiva, authVerificado, autenticado, dadosPaciente]);              // 👈 autenticado aqui
 
   useEffect(() => {
     try {
@@ -284,6 +310,13 @@ export default function AnamneseFicha() {
     setPacienteDocPath(null);
     setFichaSelecionada(null);
     window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
+    try {
+  sessionStorage.removeItem('af_autenticado');
+  sessionStorage.removeItem('af_abaAtiva');
+  sessionStorage.removeItem('af_authVerificado');
+  sessionStorage.removeItem('af_dadosPaciente');
+  sessionStorage.removeItem('pp_telaAtual');
+} catch {}
     setAbaAtiva('telainicial');
     setTimeout(() => {
       emLogoutRef.current = false;
