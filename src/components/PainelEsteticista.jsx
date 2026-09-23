@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch, MdPhotoLibrary } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
@@ -770,12 +770,36 @@ if (telaAtual === 'criar_anamnese') {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                   <button
-                  type="button"
-                  onClick={() => {window.history.pushState({ painelEsteticista: 'lista' }, '', window.location.pathname);setTelaAtual('lista');setPacienteSelecionado(null);}}
-                  style={{ background: 'transparent', border: 'none', color: '#2c163a', cursor: 'pointer', fontWeight: 600, fontSize: '11px', padding: 0, marginBottom: '8px' }}
-                >
-                  ← Voltar para lista de pacientes
-                </button>
+  type="button"
+  onClick={() => {
+    window.history.pushState({ painelEsteticista: 'lista' }, '', window.location.pathname);
+    setTelaAtual('lista');
+    setPacienteSelecionado(null);
+  }}
+  className="btn-voltar-lista"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #C8A24A',
+    padding: '10px 22px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '14px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+    transition: 'all 0.25s ease',
+    backdropFilter: 'blur(6px)',
+  }}
+>
+  <MdArrowBack size={16} color="#C8A24A" />
+  Voltar para lista de pacientes
+</button>
                   <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0 }}>
                     📁 {pacienteSelecionado.nome}
                   </h2>
@@ -994,24 +1018,35 @@ if (telaAtual === 'criar_anamnese') {
           {telaAtual === 'galeria' && pacienteSelecionado && (
   <div>
     <button
-      type="button"
-      onClick={() => {
-        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-        setTelaAtual('detalhe_pasta');
-      }}
-      style={{
-        background: 'transparent',
-        border: 'none',
-        color: '#2c163a',
-        cursor: 'pointer',
-        fontWeight: 600,
-        fontSize: '11px',
-        padding: 0,
-        marginBottom: '16px'
-      }}
-    >
-      ← Voltar para a pasta do paciente
-    </button>
+  type="button"
+  onClick={() => {
+    window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
+    setTelaAtual('detalhe_pasta');
+  }}
+  className="btn-voltar-lista"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #C8A24A',
+    padding: '10px 22px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '20px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+    transition: 'all 0.25s ease',
+    backdropFilter: 'blur(6px)',
+  }}
+>
+  <MdArrowBack size={16} color="#C8A24A" />
+  Voltar para a pasta do paciente
+</button>
     <GaleriaPaciente
   pacienteId={pacienteSelecionado.id}
   uidEsteticista={auth.currentUser?.uid}

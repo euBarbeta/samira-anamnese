@@ -183,4 +183,15 @@ body:not(.sendo-exportado) .lembrete-div-pdf {
   border-radius: 50%;
   animation: girarSalvar 0.7s linear infinite;
   display: inline-block;
+}.btn-voltar-lista {
+  transition: all 0.25s ease-in-out !important;
+}
+.btn-voltar-lista:hover {
+  transform: translateX(-3px);
+  background: linear-gradient(135deg, rgba(200, 162, 74, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%) !important;
+  box-shadow: 0 6px 18px rgba(200, 162, 74, 0.35) !important;
+  border-color: #a8852f !important;
+}
+.btn-voltar-lista:active {
+  transform: translateX(-1px) scale(0.98);
 }
