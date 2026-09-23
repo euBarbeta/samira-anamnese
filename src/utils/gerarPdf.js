@@ -1,8 +1,20 @@
 // src/utils/gerarPdf.js
 import html2pdf from 'html2pdf.js';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
-// ✅ Helper: baixa um Blob como arquivo
-function baixarBlob(blob, nomeArquivo) {
+// ✅ Helper: verifica se está rodando no app nativo (APK)
+function isNativo() {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+// ✅ Helper (web): baixa um Blob como arquivo
+function baixarBlobWeb(blob, nomeArquivo) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -13,8 +25,8 @@ function baixarBlob(blob, nomeArquivo) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// ✅ Helper: verifica se o navegador suporta compartilhar arquivos
-function suportaCompartilharArquivos() {
+// ✅ Helper (web): verifica se o navegador suporta compartilhar arquivos
+function suportaCompartilharWeb() {
   return (
     typeof navigator !== 'undefined' &&
     typeof navigator.share === 'function' &&
@@ -22,10 +34,49 @@ function suportaCompartilharArquivos() {
   );
 }
 
+// ✅ Helper (nativo): converte Blob → base64 (sem o prefixo data:)
+function blobParaBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result; // "data:application/pdf;base64,JVBERi0..."
+      const base64 = String(result).split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ✅ Helper (nativo): salva o PDF e abre o menu "Abrir com..." / compartilhar
+async function salvarEShareNativo(blob, nomeArquivo) {
+  // 1) Converte pra base64
+  const base64 = await blobParaBase64(blob);
+
+  // 2) Salva na pasta de cache do app (não precisa de permissão)
+  const resultado = await Filesystem.writeFile({
+    path: nomeArquivo,
+    data: base64,
+    directory: Directory.Cache,
+    recursive: true,
+  });
+
+  // 3) Abre o menu nativo "Abrir com..." / "Compartilhar"
+  await Share.share({
+    title: 'Ficha em PDF',
+    text: 'Escolha onde salvar ou abrir o PDF:',
+    url: resultado.uri,
+    dialogTitle: 'Abrir ou salvar PDF',
+  });
+
+  return resultado.uri;
+}
+
 /**
  * Gera o PDF e:
- *  - Se `compartilhar: true` e o navegador suportar → abre o menu "Abrir com..."
- *  - Senão → baixa o arquivo normalmente
+ *  - Nativo (APK): salva em cache + abre menu "Abrir com..."
+ *  - Web com share disponível: abre menu "Compartilhar"
+ *  - Web comum: baixa o arquivo normalmente
  */
 export const exportarParaPDF = async (containerId, nomeCliente, opcoes = {}) => {
   const { compartilhar = false } = opcoes;
@@ -58,22 +109,43 @@ export const exportarParaPDF = async (containerId, nomeCliente, opcoes = {}) => 
       letterRendering: true,
       scrollY: 0,
       scrollX: 0,
-      windowWidth: 794
+      windowWidth: 794,
     },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
   };
 
   try {
-    // Pequeno delay pro DOM recalcular o layout com a classe .sendo-exportado
+    // Delay pro DOM recalcular o layout com a classe .sendo-exportado
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    if (compartilhar && suportaCompartilharArquivos()) {
-      // ── MODO COMPARTILHAR (mostra o menu "Abrir com...") ──
-      const blob = await html2pdf()
-        .from(elemento)
-        .set(opcoesHtml2pdf)
-        .outputPdf('blob');
+    // 🎯 SEMPRE gera como Blob (funciona em web e nativo)
+    const blob = await html2pdf()
+      .from(elemento)
+      .set(opcoesHtml2pdf)
+      .outputPdf('blob');
 
+    // ============================================================
+    // 1️⃣ APP NATIVO (APK) → Filesystem + Share
+    // ============================================================
+    if (isNativo()) {
+      try {
+        await salvarEShareNativo(blob, nomeArquivo);
+        return true;
+      } catch (err) {
+        console.error('Erro ao salvar/compartilhar PDF nativo:', err);
+        // Se o usuário cancelou o Share, não é erro de verdade
+        if (err?.message?.toLowerCase().includes('cancel')) {
+          return true;
+        }
+        alert('Não foi possível salvar o PDF. Tente novamente.');
+        return false;
+      }
+    }
+
+    // ============================================================
+    // 2️⃣ WEB com compartilhamento de arquivos → Share API
+    // ============================================================
+    if (compartilhar && suportaCompartilharWeb()) {
       const file = new File([blob], nomeArquivo, { type: 'application/pdf' });
 
       if (navigator.canShare({ files: [file] })) {
@@ -81,32 +153,32 @@ export const exportarParaPDF = async (containerId, nomeCliente, opcoes = {}) => 
           await navigator.share({
             files: [file],
             title: 'Ficha de Anamnese',
-            text: `Ficha de ${nomeCliente || 'paciente'}`
+            text: `Ficha de ${nomeCliente || 'paciente'}`,
           });
+          return true;
         } catch (err) {
-          // Usuário cancelou → só ignora
-          if (err.name === 'AbortError') {
-            return true;
-          }
-          // Outro erro → cai pro download normal
-          console.error('Erro no compartilhamento:', err);
-          baixarBlob(blob, nomeArquivo);
+          // Usuário cancelou → não faz nada
+          if (err.name === 'AbortError') return true;
+          // Outro erro → cai pro download padrão
+          console.error('Erro no share web:', err);
+          baixarBlobWeb(blob, nomeArquivo);
+          return true;
         }
       } else {
-        // Navegador suporta share mas não arquivos → baixa direto
-        baixarBlob(blob, nomeArquivo);
+        // Suporta share mas não arquivos
+        baixarBlobWeb(blob, nomeArquivo);
+        return true;
       }
-    } else {
-      // ── MODO DOWNLOAD PADRÃO (desktop) ──
-      await html2pdf()
-        .from(elemento)
-        .set(opcoesHtml2pdf)
-        .save();
     }
 
+    // ============================================================
+    // 3️⃣ WEB padrão (desktop) → download normal
+    // ============================================================
+    baixarBlobWeb(blob, nomeArquivo);
     return true;
   } catch (err) {
     console.error('Erro ao gerar PDF:', err);
+    alert('Erro ao gerar o PDF. Tente novamente.');
     return false;
   } finally {
     elemento.style.width = larguraOriginal;
