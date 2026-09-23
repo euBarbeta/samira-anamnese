@@ -1,17 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdArrowBack, MdDateRange, MdImage, MdKeyboardArrowDown, MdKeyboardArrowUp } from 'react-icons/md';
+import { MdSave, MdArrowBack, MdDateRange, MdImage, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 
-export default function FichaEvoDesktop({
-  mode = 'create',
-  initialData,
-  onSave,
-  onVoltar,
-  pacienteSelecionado,
-  pacienteNomeProp,
-  uidEsteticista,           // ✅ NOVO
-}) {
+export default function FichaEvoDesktop({ mode = 'create', initialData, onSave, onVoltar, pacienteSelecionado, pacienteNomeProp }) {
   const dadosOrigem = pacienteSelecionado?.anamnese || pacienteSelecionado || initialData?.anamnese || initialData || {};
 
   const [dataNasc, setDataNasc] = useState('');
@@ -24,11 +16,6 @@ export default function FichaEvoDesktop({
 
   const textareaRef = useRef(null);
 
-  // ✅ Fotos vinculadas
-  const [fotosVinculadas, setFotosVinculadas] = useState([]);
-  const [fotoAberta, setFotoAberta] = useState(null);
-  const [mostrarGaleria, setMostrarGaleria] = useState(false); // ✅ NOVO: toggle
-
   const ajustarAlturaTextarea = () => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -37,17 +24,15 @@ export default function FichaEvoDesktop({
     }
   };
 
-  useEffect(() => {
-    ajustarAlturaTextarea();
-  }, [textoLivre]);
+  // ✅ Fotos vinculadas a esta evolução
+  const [fotosVinculadas, setFotosVinculadas] = useState([]);
+  const [fotoAberta, setFotoAberta] = useState(null);
+  const [mostrarGaleria, setMostrarGaleria] = useState(false);
 
-  // ✅ CORRIGIDO: usa uidEsteticista diretamente e checa todas as fontes
   useEffect(() => {
     const pacId = pacienteSelecionado?.id || initialData?.pacienteId;
-    const uidEst = uidEsteticista || pacienteSelecionado?.criadoPorUid;
+    const uidEst = pacienteSelecionado?.criadoPorUid;
     const evoId = initialData?.id;
-
-    console.log('🔍 Fotos vinculadas — debug:', { pacId, uidEst, evoId });
 
     if (!pacId || !uidEst || !evoId) {
       setFotosVinculadas([]);
@@ -59,51 +44,35 @@ export default function FichaEvoDesktop({
       const lista = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((f) => (f.vinculadoA || []).includes(evoId));
-      console.log('🔍 Fotos encontradas para esta evolução:', lista.length);
       setFotosVinculadas(lista);
     }, (err) => console.error('Erro fotos vinculadas:', err));
 
     return () => unsub();
-  }, [pacienteSelecionado, initialData, uidEsteticista]);
+  }, [pacienteSelecionado, initialData]);
+
+  useEffect(() => {
+    ajustarAlturaTextarea();
+  }, [textoLivre]);
 
   useEffect(() => {
     const nomeFinal =
-      dadosOrigem.nome ||
-      dadosOrigem.nomeCliente ||
-      pacienteSelecionado?.nome ||
-      pacienteNomeProp ||
-      initialData?.nomeCliente ||
-      initialData?.paciente ||
-      '';
+      dadosOrigem.nome || dadosOrigem.nomeCliente || pacienteSelecionado?.nome ||
+      pacienteNomeProp || initialData?.nomeCliente || initialData?.paciente || '';
 
     const nascFinal =
-      dadosOrigem.dataNasc ||
-      dadosOrigem.dataNascimento ||
-      dadosOrigem.nascimento ||
-      initialData?.dataNasc ||
-      initialData?.dataNascimento ||
-      '';
+      dadosOrigem.dataNasc || dadosOrigem.dataNascimento || dadosOrigem.nascimento ||
+      initialData?.dataNasc || initialData?.dataNascimento || '';
 
     const telFinal =
-      dadosOrigem.telefone ||
-      dadosOrigem.celular ||
-      dadosOrigem.fone ||
-      initialData?.telefone ||
-      initialData?.celular ||
-      '';
+      dadosOrigem.telefone || dadosOrigem.celular || dadosOrigem.fone ||
+      initialData?.telefone || initialData?.celular || '';
 
     const endFinal = dadosOrigem.endereco || dadosOrigem.end || initialData?.endereco || '';
 
     const docFinal =
-      dadosOrigem.documento ||
-      dadosOrigem.nDocumento ||
-      dadosOrigem.numeroDocumento ||
-      dadosOrigem.cpf ||
-      dadosOrigem.rg ||
-      initialData?.numDocumento ||
-      initialData?.documento ||
-      initialData?.nDocumento ||
-      '';
+      dadosOrigem.documento || dadosOrigem.nDocumento || dadosOrigem.numeroDocumento ||
+      dadosOrigem.cpf || dadosOrigem.rg || initialData?.numDocumento ||
+      initialData?.documento || initialData?.nDocumento || '';
 
     const realizacaoFinal = initialData?.dataRealizacao || new Date().toLocaleDateString('pt-BR');
 
@@ -134,7 +103,7 @@ export default function FichaEvoDesktop({
       endereco,
       numDocumento,
       textoLivre,
-      dataCriacao: initialData?.dataCriacao || (new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })),
+      dataCriacao: initialData?.dataCriacao || (new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
     };
     if (onSave) onSave(dadosEvolucao);
   };
@@ -147,7 +116,7 @@ export default function FichaEvoDesktop({
       backgroundColor: '#dfc6fc', display: 'flex', flexDirection: 'column',
       alignItems: 'center', margin: 0, padding: '20px 10px',
       fontFamily: "'Montserrat', sans-serif", boxSizing: 'border-box',
-      overflowY: 'auto', zIndex: 9999,
+      overflowY: 'auto', zIndex: 9999
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Montserrat:wght@400;500;600&display=swap');
@@ -158,7 +127,11 @@ export default function FichaEvoDesktop({
           height: 18px; font-size: 13px; color: #1A1A1A;
           -webkit-text-fill-color: #1A1A1A;
         }
-        input, select, textarea { color: #1A1A1A !important; -webkit-text-fill-color: #1A1A1A !important; }
+
+        input, select, textarea {
+          color: #1A1A1A !important;
+          -webkit-text-fill-color: #1A1A1A !important;
+        }
 
         .btn-acao-ficha {
           font-family: 'Cinzel', serif;
@@ -171,9 +144,33 @@ export default function FichaEvoDesktop({
           transition: all 0.3s ease; outline: none;
           width: 100%; max-width: 340px; justify-content: center;
         }
+
         .btn-acao-ficha:hover {
           transform: translateY(-3px) scale(1.03);
           box-shadow: 0 6px 22px rgba(200, 162, 74, 0.6);
+          background: linear-gradient(135deg, #d8b052 0%, #eccb74 100%);
+        }
+
+        .btn-fotos-vinculadas {
+          font-family: 'Cinzel', serif;
+          color: #ffffff;
+          border: 1.5px solid #7e22ce;
+          padding: 12px 28px;
+          border-radius: 24px;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 1px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);
+          transition: all 0.25s ease;
+        }
+
+        .btn-fotos-vinculadas:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
         }
 
         @media print {
@@ -184,7 +181,7 @@ export default function FichaEvoDesktop({
           textarea { display: none !important; }
           .show-on-print { display: block !important; white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.6; min-height: 450px; height: auto !important; max-height: none !important; overflow: visible !important; border: 1px solid rgba(200, 162, 74, 0.4); padding: 15px; border-radius: 6px; font-family: 'Montserrat', sans-serif; color: #1A1A1A; background: rgba(255, 255, 255, 0.65); }
           .moldura-base-print { display: flex !important; visibility: visible !important; page-break-inside: avoid; break-inside: avoid; margin-top: -140px !important; height: 400px !important; }
-          button, .btn-acao-ficha { display: none !important; }
+          button, .btn-acao-ficha, .btn-fotos-vinculadas { display: none !important; }
         }
 
         @media screen { .show-on-print { display: none !important; } }
@@ -196,7 +193,7 @@ export default function FichaEvoDesktop({
           width: '100%', maxWidth: '1175px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
           position: 'relative', display: 'flex', flexDirection: 'column',
-          boxSizing: 'border-box', zIndex: 1, backgroundColor: '#fff',
+          boxSizing: 'border-box', zIndex: 1, backgroundColor: '#fff'
         }}
       >
         {/* 1. TOPO */}
@@ -206,7 +203,7 @@ export default function FichaEvoDesktop({
           backgroundRepeat: 'no-repeat', backgroundPosition: 'center bottom',
           backgroundSize: '100% 100%', flexShrink: 0, marginBottom: '-130px',
           zIndex: 3, position: 'relative', boxSizing: 'border-box',
-          padding: '330px 95px 0 95px', pointerEvents: 'auto',
+          padding: '330px 95px 0 95px', pointerEvents: 'auto'
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'auto' }}>
             <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -223,7 +220,7 @@ export default function FichaEvoDesktop({
                   <input id="evo-datanasc" name="dataNasc" type="text" value={dataNasc} onChange={(e) => setDataNasc(mascaraData(e.target.value))} disabled={isView} className="input-line" style={{ paddingRight: '22px' }} />
                   {!isView && (
                     <>
-                      <input id="evo-datanasc-picker" name="dataNascPicker" type="date" aria-label="Data Nascimento" onChange={(e) => { if (e.target.value) { const [ano, mes, dia] = e.target.value.split('-'); setDataNasc(`${dia}/${mes}/${ano}`); } }} style={{ position: 'absolute', right: '0', width: '28px', height: '18px', opacity: 0, cursor: 'pointer', zIndex: 3 }} />
+                      <input id="evo-datanasc-picker" name="dataNascPicker" type="date" aria-label="Selecionar Data de Nascimento" onChange={(e) => { if (e.target.value) { const [ano, mes, dia] = e.target.value.split('-'); setDataNasc(`${dia}/${mes}/${ano}`); } }} style={{ position: 'absolute', right: '0', width: '28px', height: '18px', opacity: 0, cursor: 'pointer', zIndex: 3 }} />
                       <MdDateRange size={18} color="#C8A24A" style={{ position: 'absolute', right: '2px', pointerEvents: 'none', zIndex: 2 }} />
                     </>
                   )}
@@ -245,7 +242,7 @@ export default function FichaEvoDesktop({
                   <input id="evo-datarealizacao" name="dataRealizacao" type="text" value={dataRealizacao} onChange={(e) => setDataRealizacao(mascaraData(e.target.value))} disabled={isView} className="input-line" style={{ paddingRight: '22px' }} />
                   {!isView && (
                     <>
-                      <input id="evo-datarealizacao-picker" name="dataRealizacaoPicker" type="date" aria-label="Data Realização" onChange={(e) => { if (e.target.value) { const [ano, mes, dia] = e.target.value.split('-'); setDataRealizacao(`${dia}/${mes}/${ano}`); } }} style={{ position: 'absolute', right: '0', width: '28px', height: '18px', opacity: 0, cursor: 'pointer', zIndex: 3 }} />
+                      <input id="evo-datarealizacao-picker" name="dataRealizacaoPicker" type="date" aria-label="Selecionar Data de Realização" onChange={(e) => { if (e.target.value) { const [ano, mes, dia] = e.target.value.split('-'); setDataRealizacao(`${dia}/${mes}/${ano}`); } }} style={{ position: 'absolute', right: '0', width: '28px', height: '18px', opacity: 0, cursor: 'pointer', zIndex: 3 }} />
                       <MdDateRange size={18} color="#C8A24A" style={{ position: 'absolute', right: '2px', pointerEvents: 'none', zIndex: 2 }} />
                     </>
                   )}
@@ -271,21 +268,28 @@ export default function FichaEvoDesktop({
           </div>
         </div>
 
-        {/* 2. MEIO */}
+        {/* 2. MEIO — Agora inclui o botão + galeria DENTRO desta seção para não ser coberto pela BASE */}
         <div style={{
           width: '100%',
           backgroundImage: 'url("/imagens/moldura-meio.jpeg")',
-          backgroundRepeat: 'repeat-y', backgroundPosition: 'center top',
-          backgroundSize: '100% auto', display: 'flex', flexDirection: 'column',
-          boxSizing: 'border-box', padding: '135px 95px 140px 95px',
-          position: 'relative', zIndex: 2,
+          backgroundRepeat: 'repeat-y',
+          backgroundPosition: 'center top',
+          backgroundSize: '100% auto',
+          display: 'flex',
+          flexDirection: 'column',
+          boxSizing: 'border-box',
+          padding: '135px 95px 140px 95px',
+          position: 'relative',
+          zIndex: 2
         }}>
           <div style={{
             position: 'absolute', top: '55%', left: '50%',
-            transform: 'translate(-50%, -50%)', width: '480px', height: '480px',
+            transform: 'translate(-50%, -50%)',
+            width: '480px', height: '480px',
             backgroundImage: 'url("/imagens/logo-samiramarcadagua.jpeg")',
             backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
-            backgroundSize: 'contain', opacity: 0.45, pointerEvents: 'none', zIndex: 1,
+            backgroundSize: 'contain', opacity: 0.45,
+            pointerEvents: 'none', zIndex: 1
           }} />
 
           <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
@@ -295,7 +299,7 @@ export default function FichaEvoDesktop({
                 fontFamily: "'Cinzel', serif", color: '#1A1A1A',
                 background: 'rgba(255, 255, 255, 0.9)', padding: '4px 14px',
                 fontSize: '12px', fontWeight: 700, border: '1.5px solid #C8A24A',
-                borderRadius: '12px', textAlign: 'center', letterSpacing: '1.5px',
+                borderRadius: '12px', textAlign: 'center', letterSpacing: '1.5px'
               }}>
                 REGISTRO DE EVOLUÇÃO
               </div>
@@ -317,118 +321,77 @@ export default function FichaEvoDesktop({
                 fontSize: '14px', outline: 'none', resize: 'none',
                 overflow: 'hidden', fontFamily: "'Montserrat', sans-serif",
                 boxSizing: 'border-box', lineHeight: '1.6', color: '#1A1A1A',
-                wordWrap: 'break-word', overflowWrap: 'break-word',
+                wordWrap: 'break-word', overflowWrap: 'break-word'
               }}
             />
 
-            <div className="show-on-print">{textoLivre || 'Nenhuma evolução registrada.'}</div>
-          </div>
-        </div>
+            <div className="show-on-print">
+              {textoLivre || "Nenhuma evolução registrada."}
+            </div>
 
-        {/* ✅ BOTÃO "VER FOTOS VINCULADAS" — antes da base */}
-        {fotosVinculadas.length > 0 && (
-          <div style={{
-            width: '100%', background: '#fff',
-            borderTop: '1.5px solid #C8A24A',
-            padding: '16px 40px', boxSizing: 'border-box',
-            display: 'flex', justifyContent: 'center',
-          }}>
-            <button
-              type="button"
-              onClick={() => setMostrarGaleria((v) => !v)}
-              style={{
-                fontFamily: "'Cinzel', serif",
-                background: mostrarGaleria
-                  ? 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)'
-                  : 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                color: '#fff',
-                border: '1.5px solid #7e22ce',
-                padding: '12px 28px',
-                borderRadius: '24px',
-                fontSize: '13px',
-                fontWeight: 700,
-                letterSpacing: '1px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                boxShadow: '0 4px 14px rgba(168, 85, 247, 0.35)',
-                transition: 'all 0.25s ease',
-              }}
-            >
-              <MdImage size={18} />
-              {mostrarGaleria ? 'OCULTAR FOTOS VINCULADAS' : `VER FOTOS VINCULADAS (${fotosVinculadas.length})`}
-              {mostrarGaleria ? <MdKeyboardArrowUp size={18} /> : <MdKeyboardArrowDown size={18} />}
-            </button>
-          </div>
-        )}
+            {/* ✅ BOTÃO "VER FOTOS VINCULADAS" — Dentro do MEIO */}
+            {fotosVinculadas.length > 0 && (
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setMostrarGaleria((v) => !v)}
+                  className="btn-fotos-vinculadas"
+                  style={{
+                    background: mostrarGaleria
+                      ? 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)'
+                      : 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)'
+                  }}
+                >
+                  <MdImage size={18} />
+                  {mostrarGaleria ? 'OCULTAR FOTOS VINCULADAS' : `VER FOTOS VINCULADAS (${fotosVinculadas.length})`}
+                  {mostrarGaleria ? <MdKeyboardArrowUp size={18} /> : <MdKeyboardArrowDown size={18} />}
+                </button>
+              </div>
+            )}
 
-        {/* ✅ GALERIA EXPANSÍVEL */}
-        {fotosVinculadas.length > 0 && mostrarGaleria && (
-          <div style={{
-            width: '100%', background: '#faf5ff',
-            borderTop: '1px dashed #d8b4fe',
-            borderBottom: '1px solid #C8A24A',
-            padding: '24px 40px', boxSizing: 'border-box',
-            animation: 'fadeIn 0.3s ease',
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              marginBottom: '16px', justifyContent: 'center',
-            }}>
-              <MdImage size={18} color="#a855f7" />
-              <span style={{
-                fontFamily: "'Cinzel', serif", color: '#2c163a',
-                fontWeight: 700, fontSize: '13px', letterSpacing: '1px',
+            {/* ✅ GALERIA EXPANSÍVEL — Dentro do MEIO */}
+            {fotosVinculadas.length > 0 && mostrarGaleria && (
+              <div style={{
+                width: '100%', background: '#faf5ff',
+                border: '1.5px dashed #d8b4fe', borderRadius: '12px',
+                padding: '24px', boxSizing: 'border-box', marginTop: '10px'
               }}>
-                FOTOS VINCULADAS À EVOLUÇÃO
-              </span>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: '12px',
-            }}>
-              {fotosVinculadas.map((foto) => (
-                <div key={foto.id} style={{
-                  background: '#fff',
-                  borderRadius: '10px',
-                  overflow: 'hidden',
-                  border: '1px solid #e2d2f5',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                }}>
-                  <img
-                    src={foto.thumbUrl}
-                    alt="Foto vinculada"
-                    onClick={() => setFotoAberta(foto)}
-                    style={{
-                      width: '100%', height: '140px',
-                      objectFit: 'cover', cursor: 'pointer', display: 'block',
-                    }}
-                  />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', justifyContent: 'center' }}>
+                  <MdImage size={18} color="#a855f7" />
+                  <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontWeight: 700, fontSize: '13px', letterSpacing: '1px' }}>
+                    FOTOS VINCULADAS À EVOLUÇÃO
+                  </span>
                 </div>
-              ))}
-            </div>
 
-            {fotoAberta && (
-              <div
-                onClick={() => setFotoAberta(null)}
-                style={{
-                  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)',
-                  zIndex: 999999, display: 'flex', justifyContent: 'center',
-                  alignItems: 'center', padding: '20px', cursor: 'pointer',
-                }}
-              >
-                <img
-                  src={fotoAberta.url}
-                  alt="Foto ampliada"
-                  style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
-                />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                  {fotosVinculadas.map((foto) => (
+                    <div key={foto.id} style={{ background: '#fff', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2d2f5', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+                      <img
+                        src={foto.thumbUrl}
+                        alt="Foto vinculada"
+                        onClick={() => setFotoAberta(foto)}
+                        style={{ width: '100%', height: '140px', objectFit: 'cover', cursor: 'pointer', display: 'block' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {fotoAberta && (
+                  <div
+                    onClick={() => setFotoAberta(null)}
+                    style={{
+                      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)',
+                      zIndex: 999999, display: 'flex', justifyContent: 'center',
+                      alignItems: 'center', padding: '20px', cursor: 'pointer'
+                    }}
+                  >
+                    <img src={fotoAberta.url} alt="Foto ampliada" style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }} />
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+        </div>
 
         {/* 3. BASE */}
         <div
@@ -440,8 +403,8 @@ export default function FichaEvoDesktop({
             backgroundSize: '100% 100%', flexShrink: 0, marginTop: '-140px',
             zIndex: 3, position: 'relative', pointerEvents: 'auto',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'flex-start', paddingTop: '90px',
-            gap: '15px', boxSizing: 'border-box',
+            justifyContent: 'flex-start', paddingTop: '90px', gap: '15px',
+            boxSizing: 'border-box'
           }}
         >
           {!isView && (
