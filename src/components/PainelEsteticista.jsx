@@ -69,6 +69,24 @@ useEffect(() => {
   window.addEventListener('popstate', onPop);
   return () => window.removeEventListener('popstate', onPop);
 }, []);
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+  import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
+    inscreverPushEsteticistaWeb(user.uid).catch(() => {});
+  });
+}, []);
+// ✅ Registra push da esteticista (nativo OU web) ao entrar
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
+    inscreverPushEsteticistaWeb(user.uid).catch((e) =>
+      console.warn('Falha ao registrar push da esteticista:', e)
+    );
+  });
+}, []);
 
   // Carregar dados do Firestore ao iniciar
   useEffect(() => {
@@ -980,10 +998,12 @@ if (telaAtual === 'criar_anamnese') {
       ← Voltar para a pasta do paciente
     </button>
     <GaleriaPaciente
-      pacienteId={pacienteSelecionado.id}
-      uidEsteticista={auth.currentUser?.uid}
-      modo="esteticista"
-    />
+  pacienteId={pacienteSelecionado.id}
+  uidEsteticista={auth.currentUser?.uid}
+  pacienteNome={pacienteSelecionado.nome}
+  modo="esteticista"
+  evolucoes={pacienteSelecionado.evolucoes || []}
+/>
   </div>
 )}
 

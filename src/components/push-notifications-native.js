@@ -76,3 +76,49 @@ export async function inscreverPushNativo(pacienteId) {
     return null;
   }
 }
+/**
+ * Registra push da ESTETICISTA (salva em coleção separada)
+ */
+export async function inscreverPushEsteticista(uidEsteticista) {
+  if (!isNativo()) return null;
+
+  try {
+    let permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+    if (permStatus.receive !== 'granted') {
+      console.warn('❌ Permissão negada (esteticista)');
+      return null;
+    }
+
+    await PushNotifications.removeAllListeners();
+
+    PushNotifications.addListener('registration', async (token) => {
+      console.log('✅ Token FCM esteticista:', token.value);
+      try {
+        await setDoc(
+          doc(db, 'push_subscriptions_esteticistas', String(uidEsteticista)),
+          {
+            uidEsteticista: String(uidEsteticista),
+            fcmToken: token.value,
+            atualizadoEm: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('❌ Erro ao salvar token esteticista:', e);
+      }
+    });
+
+    PushNotifications.addListener('registrationError', (err) => {
+      console.error('❌ Erro no registro (esteticista):', err);
+    });
+
+    await PushNotifications.register();
+    return true;
+  } catch (err) {
+    console.error('❌ Erro inscreverPushEsteticista:', err);
+    return null;
+  }
+}

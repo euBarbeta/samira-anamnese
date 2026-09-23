@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdDateRange, MdArrowBack } from 'react-icons/md';
+import { MdSave, MdDateRange, MdArrowBack, MdImage } from 'react-icons/md';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 
 export default function FichaEvoMobile({ mode = 'create', initialData, onSave, onVoltar, pacienteSelecionado, pacienteNomeProp }) {
   const dadosOrigem = pacienteSelecionado?.anamnese || pacienteSelecionado || initialData?.anamnese || initialData || {};
@@ -23,6 +25,29 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
       textarea.style.height = `${Math.max(180, textarea.scrollHeight)}px`;
     }
   };
+  const [fotosVinculadas, setFotosVinculadas] = useState([]);
+const [fotoAberta, setFotoAberta] = useState(null);
+
+useEffect(() => {
+  const pacId = pacienteSelecionado?.id || initialData?.pacienteId;
+  const uidEst = pacienteSelecionado?.criadoPorUid;
+
+  if (!pacId || !uidEst) {
+    setFotosVinculadas([]);
+    return;
+  }
+
+  const colRef = collection(db, `usuarios/${uidEst}/pacientes/${pacId}/fotos`);
+  const unsub = onSnapshot(colRef, (snap) => {
+    const evoId = initialData?.id;
+    const lista = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((f) => (f.vinculadoA || []).includes(evoId));
+    setFotosVinculadas(lista);
+  }, (err) => console.error('Erro fotos vinculadas:', err));
+
+  return () => unsub();
+}, [pacienteSelecionado, initialData]);
 
   // Efeito para reajustar a altura sempre que o texto livre mudar
   useEffect(() => {
@@ -387,6 +412,57 @@ export default function FichaEvoMobile({ mode = 'create', initialData, onSave, o
             </div>
           </div>
         </div>
+        {fotosVinculadas.length > 0 && (
+  <div style={{
+    width: '100%', background: '#fff',
+    borderTop: '1.5px solid #C8A24A',
+    padding: '20px 16px', boxSizing: 'border-box',
+  }}>
+    <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+      <MdImage size={16} color="#C8A24A" style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+      <span style={{
+        fontFamily: "'Cinzel', serif", color: '#2c163a',
+        fontWeight: 700, fontSize: '12px',
+      }}>
+        FOTOS VINCULADAS
+      </span>
+    </div>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+      gap: '8px',
+    }}>
+      {fotosVinculadas.map((foto) => (
+        <img
+          key={foto.id}
+          src={foto.thumbUrl}
+          alt="Foto vinculada"
+          onClick={() => setFotoAberta(foto)}
+          style={{
+            width: '100%', height: '100px', objectFit: 'cover',
+            borderRadius: '8px', cursor: 'pointer', border: '1px solid #e2d2f5',
+          }}
+        />
+      ))}
+    </div>
+    {fotoAberta && (
+      <div
+        onClick={() => setFotoAberta(null)}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)',
+          zIndex: 999999, display: 'flex', justifyContent: 'center',
+          alignItems: 'center', padding: '20px', cursor: 'pointer',
+        }}
+      >
+        <img
+          src={fotoAberta.url}
+          alt="Foto ampliada"
+          style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
+        />
+      </div>
+    )}
+  </div>
+)}
 
         {/* BASE (Moldura Base + Botões) */}
         <div style={{

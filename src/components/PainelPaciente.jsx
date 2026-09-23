@@ -811,11 +811,12 @@ const handleInstalarApp = async () => {
     >
       ← Voltar para o menu da pasta
     </button>
-    <GaleriaPaciente
-      pacienteId={pacienteData.id}
-      uidEsteticista={pacienteData.criadoPorUid}
-      modo="paciente"
-    />
+  <GaleriaPaciente
+  pacienteId={pacienteData.id}
+  uidEsteticista={pacienteData.criadoPorUid}
+  pacienteNome={pacienteData.nome}
+  modo="paciente"
+/>
   </div>
 )}
 

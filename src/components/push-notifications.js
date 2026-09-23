@@ -1,7 +1,8 @@
 // src/components/push-notifications.js
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { isNativo, inscreverPushNativo } from './push-notifications-native';
+import { isNativo as isNativoCheck, inscreverPushEsteticista } from './push-notifications-native';
+
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
@@ -81,6 +82,58 @@ export async function inscreverPush(pacienteId) {
     return subscription;
   } catch (err) {
     console.error('❌ Erro ao inscrever push:', err);
+    return null;
+  }
+}
+
+export async function inscreverPushEsteticistaWeb(uidEsteticista) {
+  // 1) Nativo → FCM
+  if (isNativoCheck()) {
+    return inscreverPushEsteticista(uidEsteticista);
+  }
+
+  // 2) Web → web-push (mesma lógica do paciente, coleção separada)
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('❌ Push não suportado no navegador.');
+    return null;
+  }
+  if (!VAPID_PUBLIC_KEY) {
+    console.error('❌ VAPID key não configurada.');
+    return null;
+  }
+
+  try {
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return null;
+    } else if (Notification.permission === 'denied') {
+      return null;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+
+    await setDoc(
+      doc(db, 'push_subscriptions_esteticistas', String(uidEsteticista)),
+      {
+        uidEsteticista: String(uidEsteticista),
+        subscription: subscription.toJSON(),
+        plataforma: 'web',
+        atualizadoEm: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    return subscription;
+  } catch (err) {
+    console.error('❌ Erro inscrever push esteticista (web):', err);
     return null;
   }
 }
