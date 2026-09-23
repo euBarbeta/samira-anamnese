@@ -6,6 +6,8 @@ import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'fireb
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
 import GaleriaPaciente from './GaleriaPaciente'; 
+import BotaoInstalarApp from './BotaoInstalarApp';
+import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import { secondaryAuth } from './firebaseSecondary';
 
 export default function PainelEsteticista({ onLogout }) {
@@ -566,42 +568,51 @@ if (telaAtual === 'criar_anamnese') {
       `}</style>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
+         {auth.currentUser && (
+    <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
+  )}
         <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '25px 40px 10px 40px',
-          maxWidth: '1200px',
-          margin: '0 auto'
-        }}>
-          <div>
-            <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
-              Painel da Esteticista
-            </h1>
-            <span style={{ fontSize: '12px', color: '#55286f', fontWeight: 600 }}>Samira Ferreira Estética & Cosmetóloga</span>
-          </div>
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '25px 40px 10px 40px',
+  maxWidth: '1200px',
+  margin: '0 auto',
+  gap: '15px',
+  flexWrap: 'wrap'
+}}>
+  <div>
+    <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+      Painel da Esteticista
+    </h1>
+    <span style={{ fontSize: '12px', color: '#55286f', fontWeight: 600 }}>Samira Ferreira Estética & Cosmetóloga</span>
+  </div>
 
-          {onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              style={{
-                fontFamily: "'Cinzel', serif",
-                background: 'transparent',
-                color: '#e74c3c',
-                border: '1.5px solid #e74c3c',
-                padding: '6px 16px',
-                borderRadius: '20px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.3s'
-              }}
-            >
-              Sair do Sistema
-            </button>
-          )}
-        </div>
+  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+    <BotaoInstalarApp />
+
+    {onLogout && (
+      <button
+        type="button"
+        onClick={onLogout}
+        style={{
+          fontFamily: "'Cinzel', serif",
+          background: 'transparent',
+          color: '#e74c3c',
+          border: '1.5px solid #e74c3c',
+          padding: '6px 16px',
+          borderRadius: '20px',
+          fontSize: '11px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          transition: 'all 0.3s'
+        }}
+      >
+        Sair do Sistema
+      </button>
+    )}
+  </div>
+</div>
 
         <div style={{ padding: '20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
           

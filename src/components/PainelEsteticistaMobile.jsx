@@ -12,7 +12,9 @@ import { db } from './firebase';
 import { secondaryAuth } from './firebaseSecondary';  // ⬅️ ADICIONAR
 import FichaMobile from './FichaMobile';
 import FichaEvoMobile from './FichaEvoMobile';
-import GaleriaPaciente from './GaleriaPaciente'; 
+import GaleriaPaciente from './GaleriaPaciente';
+import BotaoInstalarApp from './BotaoInstalarApp';
+import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista'; 
 
 export default function PainelEsteticistaMobile({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
@@ -603,42 +605,51 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          padding: '20px 20px 10px 20px',
-          gap: '12px',
-          borderBottom: '1px solid rgba(226, 210, 245, 0.6)',
-          marginBottom: '15px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
-              Painel da Esteticista
-            </h1>
+          {auth.currentUser && (
+    <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
+  )}
 
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                style={{
-                  fontFamily: "'Cinzel', serif",
-                  background: 'transparent',
-                  color: '#e74c3c',
-                  border: '1.2px solid #e74c3c',
-                  padding: '4px 12px',
-                  borderRadius: '15px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Sair
-              </button>
-            )}
-          </div>
-          <span style={{ fontSize: '11px', color: '#55286f', fontWeight: 600, marginTop: '-6px' }}>Samira Ferreira Estética & Cosmetologia</span>
-        </div>
+        <div style={{
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  padding: '20px 20px 10px 20px',
+  gap: '12px',
+  borderBottom: '1px solid rgba(226, 210, 245, 0.6)',
+  marginBottom: '15px'
+}}>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>
+    <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+      Painel da Esteticista
+    </h1>
+
+    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+      <BotaoInstalarApp compacto />
+
+      {onLogout && (
+        <button
+          type="button"
+          onClick={onLogout}
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: 'transparent',
+            color: '#e74c3c',
+            border: '1.2px solid #e74c3c',
+            padding: '4px 12px',
+            borderRadius: '15px',
+            fontSize: '10px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          Sair
+        </button>
+      )}
+    </div>
+  </div>
+  <span style={{ fontSize: '11px', color: '#55286f', fontWeight: 600, marginTop: '-6px' }}>Samira Ferreira Estética & Cosmetologia</span>
+</div>
 
         <div style={{ padding: '0 15px', width: '100%', boxSizing: 'border-box' }}>
           
