@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MdClose, MdDownload, MdVerifiedUser, MdWarning } from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
 
@@ -24,9 +24,39 @@ export default function TermoConsentimentoPDF({ pacienteData, onFechar }) {
   const versaoTermo = consentimento.versaoTermo || '—';
   const plataforma = traduzirPlataforma(consentimento.plataforma);
   const userAgent = consentimento.userAgent || '—';
-  const codigoAutenticidade = gerarHashConsentimento(pacienteData);
+ const codigoAutenticidade = gerarHashConsentimento(pacienteData);
 
-  const handleBaixarPDF = async () => {
+// ✅ Ref para não recriar o useEffect a cada render do pai
+const onFecharRef = useRef(onFechar);
+useEffect(() => { onFecharRef.current = onFechar; }, [onFechar]);
+
+// ✅ Botão voltar (navegador/APK) fecha o modal
+useEffect(() => {
+  window.history.pushState(
+    { modalTermoConsentimento: true },
+    '',
+    window.location.pathname
+  );
+
+  const onPop = (e) => {
+    if (!e.state?.modalTermoConsentimento) {
+      onFecharRef.current?.();
+    }
+  };
+
+  window.addEventListener('popstate', onPop);
+  return () => window.removeEventListener('popstate', onPop);
+}, []); // deps vazias — roda só na montagem
+
+const handleFechar = () => {
+  if (window.history.state?.modalTermoConsentimento) {
+    window.history.back(); // dispara popstate → onFechar
+  } else {
+    onFecharRef.current?.();
+  }
+};
+
+const handleBaixarPDF = async () => {
     setGerandoPDF(true);
     try {
       await exportarParaPDF(
@@ -43,7 +73,7 @@ export default function TermoConsentimentoPDF({ pacienteData, onFechar }) {
 
   return (
     <div
-      onClick={onFechar}
+      onClick={handleFechar}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(44, 22, 58, 0.7)',
@@ -102,7 +132,7 @@ export default function TermoConsentimentoPDF({ pacienteData, onFechar }) {
           </div>
           <button
             type="button"
-            onClick={onFechar}
+            onClick={handleFechar}
             aria-label="Fechar"
             style={{
               background: 'transparent', border: 'none', cursor: 'pointer',
@@ -315,7 +345,7 @@ export default function TermoConsentimentoPDF({ pacienteData, onFechar }) {
           </button>
           <button
             type="button"
-            onClick={onFechar}
+            onClick={handleFechar}
             style={{
               fontFamily: "'Cinzel', serif",
               background: '#f0f0f0',
