@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { isNativo } from './push-notifications-native';
 import {
@@ -23,6 +23,7 @@ export default function GaleriaPaciente({
   const [fotos, setFotos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
   const [fotoAmpliada, setFotoAmpliada] = useState(null);
   const [modalVincular, setModalVincular] = useState(null);
   const [buscaEvolucao, setBuscaEvolucao] = useState('');
@@ -114,34 +115,53 @@ export default function GaleriaPaciente({
   }
 };
 
-  const enviarFoto = async (file) => {
-      if (enviando) return; 
-    setEnviando(true);
-     try {
-      const resultado = await uploadFoto(file, pacienteId);
-      await addDoc(
-        collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
-        {
-          url: resultado.url, thumbUrl: resultado.thumbUrl,
-          publicId: resultado.publicId, tamanho: resultado.tamanho,
-          enviadoEm: serverTimestamp(), enviadoPor: modo, vinculadoA: [],
-        }
-      );
+ const enviarFoto = async (file) => {
+  // ✅ Guarda contra toques duplos (usa ref, não state, pra não ficar preso)
+  if (enviandoRef.current) return;
+  enviandoRef.current = true;
+  setEnviando(true);
 
-      if (modo === 'paciente') {
-        fetch('/.netlify/functions/notificar-foto', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome }),
-        }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
+  try {
+    // ✅ Timeout MESTRE — se o upload pendurar por qualquer razão,
+    //    libera a UI depois de 60s (o worker/upload terá estourado antes)
+    const resultado = await Promise.race([
+      uploadFoto(file, pacienteId),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error('O envio demorou demais. Verifique sua conexão.')),
+          60000
+        )
+      ),
+    ]);
+
+    await addDoc(
+      collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
+      {
+        url: resultado.url,
+        thumbUrl: resultado.thumbUrl,
+        publicId: resultado.publicId,
+        tamanho: resultado.tamanho,
+        enviadoEm: serverTimestamp(),
+        enviadoPor: modo,
+        vinculadoA: [],
       }
-    } catch (err) {
-      console.error('Erro ao enviar foto:', err);
-      alert('Erro ao enviar foto: ' + (err?.message || err));
-    } finally {
-      setEnviando(false);
+    );
+
+    if (modo === 'paciente') {
+      fetch('/.netlify/functions/notificar-foto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome }),
+      }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
     }
-  };
+  } catch (err) {
+    console.error('Erro ao enviar foto:', err);
+    alert('Erro ao enviar foto: ' + (err?.message || err));
+  } finally {
+    enviandoRef.current = false;
+    setEnviando(false);
+  }
+};
 
   const abrirModalExclusao = (foto) => {
     setModalExclusao({ isOpen: true, foto, excluindo: false, erro: '' });
