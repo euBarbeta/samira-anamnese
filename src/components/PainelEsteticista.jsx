@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription } from 'react-icons/md';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
@@ -51,7 +51,7 @@ export default function PainelEsteticista({ onLogout }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [termoBuscaEvolucao, setTermoBuscaEvolucao] = useState('');
   const [carregandoNuvem, setCarregandoNuvem] = useState(true);
-  
+  const [jaCarregou, setJaCarregou] = useState(false);
   const [pacientes, setPacientes] = useState([]);
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
@@ -204,31 +204,38 @@ export default function PainelEsteticista({ onLogout }) {
   }, []);
 
   // Carregar dados do Firestore ao iniciar
+  // Carregar dados do Firestore — espera o auth hidratar antes
   useEffect(() => {
-    async function carregarDadosNuvem() {
-      const user = auth.currentUser;
+    let unsubAuth = null;
+
+    const carregarPacientes = async (user) => {
       if (!user) {
-        setCarregandoNuvem(false);
+        // Ainda não autenticou — aguarda, NÃO marca jaCarregou
         return;
       }
 
       try {
-        const querySnapshot = await getDocs(collection(db, `usuarios/${user.uid}/pacientes`));
+        const querySnapshot = await getDocs(
+          collection(db, `usuarios/${user.uid}/pacientes`)
+        );
         const listaPacientes = [];
         querySnapshot.forEach((docSnap) => {
           listaPacientes.push(docSnap.data());
         });
-
-        listaPacientes.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+        listaPacientes.sort((a, b) =>
+          (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+        );
         setPacientes(listaPacientes);
       } catch (e) {
         console.error('Erro ao carregar fichas do Firestore:', e);
       } finally {
         setCarregandoNuvem(false);
+        setJaCarregou(true);      // ✅ SÓ AQUI decide entre vazio e lista
       }
-    }
+    };
 
-    carregarDadosNuvem();
+    unsubAuth = onAuthStateChanged(auth, carregarPacientes);
+    return () => { if (unsubAuth) unsubAuth(); };
   }, [db, auth]);
   
   // Função auxiliar para excluir um paciente do Firestore
@@ -856,7 +863,7 @@ export default function PainelEsteticista({ onLogout }) {
                 </div>
               )}
 
-           {carregandoNuvem ? (
+          {!jaCarregou ? (
   <SpinnerLoading texto="Carregando pastas de pacientes…" />
 ) : pacientes.length === 0 ? (
   <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>

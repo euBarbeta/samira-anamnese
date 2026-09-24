@@ -5,7 +5,8 @@ import {
   getAuth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  signOut 
+  signOut,
+  onAuthStateChanged       // ⬅️ adicione
 } from 'firebase/auth';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
@@ -59,6 +60,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [pacientes, setPacientes] = useState([]);
   const [carregandoNuvem, setCarregandoNuvem] = useState(true);
+  const [jaCarregou, setJaCarregou] = useState(false);   
 
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
@@ -203,40 +205,39 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   }, []);
 
   // Carregar dados iniciais do Firestore
+  // Carregar dados do Firestore — espera o auth hidratar antes
   useEffect(() => {
-    async function carregarDadosDaNuvem() {
+    let unsubAuth = null;
+
+    const carregarPacientes = async (user) => {
+      if (!user) {
+        // Ainda não autenticou — aguarda, NÃO marca jaCarregou
+        return;
+      }
+
       try {
-        setCarregandoNuvem(true);
-        const auth = getAuth();
-        const user = auth.currentUser;
-
-        if (!user) {
-          setCarregandoNuvem(false);
-          return;
-        }
-
-        const querySnapshot = await getDocs(collection(db, `usuarios/${user.uid}/pacientes`));
-        const listaPacientes = querySnapshot.docs.map(docSnap => ({
-          ...docSnap.data()
-        }));
-
-        // Ordena por nome alfabeticamente
-        const listaOrdenada = listaPacientes.sort((a, b) =>
+        const querySnapshot = await getDocs(
+          collection(db, `usuarios/${user.uid}/pacientes`)
+        );
+        const listaPacientes = [];
+        querySnapshot.forEach((docSnap) => {
+          listaPacientes.push(docSnap.data());
+        });
+        listaPacientes.sort((a, b) =>
           (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
         );
-
-        setPacientes(listaOrdenada);
-      } catch (error) {
-        console.error("Erro ao carregar dados do Firestore:", error);
-        alert("Erro ao carregar pacientes da nuvem.");
+        setPacientes(listaPacientes);
+      } catch (e) {
+        console.error('Erro ao carregar fichas do Firestore:', e);
       } finally {
         setCarregandoNuvem(false);
+        setJaCarregou(true);      // ✅ SÓ AQUI decide entre vazio e lista
       }
-    }
+    };
 
-    carregarDadosDaNuvem();
-  }, []);
-
+    unsubAuth = onAuthStateChanged(auth, carregarPacientes);
+    return () => { if (unsubAuth) unsubAuth(); };
+  }, [db, auth]);
   const extrairDocumento = (dados) => {
     if (!dados) return 'Não informado';
     return (
@@ -618,7 +619,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
     return dataEvo.includes(termo);
   }) || [];
 
-if (carregandoNuvem) {
+if (!jaCarregou) {
   return (
     <div style={{
       width: '100%', minHeight: '100vh',
