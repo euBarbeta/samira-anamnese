@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -11,6 +11,16 @@ import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import { secondaryAuth } from './firebaseSecondary';
 import TermoConsentimentoPDF from './TermoConsentimentoPDF';
 
+const MODAL_FECHADO = {
+  isOpen: false,
+  tipo: null,
+  idAlvo: null,
+  titulo: '',
+  senhaInput: '',
+  mostrarSenhaModal: false,
+  erroSenha: ''
+};
+
 export default function PainelEsteticista({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
   const [termoBusca, setTermoBusca] = useState('');
@@ -22,74 +32,151 @@ export default function PainelEsteticista({ onLogout }) {
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
 
-  const [modalExclusao, setModalExclusao] = useState({
-    isOpen: false,
-    tipo: null,
-    idAlvo: null,
-    titulo: '',
-    senhaInput: '',
-    mostrarSenhaModal: false,
-    erroSenha: ''
-  });
+  const [modalExclusao, setModalExclusao] = useState(MODAL_FECHADO);
 
   const db = getFirestore();
   const auth = getAuth();
+
+  // ✅ Refs para evitar closures obsoletos em navegarPara/popstate
+  const pacRef = useRef(null);
+  const evoRef = useRef(null);
+  const modalOpenRef = useRef(false);
+  useEffect(() => { pacRef.current = pacienteSelecionado; }, [pacienteSelecionado]);
+  useEffect(() => { evoRef.current = evolucaoSelecionada; }, [evolucaoSelecionada]);
+  useEffect(() => { modalOpenRef.current = modalExclusao.isOpen; }, [modalExclusao.isOpen]);
+
   // Adicione esta função auxiliar no topo do componente PainelEsteticista
-const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
-  if (!Array.isArray(lembretes)) return;
-  
+  const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
+    if (!Array.isArray(lembretes)) return;
 
-  try {
-    const response = await fetch('/.netlify/functions/agendar-lembretes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pacienteId, lembretes }),
-    });
+    try {
+      const response = await fetch('/.netlify/functions/agendar-lembretes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pacienteId, lembretes }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      console.error('❌ Falha ao agendar lembretes:', data);
-    } 
-  } catch (err) {
-    console.error('❌ Erro ao agendar lembretes:', err);
-  }
-};
-useEffect(() => {
-  window.history.replaceState({ painelEsteticista: telaAtual }, '', window.location.pathname);
-}, [telaAtual]);
-useEffect(() => {
-  const onPop = (e) => {
-    const st = e.state;
-    if (st?.painelEsteticista) {
-      setTelaAtual(st.painelEsteticista);
-    } else {
-      // Sem state → volta pra lista
-      setTelaAtual('lista');
-      setPacienteSelecionado(null);
+      if (!response.ok) {
+        console.error('❌ Falha ao agendar lembretes:', data);
+      } 
+    } catch (err) {
+      console.error('❌ Erro ao agendar lembretes:', err);
     }
   };
-  window.addEventListener('popstate', onPop);
-  return () => window.removeEventListener('popstate', onPop);
-}, []);
-useEffect(() => {
-  const user = auth.currentUser;
-  if (!user) return;
-  import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
-    inscreverPushEsteticistaWeb(user.uid).catch(() => {});
-  });
-}, []);
-// ✅ Registra push da esteticista (nativo OU web) ao entrar
-useEffect(() => {
-  const user = auth.currentUser;
-  if (!user) return;
 
-  import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
-    inscreverPushEsteticistaWeb(user.uid).catch((e) =>
-      console.warn('Falha ao registrar push da esteticista:', e)
+  // ============================================================
+  // NAVEGAÇÃO COM HISTÓRICO — botão voltar funciona
+  // ============================================================
+  const navegarPara = useCallback((novaTela, dados = {}) => {
+    const pacId = 'paciente' in dados ? (dados.paciente?.id ?? null) : (pacRef.current?.id ?? null);
+    const evoId = 'evolucao' in dados ? (dados.evolucao?.id ?? null) : (evoRef.current?.id ?? null);
+
+    window.history.pushState(
+      { painelEsteticista: novaTela, pacienteId: pacId, evolucaoId: evoId },
+      '',
+      window.location.pathname
     );
-  });
-}, []);
+    setTelaAtual(novaTela);
+    if ('paciente' in dados) setPacienteSelecionado(dados.paciente);
+    if ('evolucao' in dados) setEvolucaoSelecionada(dados.evolucao);
+  }, []);
+
+  // Substitui a entrada atual (sem criar nova) — usado após salvar
+  const substituirTela = useCallback((novaTela, dados = {}) => {
+    const pacId = 'paciente' in dados ? (dados.paciente?.id ?? null) : (pacRef.current?.id ?? null);
+    const evoId = 'evolucao' in dados ? (dados.evolucao?.id ?? null) : (evoRef.current?.id ?? null);
+
+    window.history.replaceState(
+      { painelEsteticista: novaTela, pacienteId: pacId, evolucaoId: evoId },
+      '',
+      window.location.pathname
+    );
+    setTelaAtual(novaTela);
+    if ('paciente' in dados) setPacienteSelecionado(dados.paciente);
+    if ('evolucao' in dados) setEvolucaoSelecionada(dados.evolucao);
+  }, []);
+
+  // Handler do botão voltar (navegador + APK)
+  useEffect(() => {
+    const onPop = (e) => {
+      const st = e.state;
+
+      // ✅ Fechar modal de exclusão se estiver aberto
+      if (modalOpenRef.current && !st?.modalAberto) {
+        setModalExclusao(MODAL_FECHADO);
+      }
+
+      if (st?.painelEsteticista) {
+        // Se pediu detalhe_pasta mas o paciente não existe mais → cai pra lista
+        if (st.painelEsteticista === 'detalhe_pasta' && st.pacienteId) {
+          const pac = pacientes.find(p => String(p.id) === String(st.pacienteId));
+          if (!pac) {
+            window.history.replaceState({ painelEsteticista: 'lista' }, '', window.location.pathname);
+            setTelaAtual('lista');
+            setPacienteSelecionado(null);
+            setEvolucaoSelecionada(null);
+            return;
+          }
+          setPacienteSelecionado(pac);
+        } else if (st.pacienteId) {
+          const pac = pacientes.find(p => String(p.id) === String(st.pacienteId));
+          setPacienteSelecionado(pac || null);
+        } else {
+          setPacienteSelecionado(null);
+        }
+
+        setTelaAtual(st.painelEsteticista);
+
+        const pacAtual = pacRef.current;
+        if (st.evolucaoId && pacAtual?.evolucoes) {
+          const evo = pacAtual.evolucoes.find(x => String(x.id) === String(st.evolucaoId));
+          setEvolucaoSelecionada(evo || null);
+        } else {
+          setEvolucaoSelecionada(null);
+        }
+      } else {
+        setTelaAtual('lista');
+        setPacienteSelecionado(null);
+        setEvolucaoSelecionada(null);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [pacientes]);
+
+  // Estado inicial no histórico (uma única vez)
+  useEffect(() => {
+    if (!window.history.state?.painelEsteticista) {
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+    import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
+      inscreverPushEsteticistaWeb(user.uid).catch(() => {});
+    });
+  }, []);
+
+  // ✅ Registra push da esteticista (nativo OU web) ao entrar
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
+      inscreverPushEsteticistaWeb(user.uid).catch((e) =>
+        console.warn('Falha ao registrar push da esteticista:', e)
+      );
+    });
+  }, []);
 
   // Carregar dados do Firestore ao iniciar
   useEffect(() => {
@@ -142,7 +229,8 @@ useEffect(() => {
       'Não informado'
     );
   };
-    const salvarPacienteNaNuvem = async (pacienteObj) => {
+
+  const salvarPacienteNaNuvem = async (pacienteObj) => {
     const user = auth.currentUser;
     if (!user) return;
 
@@ -153,8 +241,7 @@ useEffect(() => {
     }
   };
 
-
-const handleSalvarAnamnese = async (dadosAnamnese) => {
+  const handleSalvarAnamnese = async (dadosAnamnese) => {
     // 1. Garante que pegamos o usuário esteticista logado corretamente do Auth principal
     const userEsteticista = auth.currentUser;
     if (!userEsteticista) {
@@ -220,11 +307,11 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
       const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
       const novoPaciente = {
-      id: pacienteUid,
-  nome: dadosAnamnese.nome || 'Paciente sem nome',
-  documento: docFormatado,
-  email: emailFicticio,        // Adicionado para padronizar buscas por 'email'
-  emailAcesso: emailFicticio,  // Mantido para compatibilidade
+        id: pacienteUid,
+        nome: dadosAnamnese.nome || 'Paciente sem nome',
+        documento: docFormatado,
+        email: emailFicticio,        // Adicionado para padronizar buscas por 'email'
+        emailAcesso: emailFicticio,  // Mantido para compatibilidade
         criadoPorUid: userEsteticista.uid,
         dataCriacao: dataHoraFormatada,
         dataUltimaEdicao: dataHoraFormatada,
@@ -239,23 +326,22 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
       setPacientes(novaLista);
       await salvarPacienteNaNuvem(novoPaciente);
       if (dadosAnamnese.lembretes) {
-  await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
-}
-      
-      
+        await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+      }
 
     } catch (error) {
       console.error("Erro geral ao salvar ficha:", error);
       alert("Erro ao salvar ficha na nuvem.");
     }
   };
+
   const handleAtualizarAnamnese = async (dadosAtualizados) => {
     const agora = new Date();
     const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novoDoc = extrairDocumento(dadosAtualizados);
-   if (dadosAtualizados.lembretes) {
-  await agendarLembretesNoOneSignal(pacienteSelecionado.id, dadosAtualizados.lembretes);
-}
+    if (dadosAtualizados.lembretes) {
+      await agendarLembretesNoOneSignal(pacienteSelecionado.id, dadosAtualizados.lembretes);
+    }
 
     let pacienteAtualizadoSalvar = null;
 
@@ -281,10 +367,20 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
     }
     const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
     setPacienteSelecionado(pacAtualizado);
-    setTelaAtual('detalhe_pasta');
+    // ⚠️ Não navega aqui — FichaDesktop chama onVoltar após mostrar "SALVO COM SUCESSO"
   };
 
   const solicitarExclusaoPasta = (idPaciente) => {
+    // ✅ Empilha entrada no histórico para o voltar fechar o modal
+    window.history.pushState(
+      {
+        painelEsteticista: telaAtual,
+        pacienteId: pacRef.current?.id ?? null,
+        modalAberto: 'exclusao'
+      },
+      '',
+      window.location.pathname
+    );
     setModalExclusao({
       isOpen: true,
       tipo: 'pasta',
@@ -297,6 +393,15 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
   };
 
   const solicitarExclusaoEvolucao = (idEvolucao) => {
+    window.history.pushState(
+      {
+        painelEsteticista: telaAtual,
+        pacienteId: pacRef.current?.id ?? null,
+        modalAberto: 'exclusao'
+      },
+      '',
+      window.location.pathname
+    );
     setModalExclusao({
       isOpen: true,
       tipo: 'evolucao',
@@ -327,8 +432,20 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
         setPacientes(filtrados);
         await excluirPacienteDaNuvem(modalExclusao.idAlvo);
         setPacienteSelecionado(null);
+        setEvolucaoSelecionada(null);
+
+        // Substitui a entrada do modal pela lista (evita botão voltar travar)
+        window.history.replaceState(
+          { painelEsteticista: 'lista' },
+          '',
+          window.location.pathname
+        );
         setTelaAtual('lista');
-      } else if (modalExclusao.tipo === 'evolucao') {
+        setModalExclusao(MODAL_FECHADO);
+        return;
+      }
+
+      if (modalExclusao.tipo === 'evolucao') {
         let pacienteAtualizadoSalvar = null;
         const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
         const atualizados = pacientes.map(p => {
@@ -344,10 +461,15 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
           await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
         }
         setPacienteSelecionado({ ...pacienteSelecionado, evolucoes: novasEvolucoes });
-        setTelaAtual('detalhe_pasta');
-      }
 
-      fecharModalExclusao();
+        window.history.replaceState(
+          { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
+          '',
+          window.location.pathname
+        );
+        setTelaAtual('detalhe_pasta');
+        setModalExclusao(MODAL_FECHADO);
+      }
 
     } catch (error) {
       console.error("Erro ao validar senha:", error);
@@ -359,15 +481,12 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
   };
 
   const fecharModalExclusao = () => {
-    setModalExclusao({
-      isOpen: false,
-      tipo: null,
-      idAlvo: null,
-      titulo: '',
-      senhaInput: '',
-      mostrarSenhaModal: false,
-      erroSenha: ''
-    });
+    // Se o modal foi empilhado no histórico, usa back() pra fechar
+    if (window.history.state?.modalAberto) {
+      window.history.back();
+    } else {
+      setModalExclusao(MODAL_FECHADO);
+    }
   };
 
   const handleSalvarEvolucao = async (dadosEvolucao) => {
@@ -398,7 +517,9 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
     }
     const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
     setPacienteSelecionado(pacAtualizado);
-    setTelaAtual('detalhe_pasta');
+
+    // Substitui 'criar_evolucao' por 'detalhe_pasta' no histórico
+    substituirTela('detalhe_pasta');
   };
 
   const handleAtualizarEvolucao = async (dadosAtualizados) => {
@@ -423,7 +544,8 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
       await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
     }
     setPacienteSelecionado({ ...pacienteSelecionado, evolucoes: novasEvolucoes });
-    setTelaAtual('detalhe_pasta');
+
+    substituirTela('detalhe_pasta');
   };
 
   // Formatação automática para máscara de data (DD/MM/AAAA)
@@ -458,15 +580,15 @@ const handleSalvarAnamnese = async (dadosAnamnese) => {
     return dataEvo.includes(termo);
   }) || [];
 
-if (telaAtual === 'criar_anamnese') {
-  return (
-    <FichaDesktop 
-      mode="create" 
-      onSave={handleSalvarAnamnese} 
-      onVoltar={() => setTelaAtual('lista')} 
-    />
-  );
-}
+  if (telaAtual === 'criar_anamnese') {
+    return (
+      <FichaDesktop 
+        mode="create" 
+        onSave={handleSalvarAnamnese} 
+        onVoltar={() => navegarPara('lista', { paciente: null, evolucao: null })} 
+      />
+    );
+  }
 
   if (telaAtual === 'editar_anamnese' && pacienteSelecionado) {
     return (
@@ -474,10 +596,7 @@ if (telaAtual === 'criar_anamnese') {
         mode="edit" 
         fichaSelecionada={pacienteSelecionado.anamnese} 
         onSave={handleAtualizarAnamnese} 
-        onVoltar={() => {
-  window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-  setTelaAtual('detalhe_pasta');
-}}
+        onVoltar={() => navegarPara('detalhe_pasta')}
       />
     );
   }
@@ -487,11 +606,12 @@ if (telaAtual === 'criar_anamnese') {
       <FichaDesktop 
         mode="view" 
         fichaSelecionada={pacienteSelecionado.anamnese} 
-        onVoltar={() => setTelaAtual('detalhe_pasta')} 
-        onIrParaEdicao={() => setTelaAtual('editar_anamnese')}
+        onVoltar={() => navegarPara('detalhe_pasta')} 
+        onIrParaEdicao={() => navegarPara('editar_anamnese')}
       />
     );
   }
+
   return (
     <div style={{
       width: '100%',
@@ -569,51 +689,51 @@ if (telaAtual === 'criar_anamnese') {
       `}</style>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-         {auth.currentUser && (
-    <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
-  )}
+        {auth.currentUser && (
+          <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
+        )}
         <div style={{
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '25px 40px 10px 40px',
-  maxWidth: '1200px',
-  margin: '0 auto',
-  gap: '15px',
-  flexWrap: 'wrap'
-}}>
-  <div>
-    <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
-      Painel da Esteticista
-    </h1>
-    <span style={{ fontSize: '12px', color: '#55286f', fontWeight: 600 }}>Samira Ferreira Estética & Cosmetóloga</span>
-  </div>
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '25px 40px 10px 40px',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          gap: '15px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+              Painel da Esteticista
+            </h1>
+            <span style={{ fontSize: '12px', color: '#55286f', fontWeight: 600 }}>Samira Ferreira Estética & Cosmetóloga</span>
+          </div>
 
-  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-    <BotaoInstalarApp />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <BotaoInstalarApp />
 
-    {onLogout && (
-      <button
-        type="button"
-        onClick={onLogout}
-        style={{
-          fontFamily: "'Cinzel', serif",
-          background: 'transparent',
-          color: '#e74c3c',
-          border: '1.5px solid #e74c3c',
-          padding: '6px 16px',
-          borderRadius: '20px',
-          fontSize: '11px',
-          fontWeight: 700,
-          cursor: 'pointer',
-          transition: 'all 0.3s'
-        }}
-      >
-        Sair do Sistema
-      </button>
-    )}
-  </div>
-</div>
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'transparent',
+                  color: '#e74c3c',
+                  border: '1.5px solid #e74c3c',
+                  padding: '6px 16px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s'
+                }}
+              >
+                Sair do Sistema
+              </button>
+            )}
+          </div>
+        </div>
 
         <div style={{ padding: '20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
           
@@ -639,7 +759,7 @@ if (telaAtual === 'criar_anamnese') {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setTelaAtual('criar_anamnese')}
+                  onClick={() => navegarPara('criar_anamnese')}
                   className="btn-efeito-hover"
                   style={{
                     fontFamily: "'Cinzel', serif",
@@ -729,7 +849,7 @@ if (telaAtual === 'criar_anamnese') {
                   {pacientesFiltrados.map((pac) => (
                     <div
                       key={pac.id}
-                      onClick={() => { setPacienteSelecionado(pac); setTelaAtual('detalhe_pasta'); }}
+                      onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
                       className="card-pasta-hover"
                       style={{
                         background: 'rgba(255, 255, 255, 0.92)',
@@ -771,36 +891,32 @@ if (telaAtual === 'criar_anamnese') {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                   <button
-  type="button"
-  onClick={() => {
-    window.history.pushState({ painelEsteticista: 'lista' }, '', window.location.pathname);
-    setTelaAtual('lista');
-    setPacienteSelecionado(null);
-  }}
-  className="btn-voltar-lista"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #C8A24A',
-    padding: '10px 22px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '14px',
-    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-    transition: 'all 0.25s ease',
-    backdropFilter: 'blur(6px)',
-  }}
->
-  <MdArrowBack size={16} color="#C8A24A" />
-  Voltar para lista de pacientes
-</button>
+                    type="button"
+                    onClick={() => navegarPara('lista', { paciente: null, evolucao: null })}
+                    className="btn-voltar-lista"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                      color: '#2c163a',
+                      border: '1.5px solid #C8A24A',
+                      padding: '10px 22px',
+                      borderRadius: '25px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '14px',
+                      boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                      transition: 'all 0.25s ease',
+                      backdropFilter: 'blur(6px)',
+                    }}
+                  >
+                    <MdArrowBack size={16} color="#C8A24A" />
+                    Voltar para lista de pacientes
+                  </button>
                   <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0 }}>
                     📁 {pacienteSelecionado.nome}
                   </h2>
@@ -812,53 +928,53 @@ if (telaAtual === 'criar_anamnese') {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                 <button
-  type="button"
-  onClick={() => setTelaAtual('ver_anamnese')}
-  className="btn-lavanda-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #8a6fa8',
-    padding: '8px 16px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
-    transition: 'all 0.25s ease'
-  }}
->
-  Ver Ficha de Anamnese
-</button>
-<button
-  type="button"
-  onClick={() => setTelaAtual('galeria')}
-  className="btn-efeito-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-    color: '#fff',
-    border: '1.5px solid #7e22ce',
-    padding: '8px 16px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)',
-    transition: 'all 0.25s ease'
-  }}
->
-  <MdPhotoLibrary size={14} color="#fff" />
-  Galeria do Paciente
-</button>
                   <button
                     type="button"
-                    onClick={() => setTelaAtual('criar_evolucao')}
+                    onClick={() => navegarPara('ver_anamnese')}
+                    className="btn-lavanda-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                      color: '#2c163a',
+                      border: '1.5px solid #8a6fa8',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+                      transition: 'all 0.25s ease'
+                    }}
+                  >
+                    Ver Ficha de Anamnese
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navegarPara('galeria')}
+                    className="btn-efeito-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+                      color: '#fff',
+                      border: '1.5px solid #7e22ce',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)',
+                      transition: 'all 0.25s ease'
+                    }}
+                  >
+                    <MdPhotoLibrary size={14} color="#fff" />
+                    Galeria do Paciente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navegarPara('criar_evolucao')}
                     className="btn-efeito-hover"
                     style={{
                       fontFamily: "'Cinzel', serif",
@@ -896,8 +1012,6 @@ if (telaAtual === 'criar_anamnese') {
                 </div>
               </div>
            
-
-
               <div style={{ background: 'rgba(255, 255, 255, 0.92)', padding: '25px', borderRadius: '12px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', backdropFilter: 'blur(5px)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px', flexWrap: 'wrap', gap: '15px' }}>
                   <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: 0 }}>
@@ -971,7 +1085,7 @@ if (telaAtual === 'criar_anamnese') {
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                               type="button"
-                              onClick={() => { setEvolucaoSelecionada(evo); setTelaAtual('ver_evolucao'); }}
+                              onClick={() => navegarPara('ver_evolucao', { evolucao: evo })}
                               className="btn-efeito-hover"
                               style={{
                                 background: '#C8A24A',
@@ -1017,164 +1131,156 @@ if (telaAtual === 'criar_anamnese') {
                 )}
               </div>
               <div style={{
-  marginTop: '15px',
-  background: 'rgba(255, 255, 255, 0.92)',
-  padding: '14px 16px',
-  borderRadius: '12px',
-  border: pacienteSelecionado.consentimentoLGPD?.aceito
-    ? '1.5px solid #86efac'
-    : '1.5px solid #fcd34d',
-}}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-    <span style={{ fontSize: '13px' }}>
-      {pacienteSelecionado.consentimentoLGPD?.aceito ? '✅' : '⚠️'}
-    </span>
-    <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '12px', fontWeight: 700 }}>
-      Consentimento LGPD
-    </span>
-  </div>
+                marginTop: '15px',
+                background: 'rgba(255, 255, 255, 0.92)',
+                padding: '14px 16px',
+                borderRadius: '12px',
+                border: pacienteSelecionado.consentimentoLGPD?.aceito
+                  ? '1.5px solid #86efac'
+                  : '1.5px solid #fcd34d',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '13px' }}>
+                    {pacienteSelecionado.consentimentoLGPD?.aceito ? '✅' : '⚠️'}
+                  </span>
+                  <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '12px', fontWeight: 700 }}>
+                    Consentimento LGPD
+                  </span>
+                </div>
 
-  {pacienteSelecionado.consentimentoLGPD?.aceito ? (
-    <span style={{ fontSize: '10px', color: '#555', display: 'block', marginBottom: '10px' }}>
-      Aceito em {new Date(pacienteSelecionado.consentimentoLGPD.dataAceite).toLocaleString('pt-BR')}
-      {' · '}v{pacienteSelecionado.consentimentoLGPD.versaoTermo}
-    </span>
-  ) : (
-    <span style={{ fontSize: '10px', color: '#92400e', display: 'block', marginBottom: '10px' }}>
-      Paciente ainda não autorizou o tratamento de dados.
-    </span>
-  )}
+                {pacienteSelecionado.consentimentoLGPD?.aceito ? (
+                  <span style={{ fontSize: '10px', color: '#555', display: 'block', marginBottom: '10px' }}>
+                    Aceito em {new Date(pacienteSelecionado.consentimentoLGPD.dataAceite).toLocaleString('pt-BR')}
+                    {' · '}v{pacienteSelecionado.consentimentoLGPD.versaoTermo}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '10px', color: '#92400e', display: 'block', marginBottom: '10px' }}>
+                    Paciente ainda não autorizou o tratamento de dados.
+                  </span>
+                )}
 
- <button
-  type="button"
-  onClick={() => setMostrarTermoPDF(true)}
-  className="btn-efeito-hover"
-  style={{
-    width: '100%',
-    fontFamily: "'Cinzel', serif",
-    background: pacienteSelecionado.consentimentoLGPD?.aceito
-      ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
-      : '#f0f0f0',
-    color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
-    border: pacienteSelecionado.consentimentoLGPD?.aceito
-      ? '1.5px solid #9c7826'
-      : '1.5px solid #ccc',
-    padding: '10px',
-    borderRadius: '15px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-  }}
->
-  <MdDescription size={16} />
-  Ver Termo Assinado
-</button>
-</div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarTermoPDF(true)}
+                  className="btn-efeito-hover"
+                  style={{
+                    width: '100%',
+                    fontFamily: "'Cinzel', serif",
+                    background: pacienteSelecionado.consentimentoLGPD?.aceito
+                      ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
+                      : '#f0f0f0',
+                    color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
+                    border: pacienteSelecionado.consentimentoLGPD?.aceito
+                      ? '1.5px solid #9c7826'
+                      : '1.5px solid #ccc',
+                    padding: '10px',
+                    borderRadius: '15px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <MdDescription size={16} />
+                  Ver Termo Assinado
+                </button>
+              </div>
             </div>
           )}
+
           {telaAtual === 'galeria' && pacienteSelecionado && (
-  <div>
-    <button
-  type="button"
-  onClick={() => {
-    window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-    setTelaAtual('detalhe_pasta');
-  }}
-  className="btn-voltar-lista"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #C8A24A',
-    padding: '10px 22px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '20px',
-    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-    transition: 'all 0.25s ease',
-    backdropFilter: 'blur(6px)',
-  }}
->
-  <MdArrowBack size={16} color="#C8A24A" />
-  Voltar para a pasta do paciente
-</button>
-    <GaleriaPaciente
-  pacienteId={pacienteSelecionado.id}
-  uidEsteticista={auth.currentUser?.uid}
-  pacienteNome={pacienteSelecionado.nome}
-  modo="esteticista"
-  evolucoes={pacienteSelecionado.evolucoes || []}
-/>
-  </div>
-)}
-{telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
-  <div>
-    <FichaEvoDesktop 
-      mode="view" 
-      initialData={{
-        ...evolucaoSelecionada,
-        onIrParaEdicao: () => setTelaAtual('editar_evolucao')
-      }} 
-      pacienteSelecionado={pacienteSelecionado}
-      uidEsteticista={auth.currentUser?.uid}
-      onVoltar={() => {
-        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-        setTelaAtual('detalhe_pasta');
-      }}
-    />
-  </div>
-)}
+            <div>
+              <button
+                type="button"
+                onClick={() => navegarPara('detalhe_pasta')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 22px',
+                  borderRadius: '25px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '20px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={16} color="#C8A24A" />
+                Voltar para a pasta do paciente
+              </button>
+              <GaleriaPaciente
+                pacienteId={pacienteSelecionado.id}
+                uidEsteticista={auth.currentUser?.uid}
+                pacienteNome={pacienteSelecionado.nome}
+                modo="esteticista"
+                evolucoes={pacienteSelecionado.evolucoes || []}
+              />
+            </div>
+          )}
 
-{telaAtual === 'criar_evolucao' && (
-  <div>
-    <FichaEvoDesktop 
-      mode="create" 
-      pacienteSelecionado={pacienteSelecionado}
-      pacienteNomeProp={pacienteSelecionado?.nome}
-      uidEsteticista={auth.currentUser?.uid}
-      onSave={handleSalvarEvolucao} 
-      onVoltar={() => {
-        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-        setTelaAtual('detalhe_pasta');
-      }}
-    />
-  </div>
-)}
+          {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
+            <div>
+              <FichaEvoDesktop 
+                mode="view" 
+                initialData={{
+                  ...evolucaoSelecionada,
+                  onIrParaEdicao: () => navegarPara('editar_evolucao')
+                }} 
+                pacienteSelecionado={pacienteSelecionado}
+                uidEsteticista={auth.currentUser?.uid}
+                onVoltar={() => navegarPara('detalhe_pasta')}
+              />
+            </div>
+          )}
 
-         {telaAtual === 'editar_evolucao' && evolucaoSelecionada && (
-  <div>
-    <FichaEvoDesktop 
-      mode="edit" 
-      initialData={evolucaoSelecionada} 
-      pacienteSelecionado={pacienteSelecionado}
-      uidEsteticista={auth.currentUser?.uid}
-      onSave={handleAtualizarEvolucao} 
-      onVoltar={() => {
-        window.history.pushState({ painelEsteticista: 'detalhe_pasta' }, '', window.location.pathname);
-        setTelaAtual('detalhe_pasta');
-      }}
-    />
-  </div>
-)}
+          {telaAtual === 'criar_evolucao' && (
+            <div>
+              <FichaEvoDesktop 
+                mode="create" 
+                pacienteSelecionado={pacienteSelecionado}
+                pacienteNomeProp={pacienteSelecionado?.nome}
+                uidEsteticista={auth.currentUser?.uid}
+                onSave={handleSalvarEvolucao} 
+                onVoltar={() => navegarPara('detalhe_pasta')}
+              />
+            </div>
+          )}
+
+          {telaAtual === 'editar_evolucao' && evolucaoSelecionada && (
+            <div>
+              <FichaEvoDesktop 
+                mode="edit" 
+                initialData={evolucaoSelecionada} 
+                pacienteSelecionado={pacienteSelecionado}
+                uidEsteticista={auth.currentUser?.uid}
+                onSave={handleAtualizarEvolucao} 
+                onVoltar={() => navegarPara('detalhe_pasta')}
+              />
+            </div>
+          )}
         </div>
       </div>
-{/* ✅ Modal do Termo de Consentimento */}
-{mostrarTermoPDF && pacienteSelecionado && (
-  <TermoConsentimentoPDF
-    pacienteData={pacienteSelecionado}
-    onFechar={() => setMostrarTermoPDF(false)}
-  />
-)}
+
+      {/* ✅ Modal do Termo de Consentimento */}
+      {mostrarTermoPDF && pacienteSelecionado && (
+        <TermoConsentimentoPDF
+          pacienteData={pacienteSelecionado}
+          onFechar={() => setMostrarTermoPDF(false)}
+        />
+      )}
+
       {modalExclusao.isOpen && (
         <div style={{
           position: 'fixed',

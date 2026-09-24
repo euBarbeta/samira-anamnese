@@ -124,34 +124,75 @@ const [dadosPaciente, setDadosPaciente] = useState(() => {
   // ============================================================
   // OBSERVER DE AUTH (login automático ao abrir/refrescar)
   // ============================================================
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (emLogoutRef.current) {
+  // ============================================================
+// OBSERVER DE AUTH (login automático ao abrir/refrescar)
+// ============================================================
+const restaurandoRef = useRef(false);
+
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (emLogoutRef.current) {
+      setAuthVerificado(true);
+      return;
+    }
+
+    if (user) {
+      if (ultimoUidRef.current === user.uid) {
         setAuthVerificado(true);
         return;
       }
 
-      if (user) {
-        if (ultimoUidRef.current === user.uid) {
-          setAuthVerificado(true);
-          return;
-        }
-        ultimoUidRef.current = user.uid;
+      // ✅ Se já temos uma sessão persistida e o mesmo uid,
+      //    restaura sem re-rodar a busca completa (evita "Verificando sessão")
+      let tinhaSessao = false;
+      let dadosSalvos = null;
+      let abaSalva = 'telainicial';
+      try {
+        tinhaSessao = sessionStorage.getItem('af_autenticado') === '1';
+        abaSalva = sessionStorage.getItem('af_abaAtiva') || 'telainicial';
+        const d = sessionStorage.getItem('af_dadosPaciente');
+        if (d) dadosSalvos = JSON.parse(d);
+      } catch {}
 
-        await handleLoginSucesso(user, { veioDeRefresh: true });
-      } else {
-        ultimoUidRef.current = null;
-        setAutenticado(false);
-        setUsuarioLogado(null);
-        setDadosPaciente(null);
-        setPacienteDocPath(null);
-        setAbaAtiva('telainicial');
+      ultimoUidRef.current = user.uid;
+
+      if (tinhaSessao && dadosSalvos && !restaurandoRef.current) {
+        restaurandoRef.current = true;
+        setUsuarioLogado(user);
+        setDadosPaciente(dadosSalvos);
+        setAutenticado(true);
+
+        // Reconstrói o path do doc do paciente para reativar o listener
+        const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
+        if (emailUsuario.endsWith('@sistema.local') && !EMAILS_ESTETICISTAS.includes(emailUsuario)) {
+          try {
+            const mapSnap = await getDoc(doc(db, 'mapeamento_emails', emailUsuario));
+            if (mapSnap.exists()) {
+              const { profissionalUid, pacienteId } = mapSnap.data();
+              setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
+            }
+          } catch (e) { console.warn('Falha restaurando path:', e); }
+        }
+
+        setAbaAtiva(abaSalva);
+        setAuthVerificado(true);
+        return;
       }
-      setAuthVerificado(true);
-    });
-    return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+      await handleLoginSucesso(user, { veioDeRefresh: true });
+    } else {
+      ultimoUidRef.current = null;
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setDadosPaciente(null);
+      setPacienteDocPath(null);
+      setAbaAtiva('telainicial');
+    }
+    setAuthVerificado(true);
+  });
+  return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   // ============================================================
   // OBSERVER — PACIENTE EM TEMPO REAL
