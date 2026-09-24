@@ -215,7 +215,7 @@ export default function GaleriaPaciente({
       {podeAdicionar && (
         <div style={estilo.barraAcoes}>
           <button type="button" onClick={() => escolherFonte('galeria')} disabled={enviando} style={estilo.botaoAcao}>
-            <MdImage size={16} /> Escolher da Galeria
+            <MdImage size={15} /> Escolher da Galeria
           </button>
         </div>
       )}
