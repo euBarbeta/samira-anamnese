@@ -26,6 +26,31 @@ const MODAL_FECHADO = {
   mostrarSenhaModal: false,
   erroSenha: ''
 };
+const SpinnerLoading = ({ texto = 'Carregando…' }) => (
+  <div style={{
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    padding: '60px 20px',
+    background: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: '16px', border: '1px solid #e2d2f5',
+    boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+  }}>
+    <div style={{
+      width: '42px', height: '42px',
+      border: '4px solid #e2d2f5',
+      borderTop: '4px solid #C8A24A',
+      borderRadius: '50%',
+      animation: 'spinCarga 0.8s linear infinite',
+      marginBottom: '14px',
+    }} />
+    <span style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#55286f', fontSize: '12px', fontWeight: 700,
+      letterSpacing: '0.3px',
+    }}>{texto}</span>
+    <style>{`@keyframes spinCarga { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
 
 export default function PainelEsteticistaMobile({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
@@ -593,13 +618,38 @@ export default function PainelEsteticistaMobile({ onLogout }) {
     return dataEvo.includes(termo);
   }) || [];
 
-  if (carregandoNuvem) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#d7cee0', fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', fontWeight: 700 }}>
-        Carregando dados da nuvem...
+if (carregandoNuvem) {
+  return (
+    <div style={{
+      width: '100%', minHeight: '100vh',
+      display: 'flex', justifyContent: 'center', alignItems: 'center',
+      backgroundColor: '#d7cee0', padding: '20px', boxSizing: 'border-box',
+    }}>
+      <div style={{
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '40px 30px',
+        background: 'rgba(255, 255, 255, 0.92)',
+        borderRadius: '16px', border: '1px solid #e2d2f5',
+        boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+      }}>
+        <div style={{
+          width: '42px', height: '42px',
+          border: '4px solid #e2d2f5',
+          borderTop: '4px solid #C8A24A',
+          borderRadius: '50%',
+          animation: 'spinCargaMobile 0.8s linear infinite',
+          marginBottom: '14px',
+        }} />
+        <span style={{
+          fontFamily: "'Cinzel', serif",
+          color: '#55286f', fontSize: '12px', fontWeight: 700,
+        }}>Carregando pastas de pacientes…</span>
+        <style>{`@keyframes spinCargaMobile { to { transform: rotate(360deg); } }`}</style>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (telaAtual === 'criar_anamnese') {
     return (

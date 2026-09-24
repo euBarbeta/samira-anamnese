@@ -93,18 +93,26 @@ const [dadosPaciente, setDadosPaciente] = useState(() => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  useEffect(() => {
+useEffect(() => {
   try {
-    sessionStorage.setItem('af_abaAtiva', abaAtiva);
-    sessionStorage.setItem('af_authVerificado', authVerificado ? '1' : '0');
-    sessionStorage.setItem('af_autenticado', autenticado ? '1' : '0');   // 👈 ADICIONE
+    // ✅ Escreve em AMBOS: localStorage sobrevive ao kill do WebView
+    const salvar = (k, v) => {
+      sessionStorage.setItem(k, v);
+      localStorage.setItem(k, v);
+    };
+
+    salvar('af_abaAtiva', abaAtiva);
+    salvar('af_authVerificado', authVerificado ? '1' : '0');
+    salvar('af_autenticado', autenticado ? '1' : '0');
+
     if (dadosPaciente) {
-      sessionStorage.setItem('af_dadosPaciente', JSON.stringify(dadosPaciente));
+      salvar('af_dadosPaciente', JSON.stringify(dadosPaciente));
     } else {
       sessionStorage.removeItem('af_dadosPaciente');
+      localStorage.removeItem('af_dadosPaciente');
     }
   } catch {}
-}, [abaAtiva, authVerificado, autenticado, dadosPaciente]);              // 👈 autenticado aqui
+}, [abaAtiva, authVerificado, autenticado, dadosPaciente]);
 
   useEffect(() => {
     try {
@@ -127,6 +135,8 @@ const [dadosPaciente, setDadosPaciente] = useState(() => {
   // ============================================================
 // OBSERVER DE AUTH (login automático ao abrir/refrescar)
 // ============================================================
+
+
 const restaurandoRef = useRef(false);
 
 useEffect(() => {
@@ -142,39 +152,68 @@ useEffect(() => {
         return;
       }
 
-      // ✅ Se já temos uma sessão persistida e o mesmo uid,
-      //    restaura sem re-rodar a busca completa (evita "Verificando sessão")
+      // ✅ Lê de localStorage PRIMEIRO (sobrevive ao kill), depois session
+      const get = (k) => {
+        try {
+          return localStorage.getItem(k) || sessionStorage.getItem(k) || null;
+        } catch { return null; }
+      };
+
       let tinhaSessao = false;
       let dadosSalvos = null;
       let abaSalva = 'telainicial';
+      let docPathSalvo = null;
+
       try {
-        tinhaSessao = sessionStorage.getItem('af_autenticado') === '1';
-        abaSalva = sessionStorage.getItem('af_abaAtiva') || 'telainicial';
-        const d = sessionStorage.getItem('af_dadosPaciente');
+        tinhaSessao = get('af_autenticado') === '1';
+        abaSalva = get('af_abaAtiva') || 'telainicial';
+        const d = get('af_dadosPaciente');
         if (d) dadosSalvos = JSON.parse(d);
+        docPathSalvo = get('af_pacienteDocPath');
       } catch {}
 
       ultimoUidRef.current = user.uid;
 
-      if (tinhaSessao && dadosSalvos && !restaurandoRef.current) {
+      // 🚀 Restaura INSTANTÂNEO se tínhamos sessão
+      if (tinhaSessao && !restaurandoRef.current) {
         restaurandoRef.current = true;
+
         setUsuarioLogado(user);
-        setDadosPaciente(dadosSalvos);
         setAutenticado(true);
 
-        // Reconstrói o path do doc do paciente para reativar o listener
+        // Restaura dados do paciente (se houver)
+        if (dadosSalvos) setDadosPaciente(dadosSalvos);
+
+        // Reconstrói o path do doc do paciente (do cache OU via Firestore)
         const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
-        if (emailUsuario.endsWith('@sistema.local') && !EMAILS_ESTETICISTAS.includes(emailUsuario)) {
-          try {
-            const mapSnap = await getDoc(doc(db, 'mapeamento_emails', emailUsuario));
-            if (mapSnap.exists()) {
-              const { profissionalUid, pacienteId } = mapSnap.data();
-              setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
+        const ehPaciente = emailUsuario.endsWith('@sistema.local')
+          && !EMAILS_ESTETICISTAS.includes(emailUsuario);
+
+        if (ehPaciente) {
+          if (docPathSalvo) {
+            // ✅ Restaura direto do cache (sem esperar Firestore)
+            const [uid, pacId] = docPathSalvo.split('::');
+            if (uid && pacId) {
+              setPacienteDocPath(doc(db, 'usuarios', uid, 'pacientes', pacId));
             }
-          } catch (e) { console.warn('Falha restaurando path:', e); }
+          } else {
+            // Sem cache: busca no Firestore
+            try {
+              const mapSnap = await getDoc(doc(db, 'mapeamento_emails', emailUsuario));
+              if (mapSnap.exists()) {
+                const { profissionalUid, pacienteId } = mapSnap.data();
+                setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
+              }
+            } catch (e) { console.warn('Falha restaurando path:', e); }
+          }
         }
 
-        setAbaAtiva(abaSalva);
+        // ✅ Restaura a aba em que o usuário estava
+        const abaValida = ['painel', 'painelPaciente', 'telainicial'].includes(abaSalva)
+          ? abaSalva
+          : (ehPaciente ? 'painelPaciente' : 'painel');
+
+        setAbaAtiva(abaValida);
         setAuthVerificado(true);
         return;
       }
@@ -193,6 +232,23 @@ useEffect(() => {
   return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+useEffect(() => {
+  try {
+    if (pacienteDocPath && pacienteDocPath.path) {
+      // Salva a referência leve como "usuarios/UID/pacientes/PAC_ID"
+      const path = pacienteDocPath.path; // "usuarios/XXX/pacientes/YYY"
+      const partes = path.split('/');
+      if (partes.length >= 4) {
+        const valor = `${partes[1]}::${partes[3]}`;
+        sessionStorage.setItem('af_pacienteDocPath', valor);
+        localStorage.setItem('af_pacienteDocPath', valor);
+      }
+    } else {
+      sessionStorage.removeItem('af_pacienteDocPath');
+      localStorage.removeItem('af_pacienteDocPath');
+    }
+  } catch {}
+}, [pacienteDocPath]);
 
   // ============================================================
   // OBSERVER — PACIENTE EM TEMPO REAL
@@ -351,12 +407,13 @@ useEffect(() => {
     setPacienteDocPath(null);
     setFichaSelecionada(null);
     window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
-    try {
-  sessionStorage.removeItem('af_autenticado');
-  sessionStorage.removeItem('af_abaAtiva');
-  sessionStorage.removeItem('af_authVerificado');
-  sessionStorage.removeItem('af_dadosPaciente');
-  sessionStorage.removeItem('pp_telaAtual');
+   try {
+  ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
+   'af_dadosPaciente', 'af_pacienteDocPath', 'pp_telaAtual']
+    .forEach(k => {
+      sessionStorage.removeItem(k);
+      localStorage.removeItem(k);
+    });
 } catch {}
     setAbaAtiva('telainicial');
     setTimeout(() => {
@@ -443,17 +500,28 @@ useEffect(() => {
   const renderizarConteudo = () => {
     // ✅ 1. Tela de carregamento inicial (Firebase ainda verificando)
     if (!authVerificado) {
-      return (
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          height: '100vh', backgroundColor: '#d7cee0',
-          fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-          fontSize: '16px', fontWeight: 700
-        }}>
-          Verificando sessão...
-        </div>
-      );
-    }
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      justifyContent: 'center', alignItems: 'center',
+      height: '100vh', backgroundColor: '#d7cee0',
+      fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+    }}>
+      <div style={{
+        width: '46px', height: '46px',
+        border: '4px solid rgba(200, 162, 74, 0.25)',
+        borderTop: '4px solid #C8A24A',
+        borderRadius: '50%',
+        animation: 'spinAF 0.8s linear infinite',
+        marginBottom: '16px',
+      }} />
+      <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>
+        Reconectando…
+      </span>
+      <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
     // ✅ 2. Buscando paciente
     if (buscandoPaciente) {

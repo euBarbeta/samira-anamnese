@@ -80,27 +80,31 @@ export default function GaleriaPaciente({
   // ============================================================
   // 📱 APK / Nativo → Capacitor Camera
   // ============================================================
+  // ============================================================
+  // 📱 APK / Nativo → Capacitor Camera (config LEVE p/ não matar o WebView)
+  // ============================================================
   try {
     const photo = await Camera.getPhoto({
-      quality: 90,
+      quality: 75,                          // ✅ menos bytes
       allowEditing: false,
-      resultType: CameraResultType.DataUrl,
+      resultType: CameraResultType.Uri,     // ✅ USA URI — não carrega base64 na RAM
       source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
-      width: 1920,
+      width: 1600,                          // ✅ menor que 1920
+      saveToGallery: false,                 // ✅ não salva na galeria do device
+      correctOrientation: true,
+      preserveAspectRatio: true,
     });
 
-    let blob;
-    if (photo.dataUrl) {
-      const res = await fetch(photo.dataUrl);
-      blob = await res.blob();
-    } else if (photo.webPath) {
-      const res = await fetch(photo.webPath);
-      blob = await res.blob();
-    } else {
-      throw new Error('Nenhum dado de imagem recebido');
-    }
+    // ✅ Usa webPath (Uri → arquivo no cache do app)
+    const caminho = photo.webPath || photo.path;
+    if (!caminho) throw new Error('Nenhum caminho de imagem recebido');
 
-    const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const res = await fetch(caminho);
+    const blob = await res.blob();
+    const file = new File([blob], `foto_${Date.now()}.jpg`, {
+      type: blob.type || 'image/jpeg',
+    });
+
     await enviarFoto(file);
   } catch (err) {
     const msg = (err?.message || '').toLowerCase();
@@ -111,8 +115,9 @@ export default function GaleriaPaciente({
 };
 
   const enviarFoto = async (file) => {
+      if (enviando) return; 
     setEnviando(true);
-    try {
+     try {
       const resultado = await uploadFoto(file, pacienteId);
       await addDoc(
         collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),

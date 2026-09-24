@@ -20,6 +20,31 @@ const MODAL_FECHADO = {
   mostrarSenhaModal: false,
   erroSenha: ''
 };
+const SpinnerLoading = ({ texto = 'Carregando…' }) => (
+  <div style={{
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    padding: '60px 20px',
+    background: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: '16px', border: '1px solid #e2d2f5',
+    boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+  }}>
+    <div style={{
+      width: '42px', height: '42px',
+      border: '4px solid #e2d2f5',
+      borderTop: '4px solid #C8A24A',
+      borderRadius: '50%',
+      animation: 'spinCarga 0.8s linear infinite',
+      marginBottom: '14px',
+    }} />
+    <span style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#55286f', fontSize: '12px', fontWeight: 700,
+      letterSpacing: '0.3px',
+    }}>{texto}</span>
+    <style>{`@keyframes spinCarga { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
 
 export default function PainelEsteticista({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
@@ -831,57 +856,55 @@ export default function PainelEsteticista({ onLogout }) {
                 </div>
               )}
 
-              {carregandoNuvem ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
-                  <p style={{ color: '#666', fontSize: '14px' }}>Carregando dados da nuvem...</p>
-                </div>
-              ) : pacientes.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
-                  <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>Nenhum paciente cadastrado ainda.</p>
-                  <span style={{ color: '#C8A24A', fontSize: '12px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
-                </div>
-              ) : pacientesFiltrados.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
-                  <p style={{ color: '#666', fontSize: '13px' }}>Nenhum paciente encontrado para "{termoBusca}".</p>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                  {pacientesFiltrados.map((pac) => (
-                    <div
-                      key={pac.id}
-                      onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                      className="card-pasta-hover"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.92)',
-                        border: '1.5px solid #dfc6fc',
-                        borderRadius: '12px',
-                        padding: '20px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
-                        backdropFilter: 'blur(5px)'
-                      }}
-                    >
-                      <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
-                        Criado em: {pac.dataCriacao}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
-                        Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
-                      </div>
-                      
-                      <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
-                        📁 {pac.nome}
-                      </h3>
-                      <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
-                        Doc: {pac.documento || 'Não informado'}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
-                        <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
-                        <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+           {carregandoNuvem ? (
+  <SpinnerLoading texto="Carregando pastas de pacientes…" />
+) : pacientes.length === 0 ? (
+  <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
+    <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>Nenhum paciente cadastrado ainda.</p>
+    <span style={{ color: '#C8A24A', fontSize: '12px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
+  </div>
+) : pacientesFiltrados.length === 0 ? (
+  <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
+    <p style={{ color: '#666', fontSize: '13px' }}>Nenhum paciente encontrado para "{termoBusca}".</p>
+  </div>
+) : (
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+    {pacientesFiltrados.map((pac) => (
+      <div
+        key={pac.id}
+        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+        className="card-pasta-hover"
+        style={{
+          background: 'rgba(255, 255, 255, 0.92)',
+          border: '1.5px solid #dfc6fc',
+          borderRadius: '12px',
+          padding: '20px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+          backdropFilter: 'blur(5px)'
+        }}
+      >
+        <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
+          Criado em: {pac.dataCriacao}
+        </div>
+        <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
+          Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
+        </div>
+        
+        <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
+          📁 {pac.nome}
+        </h3>
+        <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
+          Doc: {pac.documento || 'Não informado'}
+        </div>
+        <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
+          <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
+          <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
             </div>
           )}
 
