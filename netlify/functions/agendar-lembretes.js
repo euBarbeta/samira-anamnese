@@ -11,6 +11,14 @@ const MS = {
   dias: 24 * 60 * 60 * 1000,
 };
 
+// ✅ Stagger entre envios imediatos (ms)
+const STAGGER_MS = 250;
+
+// ✅ Tolerância para considerar um lembrete "imediato" (ms).
+//    Se o sendAt está até 5s no futuro, enviamos agora para não esperar o cron.
+//    Mais que isso, agendamos normalmente.
+const TOLERANCIA_IMEDIATO_MS = 5000;
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -56,6 +64,7 @@ exports.handler = async (event) => {
     // ✅ PASSO 2: Cria os novos lembretes
     const resultados = [];
     const agora = Date.now();
+    let idxImediato = 0;
 
     for (const lembrete of lembretes) {
       if (!lembrete.titulo || !lembrete.titulo.trim()) continue;
@@ -63,7 +72,6 @@ exports.handler = async (event) => {
       let sendAt;
       if (lembrete.tipo === 'data_hora') {
         if (!lembrete.valor) continue;
-
         const partes = lembrete.valor.split(/[-T:]/);
         const [ano, mes, dia, hora, min] = partes.map(Number);
         sendAt = Date.UTC(ano, mes - 1, dia, hora + 3, min);
@@ -75,10 +83,8 @@ exports.handler = async (event) => {
 
       if (isNaN(sendAt)) continue;
 
-      // ============================================================
-      // ✅ Envio IMEDIATO (dentro de 30s) — tenta FCM e/ou web-push
-      // ============================================================
-      if (sendAt <= agora + 30000) {
+      // ✅ Envio imediato SÓ se sendAt já passou ou está nos próximos 5s
+      if (sendAt <= agora + TOLERANCIA_IMEDIATO_MS) {
         const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
 
         if (!subDoc.exists) {
@@ -91,6 +97,12 @@ exports.handler = async (event) => {
           continue;
         }
 
+        // ✅ Stagger entre envios imediatos (se houver mais de um)
+        if (idxImediato > 0) {
+          await new Promise((r) => setTimeout(r, idxImediato * STAGGER_MS));
+        }
+        idxImediato++;
+
         const subData = subDoc.data();
         const tagUnica = `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const corpo = 'Você tem um lembrete da Samira Estética';
@@ -98,7 +110,7 @@ exports.handler = async (event) => {
         let envioOk = false;
         let erroMsg = null;
 
-        // ✅ 1) Tenta FCM (APK)
+        // ✅ 1) FCM (APK)
         if (subData.fcmToken) {
           try {
             await getMessaging().send({
@@ -125,7 +137,7 @@ exports.handler = async (event) => {
           }
         }
 
-        // ✅ 2) Se FCM falhou (ou não existe), tenta web-push (PWA)
+        // ✅ 2) Fallback: web-push (PWA)
         if (!envioOk && subData.subscription) {
           try {
             const payloadWeb = JSON.stringify({
@@ -150,7 +162,7 @@ exports.handler = async (event) => {
           erro: erroMsg,
         });
       } else {
-        // ✅ Agendado → cria documento em lembretes_pendentes
+        // ✅ Agendado — vai pra lembretes_pendentes
         const docRef = await db.collection('lembretes_pendentes').add({
           pacienteId: String(pacienteId),
           titulo: lembrete.titulo,
@@ -172,7 +184,6 @@ exports.handler = async (event) => {
     }
 
     return { statusCode: 200, body: JSON.stringify({ ok: true, resultados }) };
-
   } catch (err) {
     console.error('❌ Erro:', err.stack);
     return { statusCode: 500, body: JSON.stringify({ error: err.message, stack: err.stack }) };
