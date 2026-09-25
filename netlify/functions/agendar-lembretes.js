@@ -89,9 +89,7 @@ exports.handler = async (event) => {
       if (isNaN(sendAt)) continue;
 
       // ============================================================
-      // ✅ CORREÇÃO PRINCIPAL:
-      //    Se é data_hora e já passou há MAIS de 30s → IGNORA
-      //    (evita retocar lembretes antigos toda vez que salva a ficha)
+      // ✅ Se é data_hora e já passou há MAIS de 30s → IGNORA
       // ============================================================
       if (isDataHora && sendAt < agora - TOLERANCIA_PASSADO_MS) {
         console.log(`⏭️ Ignorado (data passada): "${lembrete.titulo}" → ${new Date(sendAt).toISOString()}`);
@@ -105,8 +103,7 @@ exports.handler = async (event) => {
       }
 
       // ============================================================
-      // ✅ Envio imediato: só quando sendAt está entre
-      //    (agora - 30s) e (agora + 5s)
+      // ✅ Envio imediato: sendAt entre (agora - 30s) e (agora + 5s)
       // ============================================================
       const deveEnviarAgora =
         sendAt <= agora + TOLERANCIA_FUTURO_MS &&
@@ -135,10 +132,16 @@ exports.handler = async (event) => {
         const tagUnica = `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const corpo = 'Você tem um lembrete da Samira Estética';
 
-        let envioOk = false;
-        let erroMsg = null;
+        // ============================================================
+        // ✅ Envia para TODOS os canais disponíveis (multi-dispositivo)
+        //    Não usa "else if" — envia para os dois se ambos existirem
+        // ============================================================
+        const resultadosCanal = {
+          fcm: { ok: false, erro: null },
+          webpush: { ok: false, erro: null },
+        };
 
-        // ✅ 1) FCM (APK)
+        // 1️⃣ FCM (APK — celular)
         if (subData.fcmToken) {
           try {
             await getMessaging().send({
@@ -158,15 +161,15 @@ exports.handler = async (event) => {
                 },
               },
             });
-            envioOk = true;
+            resultadosCanal.fcm.ok = true;
           } catch (e) {
-            erroMsg = e.message;
+            resultadosCanal.fcm.erro = e.message;
             console.error('❌ FCM imediato falhou:', e.message);
           }
         }
 
-        // ✅ 2) Fallback: web-push (PWA)
-        if (!envioOk && subData.subscription) {
+        // 2️⃣ Web-push (PWA — PC e/ou celular) — sempre tenta se existir
+        if (subData.subscription) {
           try {
             const payloadWeb = JSON.stringify({
               title: lembrete.titulo,
@@ -176,18 +179,26 @@ exports.handler = async (event) => {
               url: '/',
             });
             await webpush.sendNotification(subData.subscription, payloadWeb);
-            envioOk = true;
+            resultadosCanal.webpush.ok = true;
           } catch (e) {
-            erroMsg = e.message;
+            resultadosCanal.webpush.erro = e.message;
             console.error('❌ Web-push imediato falhou:', e.message);
           }
         }
+
+        const envioOk = resultadosCanal.fcm.ok || resultadosCanal.webpush.ok;
+        const canais = [];
+        if (resultadosCanal.fcm.ok) canais.push('fcm');
+        if (resultadosCanal.webpush.ok) canais.push('webpush');
 
         resultados.push({
           titulo: lembrete.titulo,
           tipo: 'imediato',
           ok: envioOk,
-          erro: erroMsg,
+          canais,
+          erro: envioOk
+            ? null
+            : (resultadosCanal.fcm.erro || resultadosCanal.webpush.erro),
         });
       } else {
         // ✅ Agendado (futuro) → vai pra lembretes_pendentes

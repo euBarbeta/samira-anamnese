@@ -154,11 +154,12 @@ exports.handler = async (event) => {
 /* ============================================================
    Processa UM lembrete — lógica isolada, roda em paralelo
    ============================================================ */
+/* ============================================================
+   Processa UM lembrete — lógica isolada, roda em paralelo
+   ============================================================ */
 async function processarLembrete({
   doc, idx, db, webpush, getMessaging, STAGGER_MS, MAX_FALHAS_FCM,
 }) {
-  // ✅ Stagger: cada envio espera um pouco mais que o anterior
-  //    (0ms, 250ms, 500ms, 750ms, ...)
   if (idx > 0) {
     await new Promise((r) => setTimeout(r, idx * STAGGER_MS));
   }
@@ -174,7 +175,7 @@ async function processarLembrete({
 
   const subData = subDoc.exists ? subDoc.data() : null;
 
-  // ✅ 1. Sem inscrição — NÃO descarta, apenas incrementa tentativas
+  // ✅ Sem inscrição — incrementa tentativas, não descarta
   if (!subData || (!subData.fcmToken && !subData.subscription)) {
     if (tentativas >= MAX_TENTATIVAS) {
       await doc.ref.update({
@@ -198,11 +199,16 @@ async function processarLembrete({
   const titulo = data.titulo || 'Lembrete';
   const corpo = 'Você tem um lembrete da Samira Estética';
 
-  let envioOk = false;
-  let erroMsg = null;
-  let fcmSucesso = false;
+  // ============================================================
+  // ✅ Envia para TODOS os canais disponíveis (FCM + web-push)
+  //    Não usa "else if" — envia para os dois se ambos existirem
+  // ============================================================
+  const resultadosCanal = {
+    fcm: { ok: false, erro: null },
+    webpush: { ok: false, erro: null },
+  };
 
-  // ✅ 2. Tenta FCM (APK)
+  // 1️⃣ FCM (APK — celular)
   if (subData.fcmToken) {
     try {
       await getMessaging().send({
@@ -222,10 +228,9 @@ async function processarLembrete({
           },
         },
       });
-      envioOk = true;
-      fcmSucesso = true;
+      resultadosCanal.fcm.ok = true;
     } catch (e) {
-      erroMsg = e.message;
+      resultadosCanal.fcm.erro = e.message;
       console.error('❌ Falha FCM:', titulo, '-', e.message);
 
       const errosInvalidos = [
@@ -248,8 +253,8 @@ async function processarLembrete({
     }
   }
 
-  // ✅ 3. Se FCM falhou/ausente, tenta web-push (PWA)
-  if (!envioOk && subData.subscription) {
+  // 2️⃣ Web-push (PWA — PC e/ou celular) — SEMPRE tenta se existir
+  if (subData.subscription) {
     try {
       const payloadWeb = JSON.stringify({
         title: titulo,
@@ -259,9 +264,9 @@ async function processarLembrete({
         url: '/',
       });
       await webpush.sendNotification(subData.subscription, payloadWeb);
-      envioOk = true;
+      resultadosCanal.webpush.ok = true;
     } catch (e) {
-      erroMsg = e.message;
+      resultadosCanal.webpush.erro = e.message;
       console.error('❌ Falha web-push:', titulo, '-', e.message);
 
       const statusCode = e.statusCode || 0;
@@ -274,26 +279,37 @@ async function processarLembrete({
     }
   }
 
-  // ✅ 4. Nenhum canal funcionou — não descarta, tenta de novo
+  // ✅ Sucesso se PELO MENOS UM canal entregou
+  const envioOk = resultadosCanal.fcm.ok || resultadosCanal.webpush.ok;
+
+  // ============================================================
+  // ✅ Falha total — não descarta, tenta de novo
+  // ============================================================
   if (!envioOk) {
     await doc.ref.update({
       tentativas,
       ultimaTentativa: new Date().toISOString(),
-      erro: erroMsg || 'falha no envio',
+      erro:
+        resultadosCanal.fcm.erro ||
+        resultadosCanal.webpush.erro ||
+        'falha no envio',
     });
-    return { id: doc.id, ok: false, erro: erroMsg };
+    return { id: doc.id, ok: false, erro: 'nenhum canal entregou' };
   }
 
-  // ✅ 5. Sucesso — reagenda (intervalo) ou fecha (data_hora)
+  // ============================================================
+  // ✅ Sucesso — reagenda (intervalo) ou fecha (data_hora)
+  // ============================================================
+  const canais = [];
+  if (resultadosCanal.fcm.ok) canais.push('fcm');
+  if (resultadosCanal.webpush.ok) canais.push('webpush');
+
   if (data.tipo === 'intervalo') {
     const num = parseInt(data.intervaloNumero, 10) || 1;
     const unidade = data.intervaloUnidade || 'horas';
     const intervaloMs = num * (MS[unidade] || MS.horas);
 
-    // ✅ SEM DRIFT: reagenda a partir do sendAt ORIGINAL
     let proximo = (data.sendAt || agoraInterno) + intervaloMs;
-
-    // Se o cron ficou parado por muito tempo, pula até um ponto no futuro
     if (proximo <= agoraInterno) {
       const saltos = Math.ceil((agoraInterno - proximo) / intervaloMs);
       proximo += saltos * intervaloMs;
@@ -315,7 +331,7 @@ async function processarLembrete({
       ok: true,
       reagendado: true,
       proximo: new Date(proximo).toISOString(),
-      canal: fcmSucesso ? 'fcm' : 'webpush',
+      canais,
     };
   } else {
     await doc.ref.update({
@@ -324,10 +340,6 @@ async function processarLembrete({
       erro: null,
       tentativas,
     });
-    return {
-      id: doc.id,
-      ok: true,
-      canal: fcmSucesso ? 'fcm' : 'webpush',
-    };
+    return { id: doc.id, ok: true, canais };
   }
 }

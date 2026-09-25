@@ -1,5 +1,5 @@
 // src/components/push-notifications.js
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import {
   isNativo,
@@ -11,9 +11,12 @@ const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 /* ============================================================
    Chave para persistir qual paciente foi o ÚLTIMO a registrar
-   push neste navegador. Serve para evitar que o paciente A
+   push web NESTE navegador. Serve para evitar que o paciente A
    continue recebendo notificações depois que o paciente B
    logar no mesmo dispositivo.
+
+   ⚠️ Só limpa o campo "subscription" — NUNCA apaga o doc inteiro,
+      pois ele pode conter "fcmToken" do APK do outro paciente.
    ============================================================ */
 const STORAGE_KEY_LAST_PACIENTE = 'push_last_paciente_id';
 
@@ -52,18 +55,25 @@ export async function inscreverPush(pacienteId) {
     return null;
   }
 
-  // ✅ Detalhe sutil para WEB: se outro paciente registrou neste navegador
-  //    antes, remove a entrada antiga para ele não continuar recebendo push.
-  //    (No nativo isso é resolvido por closures; aqui é via localStorage.)
+  // ============================================================
+  // ✅ Detalhe multi-dispositivo:
+  //    Se OUTRO paciente registrou push web neste navegador antes,
+  //    removemos APENAS o campo "subscription" do doc anterior.
+  //    Preservamos "fcmToken" — pode haver um APK do mesmo paciente
+  //    que continua válido e DEVE continuar recebendo notificações.
+  // ============================================================
   try {
     const ultimoPaciente = localStorage.getItem(STORAGE_KEY_LAST_PACIENTE);
 
     if (ultimoPaciente && ultimoPaciente !== pacienteIdStr) {
-      console.log(`🗑️ Removendo subscription antiga do paciente ${ultimoPaciente}`);
+      console.log(`🧹 Limpando subscription web antiga do paciente ${ultimoPaciente}`);
       try {
-        await deleteDoc(doc(db, 'push_subscriptions', ultimoPaciente));
+        await updateDoc(doc(db, 'push_subscriptions', ultimoPaciente), {
+          subscription: null,
+          subscriptionLimpaEm: new Date().toISOString(),
+        });
       } catch (e) {
-        console.warn('Falha ao remover subscription antiga (pode não existir):', e);
+        console.warn('Falha ao limpar subscription antiga (pode não existir):', e);
       }
     }
 
@@ -101,13 +111,15 @@ export async function inscreverPush(pacienteId) {
 
     const subJson = subscription.toJSON();
 
+    // ✅ merge: true → preserva o "fcmToken" se ele já existir
+    //    (paciente tem APK E PWA na mesma conta)
     await setDoc(
       doc(db, 'push_subscriptions', pacienteIdStr),
       {
         pacienteId: pacienteIdStr,
         subscription: subJson,
         plataforma: 'web',
-        atualizadoEm: new Date().toISOString(),
+        subscriptionAtualizadaEm: new Date().toISOString(),
       },
       { merge: true }
     );
@@ -160,13 +172,14 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
       });
     }
 
+    // ✅ merge: true → preserva fcmToken se a esteticista também usa APK
     await setDoc(
       doc(db, 'push_subscriptions_esteticistas', String(uidEsteticista)),
       {
         uidEsteticista: String(uidEsteticista),
         subscription: subscription.toJSON(),
         plataforma: 'web',
-        atualizadoEm: new Date().toISOString(),
+        subscriptionAtualizadaEm: new Date().toISOString(),
       },
       { merge: true }
     );
