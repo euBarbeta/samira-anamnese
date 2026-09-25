@@ -9,6 +9,10 @@ import FichaEvoMobile from './FichaEvoMobile';
 import PainelEsteticista from './PainelEsteticista';
 import PainelEsteticistaMobile from './PainelEsteticistaMobile';
 import PainelPaciente from './PainelPaciente';
+import TelaAgendamentoPublico from './agendamento/TelaAgendamentoPublico';
+import PaginaNaoEncontrada from './PaginaNaoEncontrada';
+import { validarUIDPaciente } from '../utils/validarUID';
+import { EMAILS_ESTETICISTAS, UID_ESTETICISTA_PADRAO } from './constantes';
 import { secondaryAuth } from './firebaseSecondary';
 import {
   doc, getDoc, getDocs, setDoc, deleteDoc, collection,
@@ -17,21 +21,17 @@ import {
 import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
 
-const EMAILS_ESTETICISTAS = [
-  'samira.ferreira@sistema.local',
-  'mbtech@sistema.local'
-];
+
 
 export default function AnamneseFicha() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
   const [usuarioLogado, setUsuarioLogado] = useState(null);
-  
-
- 
-  const [buscandoPaciente, setBuscandoPaciente] = useState(false);
-
- const [autenticado, setAutenticado] = useState(() => {
+  const [rota, setRota] = useState('verificando');
+const [uidDaURL, setUidDaURL] = useState(null);
+const [modoAdmin, setModoAdmin] = useState(false);
+const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+const [autenticado, setAutenticado] = useState(() => {
   try { return sessionStorage.getItem('af_autenticado') === '1'; } catch { return false; }
 });
 const [abaAtiva, setAbaAtiva] = useState(() => {
@@ -128,6 +128,55 @@ useEffect(() => {
       console.warn('Falha ao limpar query string:', e);
     }
   }, []);
+  // src/components/AnamneseFicha.jsx
+
+useEffect(() => {
+  const path = window.location.pathname;
+  const hash = window.location.hash.slice(1);
+
+  // ============================================================
+  // 1) /admin → LOGIN DA ESTETICISTA
+  // ============================================================
+  if (path === '/admin' || path.startsWith('/admin/')) {
+    setModoAdmin(true);
+    setRota('admin');
+    return;
+  }
+
+  // ============================================================
+  // 2) Sem hash (raiz) → AGENDAMENTO PÚBLICO
+  // ============================================================
+  if (!hash) {
+    setRota('agendamento');
+    return;
+  }
+
+  // ============================================================
+  // 3) #agendar/{uidEsteticista} → agendamento multi-tenant
+  // ============================================================
+  if (hash.startsWith('agendar/')) {
+    setUidDaURL(hash.replace('agendar/', ''));
+    setRota('agendamento');
+    return;
+  }
+  if (hash === 'agendar') {
+    setRota('agendamento');
+    return;
+  }
+
+  // ============================================================
+  // 4) #{uidPaciente} → validar no Firestore
+  // ============================================================
+  (async () => {
+    const valido = await validarUIDPaciente(hash);
+    if (valido) {
+      setUidDaURL(hash);
+      setRota('login-uid');
+    } else {
+      setRota('nao-encontrado');
+    }
+  })();
+}, []);
 
   // ============================================================
   // OBSERVER DE AUTH (login automático ao abrir/refrescar)
@@ -296,6 +345,7 @@ useEffect(() => {
   const handleLoginSucesso = async (user, opcoes = {}) => {
     const { veioDeRefresh = false } = opcoes;
     if (!user || !user.uid) return;
+     setRota('autenticado');
 
     setUsuarioLogado(user);
     const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
@@ -395,32 +445,51 @@ useEffect(() => {
   // LOGOUT
   // ============================================================
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.error('Erro ao sair:', e);
-    }
-    processandoLoginRef.current = false;
-    setAutenticado(false);
-    setUsuarioLogado(null);
-    setDadosPaciente(null);
-    setPacienteDocPath(null);
-    setFichaSelecionada(null);
-    window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
-   try {
-  ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
-   'af_dadosPaciente', 'af_pacienteDocPath', 'pp_telaAtual']
-    .forEach(k => {
-      sessionStorage.removeItem(k);
-      localStorage.removeItem(k);
-    });
-} catch {}
-    setAbaAtiva('telainicial');
-    setTimeout(() => {
-      emLogoutRef.current = false;
-    }, 800);
-  };
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error('Erro ao sair:', e);
+  }
 
+  processandoLoginRef.current = false;
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setPacienteDocPath(null);
+  setFichaSelecionada(null);
+
+  // ✅ Respeita a rota atual
+  const estavaEmAdmin = window.location.pathname.startsWith('/admin');
+  const hashAtual = window.location.hash.slice(1);
+
+  window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
+
+  try {
+    ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
+     'af_dadosPaciente', 'af_pacienteDocPath', 'pp_telaAtual']
+      .forEach(k => {
+        sessionStorage.removeItem(k);
+        localStorage.removeItem(k);
+      });
+  } catch {}
+
+  setAbaAtiva('telainicial');
+
+  // ✅ Redefine rota conforme contexto
+  if (estavaEmAdmin) {
+    setRota('admin');
+    setModoAdmin(true);
+  } else if (hashAtual) {
+    setRota('login-uid');
+    setUidDaURL(hashAtual);
+  } else {
+    setRota('agendamento');
+  }
+
+  setTimeout(() => {
+    emLogoutRef.current = false;
+  }, 800);
+};
   // ============================================================
   // Helpers de salvar/excluir ficha
   // ============================================================
@@ -497,9 +566,65 @@ useEffect(() => {
   // ============================================================
   // RENDER — Função interna que retorna a tela correta
   // ============================================================
+  
   const renderizarConteudo = () => {
-    // ✅ 1. Tela de carregamento inicial (Firebase ainda verificando)
-    if (!authVerificado) {
+
+  // ============================================================
+  // ROTAS PÚBLICAS — não passam por auth
+  // ============================================================
+  if (rota === 'verificando') {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', alignItems: 'center',
+        height: '100vh', backgroundColor: '#d7cee0',
+        fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+      }}>
+        <div style={{
+          width: '46px', height: '46px',
+          border: '4px solid rgba(200, 162, 74, 0.25)',
+          borderTop: '4px solid #C8A24A',
+          borderRadius: '50%',
+          animation: 'spinAF 0.8s linear infinite',
+          marginBottom: '16px',
+        }} />
+        <span style={{ fontSize: '14px', fontWeight: 700 }}>Verificando link…</span>
+        <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (rota === 'agendamento') {
+    return (
+      <TelaAgendamentoPublico
+        uidEsteticista={uidDaURL || UID_ESTETICISTA_PADRAO}
+        origem="raiz"
+      />
+    );
+  }
+
+  if (rota === 'nao-encontrado') {
+    return <PaginaNaoEncontrada />;
+  }
+
+  // ============================================================
+  // ROTAS DE LOGIN (admin OU paciente por UID)
+  // Só mostra o login se ainda não estiver autenticado.
+  // Se já estiver autenticado, cai no fluxo normal abaixo.
+  // ============================================================
+  if (!autenticado) {
+    if (rota === 'admin') {
+      return isMobile
+        ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} modoEsteticista />
+        : <TelaInicial onLoginSucesso={handleLoginSucesso} modoEsteticista />;
+    }
+    if (rota === 'login-uid') {
+      return isMobile
+        ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
+        : <TelaInicial onLoginSucesso={handleLoginSucesso} />;
+    }
+  }
+ if (!authVerificado) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',

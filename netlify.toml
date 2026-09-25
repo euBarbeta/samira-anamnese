@@ -6,8 +6,26 @@
 [functions]
   node_bundler = "esbuild"
 
+# ============================================================
+# SPA FALLBACK — qualquer rota cai no index.html
+# ⚠️ ORDEM IMPORTA:
+#   1) /admin        (rota da esteticista)
+#   2) /admin/*      (subrotas da esteticista, se houver)
+#   3) /*            (catch-all — SEMPRE por último)
+# ============================================================
+
+[[redirects]]
+  from = "/admin"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin/*"
+  to = "/index.html"
+  status = 200
+
+# ⚠️ CATCH-ALL POR ÚLTIMO — senão engole as functions também
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  

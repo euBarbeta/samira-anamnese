@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
@@ -10,6 +10,9 @@ import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import { secondaryAuth } from './firebaseSecondary';
 import TermoConsentimentoPDF from './TermoConsentimentoPDF';
+import { registrarLinkPaciente } from '../utils/validarUID';
+import LinkAcessoPaciente from './LinkAcessoPaciente';
+import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -360,7 +363,7 @@ export default function PainelEsteticista({ onLogout }) {
       if (dadosAnamnese.lembretes) {
         await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
       }
-
+      await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
     } catch (error) {
       console.error("Erro geral ao salvar ficha:", error);
       alert("Erro ao salvar ficha na nuvem.");
@@ -789,25 +792,55 @@ export default function PainelEsteticista({ onLogout }) {
                 <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
                   Pastas de Pacientes
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => navegarPara('criar_anamnese')}
-                  className="btn-efeito-hover"
-                  style={{
-                    fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '25px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
-                  }}
-                >
-                 Ficha de anamnese
-                </button>
+             <button
+  type="button"
+  onClick={() => navegarPara('criar_anamnese')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
+  }}
+>
+  <MdAssignment size={16} />
+  Ficha de anamnese
+</button>
+                
+
+ <button
+  type="button"
+  onClick={() => navegarPara('agendamentos')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+  }}
+>
+  <MdCalendarMonth size={16} />
+  Agendamentos
+</button>
+
               </div>
 
               {pacientes.length > 0 && (
@@ -903,6 +936,7 @@ export default function PainelEsteticista({ onLogout }) {
         </h3>
         <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
           Doc: {pac.documento || 'Não informado'}
+          <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
         </div>
         <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
           <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
@@ -914,6 +948,38 @@ export default function PainelEsteticista({ onLogout }) {
 )}
             </div>
           )}
+          {telaAtual === 'agendamentos' && (
+  <div>
+    <button
+  type="button"
+  onClick={() => navegarPara('lista')}
+  className="btn-voltar-lista"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #C8A24A',
+    padding: '10px 22px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '20px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+    transition: 'all 0.25s ease',
+    backdropFilter: 'blur(6px)',
+  }}
+>
+  <MdArrowBack size={16} color="#C8A24A" />
+  Voltar para lista de pacientes
+</button>
+    <PainelAgendamentosEsteticista uidEsteticista={auth.currentUser?.uid} />
+  </div>
+)}
 
           {/* DETALHES DA PASTA DO PACIENTE */}
           {telaAtual === 'detalhe_pasta' && pacienteSelecionado && (
@@ -949,8 +1015,9 @@ export default function PainelEsteticista({ onLogout }) {
                   </button>
                   <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0 }}>
                     📁 {pacienteSelecionado.nome}
+                    <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
                   </h2>
-                  <span style={{ fontSize: '11px', color: '#555', display: 'block', marginTop: '3px' }}>Doc: {pacienteSelecionado.documento || 'Não informado'}</span>
+                  <span style={{ fontSize: '11px', color: '#555', display: 'block', marginTop: '3px' }}>Doc: {pacienteSelecionado.documento || 'Não informado'}</span> 
                   <span style={{ fontSize: '11px', color: '#555', display: 'block' }}>Pasta criada em: {pacienteSelecionado.dataCriacao}</span>
                   <span style={{ fontSize: '11px', color: '#A6822B', fontWeight: 600, display: 'block' }}>
                     Última edição: {pacienteSelecionado.dataUltimaEdicao || pacienteSelecionado.dataCriacao}

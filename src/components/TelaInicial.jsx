@@ -3,8 +3,9 @@ import { MdLock, MdPerson, MdArrowForward } from 'react-icons/md';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase';
+import { EMAILS_ESTETICISTAS } from './constantes';
 
-export default function TelaInicial({ onLoginSucesso }) {
+export default function TelaInicial({ onLoginSucesso, modoEsteticista = false }) {
   const [nomeCompleto, setNomeCompleto] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -37,11 +38,20 @@ export default function TelaInicial({ onLoginSucesso }) {
 
         emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
       }
+        if (modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
+        setErro('Este acesso é restrito à profissional. Use o link do paciente.');
+        setCarregando(false);
+        return;
+      }
+      if (!modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)) {
+        setErro('Profissional deve acessar em /admin.');
+        setCarregando(false);
+        return;
+      }
 
-      const userCredential = await signInWithEmailAndPassword(auth, emailFicticio, senha);
-      const user = userCredential.user;
-
+      await signInWithEmailAndPassword(auth, emailFicticio, senha);
       setCarregando(false);
+       
      
     } catch (error) {
       console.error("Erro no login:", error);

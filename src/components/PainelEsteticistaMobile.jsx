@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdCalendarMonth, MdAssignment } from 'react-icons/md';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -17,6 +17,9 @@ import GaleriaPaciente from './GaleriaPaciente';
 import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import TermoConsentimentoPDF from './TermoConsentimentoPDF'; 
+import { registrarLinkPaciente } from '../utils/validarUID';
+import LinkAcessoPaciente from './LinkAcessoPaciente';
+import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -346,13 +349,17 @@ export default function PainelEsteticistaMobile({ onLogout }) {
       await salvarPacienteNaNuvem(novoPaciente);
       if (dadosAnamnese.lembretes) {
         await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+        
       }
+
+      await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
 
     } catch (error) {
       console.error("Erro geral ao salvar ficha:", error);
       alert("Erro ao salvar ficha na nuvem.");
     }
   };
+  
 
   const handleAtualizarAnamnese = async (dadosAtualizados) => {
     const agora = new Date();
@@ -830,28 +837,61 @@ if (!jaCarregou) {
                 <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: 0 }}>
                   Prontuários e Pastas de Pacientes
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => navegarPara('criar_anamnese')}
-                  className="btn-efeito-hover"
-                  style={{
-                    fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '10px 16px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(200, 162, 74, 0.3)',
-                    textAlign: 'center',
-                    width: '100%'
-                  }}
-                >
-                  Ficha de Anamnese
-                </button>
-              </div>
+           <div style={{ display: 'flex', gap: '8px', flexDirection: 'row' }}>
+  <button
+    type="button"
+    onClick={() => navegarPara('criar_anamnese')}
+    className="btn-efeito-hover"
+    style={{
+      flex: 1,
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '12px 16px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
+      boxShadow: '0 4px 12px rgba(200, 162, 74, 0.3)'
+    }}
+  >
+    <MdAssignment size={16} />
+    Ficha de Anamnese
+  </button>
+
+  <button
+    type="button"
+    onClick={() => navegarPara('agendamentos')}
+    className="btn-efeito-hover"
+    style={{
+      flex: 1,
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '12px 16px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
+      boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+    }}
+  >
+    <MdCalendarMonth size={16} />
+    Agendamentos
+  </button>
+</div>    
+                </div>
+              
 
               {/* BARRA DE PESQUISA COM EFEITO VIDRO */}
               {pacientes.length > 0 && (
@@ -952,10 +992,12 @@ if (!jaCarregou) {
 
                         <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', margin: '0 0 4px 0' }}>
                           📁 {pac.nome}
-                        </h3>
+                          </h3>
                         <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
                           Doc: {pac.documento || 'Não informado'}
+                          <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
                         </div>
+                      
                       </div>
 
                       <div style={{ fontSize: '11px', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0e6fa', paddingTop: '8px', marginTop: '8px' }}>
@@ -1005,7 +1047,38 @@ if (!jaCarregou) {
               )}
             </div>
           )}
-
+{telaAtual === 'agendamentos' && (
+  <div>
+    <button
+  type="button"
+  onClick={() => navegarPara('lista')}
+  className="btn-voltar-lista"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #C8A24A',
+    padding: '10px 22px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '20px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+    transition: 'all 0.25s ease',
+    backdropFilter: 'blur(6px)',
+  }}
+>
+  <MdArrowBack size={16} color="#C8A24A" />
+  Voltar para lista de pacientes
+</button>
+    <PainelAgendamentosEsteticista uidEsteticista={auth.currentUser?.uid} />
+  </div>
+)}
 
           {/* DETALHE DA PASTA */}
           {telaAtual === 'detalhe_pasta' && pacienteSelecionado && (
@@ -1041,6 +1114,7 @@ if (!jaCarregou) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
                     📁 {pacienteSelecionado.nome}
+                    <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
                   </h2>
                   <button
                     type="button"
