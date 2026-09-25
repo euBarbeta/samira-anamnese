@@ -14,10 +14,13 @@ const MS = {
 // ✅ Stagger entre envios imediatos (ms)
 const STAGGER_MS = 250;
 
-// ✅ Tolerância para considerar um lembrete "imediato" (ms).
-//    Se o sendAt está até 5s no futuro, enviamos agora para não esperar o cron.
-//    Mais que isso, agendamos normalmente.
-const TOLERANCIA_IMEDIATO_MS = 5000;
+// ✅ Envio imediato APENAS se sendAt estiver nos próximos 5s
+const TOLERANCIA_FUTURO_MS = 5000;
+
+// ✅ Tolerância para trás: se sendAt está nos últimos 30s, ainda consideramos
+//    "recente" e enviamos agora (cobre o caso do cron ter atrasado).
+//    Mais antigo que 30s → IGNORA (data no passado, já foi enviada ou perdida).
+const TOLERANCIA_PASSADO_MS = 30 * 1000;
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -70,7 +73,9 @@ exports.handler = async (event) => {
       if (!lembrete.titulo || !lembrete.titulo.trim()) continue;
 
       let sendAt;
-      if (lembrete.tipo === 'data_hora') {
+      const isDataHora = lembrete.tipo === 'data_hora';
+
+      if (isDataHora) {
         if (!lembrete.valor) continue;
         const partes = lembrete.valor.split(/[-T:]/);
         const [ano, mes, dia, hora, min] = partes.map(Number);
@@ -83,8 +88,31 @@ exports.handler = async (event) => {
 
       if (isNaN(sendAt)) continue;
 
-      // ✅ Envio imediato SÓ se sendAt já passou ou está nos próximos 5s
-      if (sendAt <= agora + TOLERANCIA_IMEDIATO_MS) {
+      // ============================================================
+      // ✅ CORREÇÃO PRINCIPAL:
+      //    Se é data_hora e já passou há MAIS de 30s → IGNORA
+      //    (evita retocar lembretes antigos toda vez que salva a ficha)
+      // ============================================================
+      if (isDataHora && sendAt < agora - TOLERANCIA_PASSADO_MS) {
+        console.log(`⏭️ Ignorado (data passada): "${lembrete.titulo}" → ${new Date(sendAt).toISOString()}`);
+        resultados.push({
+          titulo: lembrete.titulo,
+          tipo: 'ignorado',
+          motivo: 'data_hora já passou há mais de 30s',
+          sendAt: new Date(sendAt).toISOString(),
+        });
+        continue;
+      }
+
+      // ============================================================
+      // ✅ Envio imediato: só quando sendAt está entre
+      //    (agora - 30s) e (agora + 5s)
+      // ============================================================
+      const deveEnviarAgora =
+        sendAt <= agora + TOLERANCIA_FUTURO_MS &&
+        sendAt >= agora - TOLERANCIA_PASSADO_MS;
+
+      if (deveEnviarAgora) {
         const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
 
         if (!subDoc.exists) {
@@ -97,7 +125,7 @@ exports.handler = async (event) => {
           continue;
         }
 
-        // ✅ Stagger entre envios imediatos (se houver mais de um)
+        // ✅ Stagger entre envios imediatos
         if (idxImediato > 0) {
           await new Promise((r) => setTimeout(r, idxImediato * STAGGER_MS));
         }
@@ -162,7 +190,7 @@ exports.handler = async (event) => {
           erro: erroMsg,
         });
       } else {
-        // ✅ Agendado — vai pra lembretes_pendentes
+        // ✅ Agendado (futuro) → vai pra lembretes_pendentes
         const docRef = await db.collection('lembretes_pendentes').add({
           pacienteId: String(pacienteId),
           titulo: lembrete.titulo,
