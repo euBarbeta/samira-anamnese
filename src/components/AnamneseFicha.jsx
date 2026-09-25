@@ -380,19 +380,17 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   try {
     let pacienteEncontrado = null;
 
-    // ✅ NOVO: Se for o app nativo e não tivermos um UID na URL, tenta buscar o paciente salvo.
+    // ✅ NATIVO: tenta buscar pelo pacienteId salvo em Preferences
     if (isNativo() && !uidDaURL) {
       const { value } = await Preferences.get({ key: 'pacienteId' });
       if (value) {
-        // Aqui você precisa saber o uidEsteticista. Como o pacienteId é único,
-        // podemos tentar encontrá-lo em todos os esteticistas.
         const esteticistasUids = [
-          "ZvzIxDhsh7WMZqvG5hcFSOy9I2",
-          "ZvzIxDhsh7WMZqvG5hcFQS0yd9I2",
-          "MZ5j3NpjlxY67yLRiEfg13TbPE32"
+          'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
+          'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
+          'MZ5j3NpjlxY67yLRiEfg13TbPE32',
         ];
         for (const estUid of esteticistasUids) {
-          const pacienteRef = doc(db, "usuarios", estUid, "pacientes", value);
+          const pacienteRef = doc(db, 'usuarios', estUid, 'pacientes', value);
           const pacienteSnap = await getDoc(pacienteRef);
           if (pacienteSnap.exists()) {
             pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
@@ -402,13 +400,15 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
       }
     }
 
-    // Se não encontrou pelo método acima, segue o fluxo normal (por email)
+    // ✅ mapRef no escopo certo (fora do if e do for)
+    const mapRef = doc(db, 'mapeamento_emails', emailUsuario);
+
+    // ✅ 1ª tentativa: via mapeamento_emails
     if (!pacienteEncontrado) {
-      const mapRef = doc(db, "mapeamento_emails", emailUsuario);
       const mapSnap = await getDoc(mapRef);
       if (mapSnap.exists()) {
         const { profissionalUid, pacienteId } = mapSnap.data();
-        const pacienteRef = doc(db, "usuarios", profissionalUid, "pacientes", pacienteId);
+        const pacienteRef = doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId);
         const pacienteSnap = await getDoc(pacienteRef);
         if (pacienteSnap.exists()) {
           pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
@@ -416,10 +416,47 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
       }
     }
 
-    // ... (o resto da lógica de busca por esteticistasUids permanece o mesmo)
+    // ✅ 2ª tentativa: varredura nas pastas dos esteticistas
+    if (!pacienteEncontrado) {
+      const esteticistasUids = [
+        'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
+        'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
+        'MZ5j3NpjlxY67yLRiEfg13TbPE32',
+      ];
 
+      for (const estUid of esteticistasUids) {
+        const pacientesRef = collection(db, 'usuarios', estUid, 'pacientes');
+        let q = query(pacientesRef, where('emailAcesso', '==', emailUsuario));
+        let querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          const pacienteRefAlt = doc(db, 'usuarios', estUid, 'pacientes', user.uid);
+          const altSnap = await getDoc(pacienteRefAlt);
+          if (altSnap.exists()) {
+            pacienteEncontrado = { id: altSnap.id, ...altSnap.data() };
+          }
+        } else {
+          const docMatch = querySnapshot.docs[0];
+          pacienteEncontrado = { id: docMatch.id, ...docMatch.data() };
+        }
+
+        if (pacienteEncontrado) {
+          await setDoc(mapRef, {
+            profissionalUid: estUid,
+            pacienteId: pacienteEncontrado.id,
+            atualizadoEm: new Date(),
+          }, { merge: true });
+          break;
+        }
+      }
+    }
+
+    // ============================================================
+    // ✅ RESULTADO FINAL
+    // ============================================================
     if (pacienteEncontrado) {
-      // ✅ BLOQUEIO: link não corresponde ao paciente logado (apenas na web)
+
+      // Bloqueio de link cruzado (só na WEB)
       if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
         alert('Este link não pertence à sua conta. Peça o link correto à profissional.');
         await signOut(auth);
@@ -431,7 +468,7 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
         return;
       }
 
-      // ✅ NOVO: Salva o ID do paciente para as próximas vezes (apenas no APK).
+      // ✅ Salva ID no app nativo pra próximos logins
       if (isNativo()) {
         await Preferences.set({
           key: 'pacienteId',
@@ -439,13 +476,33 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
         });
       }
 
+      // ✅ Popula os estados que fazem o paciente ENTRAR no painel
       setDadosPaciente(pacienteEncontrado);
-      // ... (o resto do fluxo continua igual)
+
+      const mapSnap2 = await getDoc(mapRef);
+      if (mapSnap2.exists()) {
+        const { profissionalUid, pacienteId } = mapSnap2.data();
+        setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
+      }
+
+      window.history.replaceState({ abaAtiva: 'painelPaciente' }, '', window.location.pathname);
+      setAbaAtiva('painelPaciente');
+      setAutenticado(true);   // ← ESSA linha é a chave
+
     } else {
-      // ...
+      alert('Sua ficha de paciente não foi encontrada nas pastas do sistema.');
+      await signOut(auth);
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setAbaAtiva('telainicial');
     }
   } catch (error) {
-    // ...
+    console.error('Erro ao carregar pasta do paciente:', error);
+    alert('Erro ao acessar ficha do paciente.');
+    await signOut(auth);
+    setAutenticado(false);
+    setUsuarioLogado(null);
+    setAbaAtiva('telainicial');
   } finally {
     setBuscandoPaciente(false);
   }
