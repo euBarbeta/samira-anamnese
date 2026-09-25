@@ -137,6 +137,27 @@ useEffect(() => {
   const hash = window.location.hash.slice(1);
 
   // ============================================================
+  // 0) APP NATIVO (APK) → NUNCA mostra agendamento público
+  //    Vai direto pro login do paciente (ou auto-login via Preferences)
+  // ============================================================
+  if (isNativo()) {
+    // Se por acaso veio com um hash de paciente válido, respeita
+    if (hash && !hash.startsWith('agendar')) {
+      (async () => {
+        const valido = await validarUIDPaciente(hash);
+        if (valido) {
+          setUidDaURL(hash);
+        }
+        setRota('login-uid');
+      })();
+      return;
+    }
+    // Caso normal: abre direto no login
+    setRota('login-uid');
+    return;
+  }
+
+  // ============================================================
   // 1) /admin → LOGIN DA ESTETICISTA
   // ============================================================
   if (path === '/admin' || path.startsWith('/admin/')) {
@@ -146,7 +167,7 @@ useEffect(() => {
   }
 
   // ============================================================
-  // 2) Sem hash (raiz) → AGENDAMENTO PÚBLICO
+  // 2) Sem hash (raiz) → AGENDAMENTO PÚBLICO (SÓ NA WEB)
   // ============================================================
   if (!hash) {
     setRota('agendamento');
