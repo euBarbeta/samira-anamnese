@@ -31,6 +31,7 @@ export default function AnamneseFicha() {
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [rota, setRota] = useState('verificando');
 const [uidDaURL, setUidDaURL] = useState(null);
+useEffect(() => { uidDaURLRef.current = uidDaURL; }, [uidDaURL]);
 const [modoAdmin, setModoAdmin] = useState(false);
 const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 const [autenticado, setAutenticado] = useState(() => {
@@ -247,17 +248,19 @@ useEffect(() => {
       ultimoUidRef.current = user.uid;
 
       // 🚀 Restaura INSTANTÂNEO se tínhamos sessão
-   if (tinhaSessao && !restaurandoRef.current) {
+  if (tinhaSessao && !restaurandoRef.current) {
   restaurandoRef.current = true;
 
-  // ✅ Se veio por LINK de paciente e o usuário logado não é ele → força login
-  if (uidDaURL) {
+  // ✅ Usa o REF (sempre atual) em vez do state (congelado no closure)
+  const uidAtual = uidDaURLRef.current;
+
+  if (uidAtual) {
     const emailLogado = user.email ? user.email.toLowerCase().trim() : '';
     const ehEsteticistaLogada =
       EMAILS_ESTETICISTAS.includes(emailLogado) ||
       !emailLogado.endsWith('@sistema.local');
 
-    const ehMesmoPaciente = String(user.uid) === String(uidDaURL);
+    const ehMesmoPaciente = String(user.uid) === String(uidAtual);
 
     if (ehEsteticistaLogada || !ehMesmoPaciente) {
       // Força logout e mostra tela de login
@@ -277,7 +280,6 @@ useEffect(() => {
 
   setUsuarioLogado(user);
   setAutenticado(true);
-  // ...resto do código continua igual
 
         // Restaura dados do paciente (se houver)
         if (dadosSalvos) setDadosPaciente(dadosSalvos);

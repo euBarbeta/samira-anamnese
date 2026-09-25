@@ -4,6 +4,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase';
 import { EMAILS_ESTETICISTAS } from './constantes';
+import { isNativo } from './push-notifications-native';
 
 export default function TelaInicial({ onLoginSucesso, modoEsteticista = false }) {
   const [nomeCompleto, setNomeCompleto] = useState('');
@@ -38,16 +39,19 @@ export default function TelaInicial({ onLoginSucesso, modoEsteticista = false })
 
         emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
       }
-        if (modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-        setErro('Este acesso é restrito à profissional. Use o link do paciente.');
-        setCarregando(false);
-        return;
-      }
-      if (!modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-        setErro('Profissional deve acessar em /admin.');
-        setCarregando(false);
-        return;
-      }
+    // ✅ No APK, não restringimos nada — deixa qualquer um logar
+const ehNativo = isNativo();
+
+if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
+  setErro('Acesso não autorizado.');
+  setCarregando(false);
+  return;
+}
+if (!ehNativo && !modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)) {
+  setErro('Link inválido para este usuário.');
+  setCarregando(false);
+  return;
+}
 
       await signInWithEmailAndPassword(auth, emailFicticio, senha);
       setCarregando(false);
