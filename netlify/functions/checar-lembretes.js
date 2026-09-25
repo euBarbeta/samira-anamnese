@@ -2,10 +2,7 @@
 const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
-const { getMessaging } = require('firebase-admin/messaging'); // ✅ API modular
-
-// ❌ SEM exports.config → agendador nativo DESATIVADO
-// ✅ Quem chama agora é o cron-job.org externo
+const { getMessaging } = require('firebase-admin/messaging');
 
 const MS = {
   segundos: 1000,
@@ -14,13 +11,19 @@ const MS = {
   dias: 24 * 60 * 60 * 1000,
 };
 
-// Cabeçalhos que liberam o cron externo
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/json',
 };
+
+// ✅ Quantas tentativas antes de desistir de um lembrete sem inscrição
+//    1440 = 24h com cron rodando a cada 1 minuto
+const MAX_TENTATIVAS = 1440;
+
+// ✅ Quantas falhas consecutivas de FCM antes de apagar o token
+const MAX_FALHAS_FCM = 3;
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -108,44 +111,57 @@ exports.handler = async (event) => {
     for (let i = 0; i < prontosParaEnviar.length; i++) {
       const doc = prontosParaEnviar[i];
       const data = doc.data();
+      const tentativas = (data.tentativas || 0) + 1;
 
       const subDoc = await db
         .collection('push_subscriptions')
         .doc(data.pacienteId)
         .get();
 
-      if (!subDoc.exists) {
-        await doc.ref.update({
-          enviado: true,
-          erro: 'sem inscrição',
-          enviadoEm: new Date().toISOString(),
-        });
+      const subData = subDoc.exists ? subDoc.data() : null;
+
+      // ============================================================
+      // ✅ 1. Sem inscrição — NÃO marca como enviado, apenas tentativas
+      // ============================================================
+      if (!subData || (!subData.fcmToken && !subData.subscription)) {
+        if (tentativas >= MAX_TENTATIVAS) {
+          await doc.ref.update({
+            enviado: true,
+            erro: 'desistiu após 24h sem inscrição',
+            enviadoEm: new Date().toISOString(),
+            tentativas,
+          });
+          resultados.push({ id: doc.id, ok: false, desistiu: true });
+        } else {
+          await doc.ref.update({
+            tentativas,
+            ultimaTentativa: new Date().toISOString(),
+            erro: 'sem inscrição — aguardando paciente registrar push',
+          });
+          resultados.push({ id: doc.id, ok: false, aguardando: true });
+        }
         continue;
       }
-
-      const subData = subDoc.data();
 
       const tagUnica = `lembrete-${data.pacienteId}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}`;
-
       const titulo = data.titulo || 'Lembrete';
       const corpo = 'Você tem um lembrete da Samira Estética';
 
       let envioOk = false;
       let erroMsg = null;
+      let fcmSucesso = false;
+      let webSucesso = false;
 
       // ============================================================
-      // ✅ 1. Envia via FCM (app nativo / APK)
+      // ✅ 2. Tenta FCM (APK)
       // ============================================================
       if (subData.fcmToken) {
         try {
           await getMessaging().send({
             token: subData.fcmToken,
-            notification: {
-              title: titulo,
-              body: corpo,
-            },
+            notification: { title: titulo, body: corpo },
             data: {
               lembreteId: String(doc.id),
               url: '/',
@@ -161,29 +177,36 @@ exports.handler = async (event) => {
             },
           });
           envioOk = true;
+          fcmSucesso = true;
         } catch (e) {
           erroMsg = e.message;
-          console.error('❌ Falha no envio FCM:', titulo, '-', e.message);
+          console.error('❌ Falha FCM:', titulo, '-', e.message);
 
-          // ✅ Se o token FCM for inválido, remove do Firestore
+          // ✅ Só remove o token após 3 falhas consecutivas
           const errosInvalidos = [
             'messaging/registration-token-not-registered',
             'messaging/invalid-registration-token',
             'messaging/invalid-argument',
           ];
           if (errosInvalidos.some((code) => e.message.includes(code))) {
-            console.log('🗑️ Removendo fcmToken inválido do paciente:', data.pacienteId);
-            await subDoc.ref.update({
-              fcmToken: null,
-              atualizadoEm: new Date().toISOString(),
-            });
+            const falhasFcm = (data.falhasFcm || 0) + 1;
+            if (falhasFcm >= MAX_FALHAS_FCM) {
+              console.log('🗑️ Removendo fcmToken inválido (3 falhas):', data.pacienteId);
+              await subDoc.ref.update({
+                fcmToken: null,
+                atualizadoEm: new Date().toISOString(),
+              });
+            } else {
+              await doc.ref.update({ falhasFcm });
+            }
           }
         }
       }
+
       // ============================================================
-      // ✅ 2. Envia via web-push (PWA no navegador)
+      // ✅ 3. Se FCM falhou (ou não existe), tenta web-push (PWA)
       // ============================================================
-      else if (subData.subscription) {
+      if (!envioOk && subData.subscription) {
         try {
           const payloadWeb = JSON.stringify({
             title: titulo,
@@ -194,14 +217,14 @@ exports.handler = async (event) => {
           });
           await webpush.sendNotification(subData.subscription, payloadWeb);
           envioOk = true;
+          webSucesso = true;
         } catch (e) {
           erroMsg = e.message;
-          console.error('❌ Falha no envio web-push:', titulo, '-', e.message);
+          console.error('❌ Falha web-push:', titulo, '-', e.message);
 
-          // ✅ Se a subscription expirou (410/404), remove do Firestore
           const statusCode = e.statusCode || 0;
           if (statusCode === 410 || statusCode === 404) {
-            console.log('🗑️ Removendo subscription expirada do paciente:', data.pacienteId);
+            console.log('🗑️ Removendo subscription expirada:', data.pacienteId);
             await subDoc.ref.update({
               subscription: null,
               atualizadoEm: new Date().toISOString(),
@@ -209,19 +232,24 @@ exports.handler = async (event) => {
           }
         }
       }
+
       // ============================================================
-      // ❌ 3. Sem inscrição (nem FCM nem web-push)
+      // ✅ 4. Nenhum canal funcionou — NÃO marca como enviado
       // ============================================================
-      else {
+      if (!envioOk) {
         await doc.ref.update({
-          enviado: true,
-          erro: 'sem inscrição',
-          enviadoEm: new Date().toISOString(),
+          tentativas,
+          ultimaTentativa: new Date().toISOString(),
+          erro: erroMsg || 'falha no envio (fcm + webpush)',
         });
+        resultados.push({ id: doc.id, ok: false, erro: erroMsg });
         continue;
       }
 
-      if (data.tipo === 'intervalo' && envioOk) {
+      // ============================================================
+      // ✅ 5. Sucesso — reagenda (se intervalo) ou marca como enviado
+      // ============================================================
+      if (data.tipo === 'intervalo') {
         const num = parseInt(data.intervaloNumero, 10) || 1;
         const unidade = data.intervaloUnidade || 'horas';
         const intervaloMs = num * (MS[unidade] || MS.horas);
@@ -235,18 +263,28 @@ exports.handler = async (event) => {
           sendAt: proximo,
           tag: novaTag,
           ultimoEnvio: new Date().toISOString(),
-          tentativas: (data.tentativas || 0) + 1,
+          tentativas,
+          erro: null,
         });
 
-        resultados.push({ id: doc.id, ok: true, reagendado: true });
+        resultados.push({
+          id: doc.id,
+          ok: true,
+          reagendado: true,
+          canal: fcmSucesso ? 'fcm' : 'webpush',
+        });
       } else {
         await doc.ref.update({
-          enviado: envioOk,
-          enviadoEm: envioOk ? new Date().toISOString() : null,
-          erro: erroMsg,
-          tentadoEm: new Date().toISOString(),
+          enviado: true,
+          enviadoEm: new Date().toISOString(),
+          erro: null,
+          tentativas,
         });
-        resultados.push({ id: doc.id, ok: envioOk });
+        resultados.push({
+          id: doc.id,
+          ok: true,
+          canal: fcmSucesso ? 'fcm' : 'webpush',
+        });
       }
 
       if (i < prontosParaEnviar.length - 1) {
@@ -261,7 +299,7 @@ exports.handler = async (event) => {
       headers: CORS_HEADERS,
       body: JSON.stringify({
         ok: true,
-        enviados: resultados.length,
+        enviados: resultados.filter(r => r.ok).length,
         restantes,
         resultados,
       }),

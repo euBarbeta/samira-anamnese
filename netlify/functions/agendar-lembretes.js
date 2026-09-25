@@ -2,6 +2,7 @@
 const webpush = require('web-push');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');
 
 const MS = {
   segundos: 1000,
@@ -40,7 +41,6 @@ exports.handler = async (event) => {
     }
 
     // ✅ PASSO 1: Apaga TODOS os lembretes pendentes desse paciente
-    // (evita que lembretes removidos continuem disparando)
     const pendentesAntigos = await db.collection('lembretes_pendentes')
       .where('pacienteId', '==', String(pacienteId))
       .where('enviado', '==', false)
@@ -53,7 +53,7 @@ exports.handler = async (event) => {
       console.log(`🗑️ ${pendentesAntigos.size} lembrete(s) antigo(s) removido(s)`);
     }
 
-    // ✅ PASSO 2: Cria os novos lembretes a partir da ficha atual
+    // ✅ PASSO 2: Cria os novos lembretes
     const resultados = [];
     const agora = Date.now();
 
@@ -64,7 +64,6 @@ exports.handler = async (event) => {
       if (lembrete.tipo === 'data_hora') {
         if (!lembrete.valor) continue;
 
-        // Ajuste de fuso: input "2026-09-16T14:30" é hora local (BRT = UTC-3)
         const partes = lembrete.valor.split(/[-T:]/);
         const [ano, mes, dia, hora, min] = partes.map(Number);
         sendAt = Date.UTC(ano, mes - 1, dia, hora + 3, min);
@@ -76,40 +75,93 @@ exports.handler = async (event) => {
 
       if (isNaN(sendAt)) continue;
 
-      // Envio imediato (dentro de 30s)
+      // ============================================================
+      // ✅ Envio IMEDIATO (dentro de 30s) — tenta FCM e/ou web-push
+      // ============================================================
       if (sendAt <= agora + 30000) {
         const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
+
         if (!subDoc.exists) {
-          resultados.push({ titulo: lembrete.titulo, tipo: 'imediato', ok: false, erro: 'sem inscrição' });
+          resultados.push({
+            titulo: lembrete.titulo,
+            tipo: 'imediato',
+            ok: false,
+            erro: 'sem inscrição — paciente precisa abrir o app',
+          });
           continue;
         }
 
-        const subscription = subDoc.data().subscription;
-     const payload = JSON.stringify({
-  title: lembrete.titulo,
-  body: 'Você tem um lembrete da Samira Estética',
-  tag: `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-  lembreteId: `imediato-${Date.now()}`
-});
+        const subData = subDoc.data();
+        const tagUnica = `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const corpo = 'Você tem um lembrete da Samira Estética';
 
-        try {
-          await webpush.sendNotification(subscription, payload);
-          resultados.push({ titulo: lembrete.titulo, tipo: 'imediato', ok: true });
-        } catch (e) {
-          resultados.push({ titulo: lembrete.titulo, tipo: 'imediato', ok: false, erro: e.message });
+        let envioOk = false;
+        let erroMsg = null;
+
+        // ✅ 1) Tenta FCM (APK)
+        if (subData.fcmToken) {
+          try {
+            await getMessaging().send({
+              token: subData.fcmToken,
+              notification: { title: lembrete.titulo, body: corpo },
+              data: {
+                lembreteId: `imediato-${Date.now()}`,
+                url: '/',
+                tag: tagUnica,
+              },
+              android: {
+                priority: 'high',
+                notification: {
+                  channelId: 'lembretes',
+                  sound: 'default',
+                  tag: tagUnica,
+                },
+              },
+            });
+            envioOk = true;
+          } catch (e) {
+            erroMsg = e.message;
+            console.error('❌ FCM imediato falhou:', e.message);
+          }
         }
+
+        // ✅ 2) Se FCM falhou (ou não existe), tenta web-push (PWA)
+        if (!envioOk && subData.subscription) {
+          try {
+            const payloadWeb = JSON.stringify({
+              title: lembrete.titulo,
+              body: corpo,
+              tag: tagUnica,
+              lembreteId: `imediato-${Date.now()}`,
+              url: '/',
+            });
+            await webpush.sendNotification(subData.subscription, payloadWeb);
+            envioOk = true;
+          } catch (e) {
+            erroMsg = e.message;
+            console.error('❌ Web-push imediato falhou:', e.message);
+          }
+        }
+
+        resultados.push({
+          titulo: lembrete.titulo,
+          tipo: 'imediato',
+          ok: envioOk,
+          erro: erroMsg,
+        });
       } else {
-        // Agendado
-       const docRef = await db.collection('lembretes_pendentes').add({
-  pacienteId: String(pacienteId),
-  titulo: lembrete.titulo,
-  sendAt,
-  tipo: lembrete.tipo,
-  intervaloNumero: lembrete.intervaloNumero || null,
-  intervaloUnidade: lembrete.intervaloUnidade || null,
-  enviado: false,
-  
-});
+        // ✅ Agendado → cria documento em lembretes_pendentes
+        const docRef = await db.collection('lembretes_pendentes').add({
+          pacienteId: String(pacienteId),
+          titulo: lembrete.titulo,
+          sendAt,
+          tipo: lembrete.tipo,
+          intervaloNumero: lembrete.intervaloNumero || null,
+          intervaloUnidade: lembrete.intervaloUnidade || null,
+          enviado: false,
+          tentativas: 0,
+          criadoEm: new Date().toISOString(),
+        });
         resultados.push({
           titulo: lembrete.titulo,
           tipo: 'agendado',

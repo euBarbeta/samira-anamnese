@@ -8,15 +8,36 @@ import { db } from './firebase';
  * Verifica se está rodando como app nativo (Capacitor/APK)
  */
 export function isNativo() {
-
- return Capacitor.isNativePlatform();
-
+  return Capacitor.isNativePlatform();
 }
+
+/* ============================================================
+   FLAGS GLOBAIS DE SESSÃO
+   - listenerRegistrado: evita recriar listeners a cada chamada
+   - pacienteIdAtual: detecta troca de paciente (logout/login)
+   ============================================================ */
+let listenerRegistrado = false;
+let pacienteIdAtual = null;
+
+/* ============================================================
+   PACIENTE — Registra push via FCM (APK)
+   ============================================================ */
 export async function inscreverPushNativo(pacienteId) {
   if (!isNativo()) {
     console.warn('⚠️ Não está rodando em plataforma nativa');
     return null;
   }
+
+  const pacienteIdStr = String(pacienteId);
+
+  // ✅ Detalhe sutil: se o paciente MUDOU (logout/login com outro usuário),
+  //    força um re-registro dos listeners, pois o closure antigo aponta
+  //    para o paciente errado.
+  if (pacienteIdAtual && pacienteIdAtual !== pacienteIdStr) {
+    console.log('🔄 Paciente mudou — forçando re-registro de listeners');
+    listenerRegistrado = false;
+  }
+  pacienteIdAtual = pacienteIdStr;
 
   try {
     // 1. Pede permissão
@@ -31,56 +52,71 @@ export async function inscreverPushNativo(pacienteId) {
       return null;
     }
 
-    // 2. Registra listeners (só uma vez)
-    await PushNotifications.removeAllListeners();
+    // 2. Registra listeners — SOMENTE UMA VEZ por sessão
+    //    (evita race condition: removeAllListeners + addListener concorrentes)
+    if (!listenerRegistrado) {
+      await PushNotifications.removeAllListeners();
 
-    PushNotifications.addListener('registration', async (token) => {
-      console.log('✅ Token FCM recebido:', token.value);
+      await PushNotifications.addListener('registration', async (token) => {
+        console.log('✅ Token FCM recebido:', token.value);
 
-      // Salva no Firestore associado ao paciente
-      try {
-        await setDoc(
-          doc(db, 'push_subscriptions', String(pacienteId)),
-          {
-            pacienteId: String(pacienteId),
-            fcmToken: token.value,
-            plataforma: 'native',
-            atualizadoEm: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-      } catch (e) {
-        console.error('❌ Erro ao salvar token FCM:', e);
-      }
-    });
+        try {
+          await setDoc(
+            doc(db, 'push_subscriptions', pacienteIdStr),
+            {
+              pacienteId: pacienteIdStr,
+              fcmToken: token.value,
+              plataforma: 'native',
+              atualizadoEm: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.error('❌ Erro ao salvar token FCM:', e);
+        }
+      });
 
-    PushNotifications.addListener('registrationError', (error) => {
-      console.error('❌ Erro no registro do push:', error);
-    });
+      await PushNotifications.addListener('registrationError', (error) => {
+        console.error('❌ Erro no registro do push:', error);
+      });
 
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('📬 Notificação recebida (app aberto):', notification);
-    });
+      await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('📬 Notificação recebida (app aberto):', notification);
+      });
 
-    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      console.log('👆 Notificação clicada:', action);
-      // Ação opcional: navegar para determinada tela
-    });
+      await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        console.log('👆 Notificação clicada:', action);
+      });
 
-    // 3. Registra
+      listenerRegistrado = true;
+    }
+
+    // 3. Solicita/atualiza token
     await PushNotifications.register();
-
     return true;
   } catch (err) {
     console.error('❌ Erro ao inscrever push nativo:', err);
     return null;
   }
 }
-/**
- * Registra push da ESTETICISTA (salva em coleção separada)
- */
+
+/* ============================================================
+   ESTETICISTA — Registra push via FCM (coleção separada)
+   ============================================================ */
+let listenerRegistradoEsteticista = false;
+let uidEsteticistaAtual = null;
+
 export async function inscreverPushEsteticista(uidEsteticista) {
   if (!isNativo()) return null;
+
+  const uidStr = String(uidEsteticista);
+
+  // ✅ Mesmo detalhe sutil para a esteticista
+  if (uidEsteticistaAtual && uidEsteticistaAtual !== uidStr) {
+    console.log('🔄 Esteticista mudou — forçando re-registro de listeners');
+    listenerRegistradoEsteticista = false;
+  }
+  uidEsteticistaAtual = uidStr;
 
   try {
     let permStatus = await PushNotifications.checkPermissions();
@@ -92,28 +128,34 @@ export async function inscreverPushEsteticista(uidEsteticista) {
       return null;
     }
 
-    await PushNotifications.removeAllListeners();
+    if (!listenerRegistradoEsteticista) {
+      await PushNotifications.removeAllListeners();
 
-    PushNotifications.addListener('registration', async (token) => {
-      console.log('✅ Token FCM esteticista:', token.value);
-      try {
-        await setDoc(
-          doc(db, 'push_subscriptions_esteticistas', String(uidEsteticista)),
-          {
-            uidEsteticista: String(uidEsteticista),
-            fcmToken: token.value,
-            atualizadoEm: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-      } catch (e) {
-        console.error('❌ Erro ao salvar token esteticista:', e);
-      }
-    });
+      await PushNotifications.addListener('registration', async (token) => {
+        console.log('✅ Token FCM esteticista:', token.value);
 
-    PushNotifications.addListener('registrationError', (err) => {
-      console.error('❌ Erro no registro (esteticista):', err);
-    });
+        try {
+          await setDoc(
+            doc(db, 'push_subscriptions_esteticistas', uidStr),
+            {
+              uidEsteticista: uidStr,
+              fcmToken: token.value,
+              plataforma: 'native',
+              atualizadoEm: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.error('❌ Erro ao salvar token esteticista:', e);
+        }
+      });
+
+      await PushNotifications.addListener('registrationError', (err) => {
+        console.error('❌ Erro no registro (esteticista):', err);
+      });
+
+      listenerRegistradoEsteticista = true;
+    }
 
     await PushNotifications.register();
     return true;
