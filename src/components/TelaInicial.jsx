@@ -39,12 +39,12 @@ export default function TelaInicial({ onLoginSucesso, modoEsteticista = false })
         emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
       }
         if (modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-        setErro('Este acesso é restrito à profissional. Use o link do paciente.');
+        setErro('Acesso não autorizado.');
         setCarregando(false);
         return;
       }
       if (!modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-        setErro('Profissional deve acessar em /admin.');
+        setErro('Link inválido para este usuário.');
         setCarregando(false);
         return;
       }
