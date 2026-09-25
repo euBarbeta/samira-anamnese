@@ -1,6 +1,7 @@
 // src/components/LinkAcessoPaciente.jsx
 import React, { useState } from 'react';
 import { MdContentCopy, MdCheck, MdLink } from 'react-icons/md';
+import { FaWhatsapp } from 'react-icons/fa';
 
 /**
  * Link de acesso do paciente ao prontuário.
@@ -110,24 +111,25 @@ export default function LinkAcessoPaciente({ pacienteId, compacto = false }) {
           {copiado ? <MdCheck size={10} /> : <MdContentCopy size={10} />}
         </button>
 
-        <button
-          type="button"
-          onClick={abrirWhatsApp}
-          title="Enviar por WhatsApp"
-          style={{
-            background: '#25D366',
-            color: '#fff',
-            border: 'none',
-            padding: '3px 6px',
-            borderRadius: 4,
-            fontSize: 8,
-            fontWeight: 700,
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
-        >
-          WA
-        </button>
+       <button
+  type="button"
+  onClick={abrirWhatsApp}
+  title="Enviar por WhatsApp"
+  style={{
+    background: '#25D366',
+    color: '#fff',
+    border: 'none',
+    padding: '3px 5px',
+    borderRadius: 4,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  }}
+>
+  <FaWhatsapp size={13} />
+</button>
       </div>
     );
   }
@@ -192,23 +194,27 @@ export default function LinkAcessoPaciente({ pacienteId, compacto = false }) {
       </button>
 
       <button
-        type="button"
-        onClick={abrirWhatsApp}
-        title="Enviar via WhatsApp"
-        style={{
-          background: '#25D366',
-          color: '#fff',
-          border: 'none',
-          padding: '6px 10px',
-          borderRadius: 8,
-          fontSize: 10,
-          fontWeight: 700,
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        WhatsApp
-      </button>
+  type="button"
+  onClick={abrirWhatsApp}
+  title="Enviar via WhatsApp"
+  style={{
+    background: '#25D366',
+    color: '#fff',
+    border: 'none',
+    padding: '6px 10px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 11,
+    fontWeight: 700,
+    flexShrink: 0,
+  }}
+>
+  <FaWhatsapp size={14} />
+  WhatsApp
+</button>
     </div>
   );
 }

@@ -776,72 +776,74 @@ export default function PainelEsteticista({ onLogout }) {
           {telaAtual === 'lista' && (
             <div>
               <div style={{
-                background: 'rgba(255, 255, 255, 0.92)',
-                borderRadius: '16px',
-                border: '1px solid #e2d2f5',
-                padding: '20px 30px',
-                marginBottom: '20px',
-                boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
-                backdropFilter: 'blur(5px)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '15px'
-              }}>
-                <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
-                  Pastas de Pacientes
-                </h2>
-             <button
-  type="button"
-  onClick={() => navegarPara('criar_anamnese')}
-  className="btn-efeito-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-    color: '#fff',
-    border: 'none',
-    padding: '12px 24px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
-  }}
->
-  <MdAssignment size={16} />
-  Ficha de anamnese
-</button>
-                
+  background: 'rgba(255, 255, 255, 0.92)',
+  borderRadius: '16px',
+  border: '1px solid #e2d2f5',
+  padding: '20px 30px',
+  marginBottom: '20px',
+  boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+  backdropFilter: 'blur(5px)',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '15px'
+}}>
+  <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
+    Pastas de Pacientes
+  </h2>
 
- <button
-  type="button"
-  onClick={() => navegarPara('agendamentos')}
-  className="btn-efeito-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-    color: '#fff',
-    border: 'none',
-    padding: '12px 24px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-  }}
->
-  <MdCalendarMonth size={16} />
-  Agendamentos
-</button>
+  {/* ✅ Container único com os 2 botões juntos */}
+  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+    <button
+      type="button"
+      onClick={() => navegarPara('criar_anamnese')}
+      className="btn-efeito-hover"
+      style={{
+        fontFamily: "'Cinzel', serif",
+        background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+        color: '#fff',
+        border: 'none',
+        padding: '12px 24px',
+        borderRadius: '25px',
+        fontSize: '13px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
+      }}
+    >
+      <MdAssignment size={16} />
+      Ficha de anamnese
+    </button>
 
-              </div>
+    <button
+      type="button"
+      onClick={() => navegarPara('agendamentos')}
+      className="btn-efeito-hover"
+      style={{
+        fontFamily: "'Cinzel', serif",
+        background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+        color: '#fff',
+        border: 'none',
+        padding: '12px 24px',
+        borderRadius: '25px',
+        fontSize: '13px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+      }}
+    >
+      <MdCalendarMonth size={16} />
+      Agendamentos
+    </button>
+  </div>
+</div>
 
               {pacientes.length > 0 && (
                 <div style={{
