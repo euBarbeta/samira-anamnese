@@ -218,24 +218,35 @@ export default function PainelEsteticistaMobile({ onLogout }) {
         return;
       }
 
-      try {
-        const querySnapshot = await getDocs(
-          collection(db, `usuarios/${user.uid}/pacientes`)
-        );
-        const listaPacientes = [];
-        querySnapshot.forEach((docSnap) => {
-          listaPacientes.push(docSnap.data());
-        });
-        listaPacientes.sort((a, b) =>
-          (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
-        );
-        setPacientes(listaPacientes);
-      } catch (e) {
-        console.error('Erro ao carregar fichas do Firestore:', e);
-      } finally {
-        setCarregandoNuvem(false);
-        setJaCarregou(true);      // ✅ SÓ AQUI decide entre vazio e lista
-      }
+     try {
+  const querySnapshot = await getDocs(
+    collection(db, `usuarios/${user.uid}/pacientes`)
+  );
+  const listaPacientes = [];
+  querySnapshot.forEach((docSnap) => {
+    listaPacientes.push(docSnap.data());
+  });
+  listaPacientes.sort((a, b) =>
+    (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+  );
+  setPacientes(listaPacientes);
+
+  // ✅ BACKFILL — registra em links_pacientes os que ainda não têm.
+  // Roda em background, silencioso, não trava a UI nem o loading.
+  // Idempotente: pode rodar toda vez sem problema.
+  Promise.allSettled(
+    listaPacientes.map((p) =>
+      registrarLinkPaciente(p.id, user.uid).catch(() => {})
+    )
+  ).then(() => {
+    console.log('✅ Links de pacientes sincronizados:', listaPacientes.length);
+  });
+} catch (e) {
+  console.error('Erro ao carregar fichas do Firestore:', e);
+} finally {
+  setCarregandoNuvem(false);
+  setJaCarregou(true);      // ✅ SÓ AQUI decide entre vazio e lista
+}
     };
 
     unsubAuth = onAuthStateChanged(auth, carregarPacientes);
