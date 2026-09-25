@@ -936,8 +936,8 @@ export default function PainelEsteticista({ onLogout }) {
         </h3>
         <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
           Doc: {pac.documento || 'Não informado'}
-          <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
-        </div>
+         </div>
+         <LinkAcessoPaciente pacienteId={pac.id} compacto />
         <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
           <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
           <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>

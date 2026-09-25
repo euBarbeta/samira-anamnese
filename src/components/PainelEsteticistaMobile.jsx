@@ -995,8 +995,8 @@ if (!jaCarregou) {
                           </h3>
                         <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
                           Doc: {pac.documento || 'Não informado'}
-                          <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
-                        </div>
+                          </div>
+                          <LinkAcessoPaciente pacienteId={pac.id} compacto />
                       
                       </div>
 
