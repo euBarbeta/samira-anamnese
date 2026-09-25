@@ -247,11 +247,37 @@ useEffect(() => {
       ultimoUidRef.current = user.uid;
 
       // 🚀 Restaura INSTANTÂNEO se tínhamos sessão
-      if (tinhaSessao && !restaurandoRef.current) {
-        restaurandoRef.current = true;
+   if (tinhaSessao && !restaurandoRef.current) {
+  restaurandoRef.current = true;
 
-        setUsuarioLogado(user);
-        setAutenticado(true);
+  // ✅ Se veio por LINK de paciente e o usuário logado não é ele → força login
+  if (uidDaURL) {
+    const emailLogado = user.email ? user.email.toLowerCase().trim() : '';
+    const ehEsteticistaLogada =
+      EMAILS_ESTETICISTAS.includes(emailLogado) ||
+      !emailLogado.endsWith('@sistema.local');
+
+    const ehMesmoPaciente = String(user.uid) === String(uidDaURL);
+
+    if (ehEsteticistaLogada || !ehMesmoPaciente) {
+      // Força logout e mostra tela de login
+      emLogoutRef.current = true;
+      try { await signOut(auth); } catch {}
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setDadosPaciente(null);
+      setPacienteDocPath(null);
+      setAbaAtiva('telainicial');
+      setRota('login-uid');
+      setAuthVerificado(true);
+      setTimeout(() => { emLogoutRef.current = false; }, 500);
+      return;
+    }
+  }
+
+  setUsuarioLogado(user);
+  setAutenticado(true);
+  // ...resto do código continua igual
 
         // Restaura dados do paciente (se houver)
         if (dadosSalvos) setDadosPaciente(dadosSalvos);
@@ -531,14 +557,23 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   // ============================================================
   // LOGOUT
   // ============================================================
-  const handleLogout = async () => {
+ const handleLogout = async () => {
+  // ✅ Guarda contexto ANTES de limpar
+  const eraEsteticista =
+    usuarioLogado?.email &&
+    (EMAILS_ESTETICISTAS.includes(usuarioLogado.email.toLowerCase().trim()) ||
+      !usuarioLogado.email.toLowerCase().trim().endsWith('@sistema.local'));
+
+  const uidPacienteAtual = uidDaURL || dadosPaciente?.id;
+
   try {
     await signOut(auth);
   } catch (e) {
     console.error('Erro ao sair:', e);
   }
-   if (isNativo()) {
-    await Preferences.remove({ key: 'pacienteId' });
+
+  if (isNativo()) {
+    try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
   }
 
   processandoLoginRef.current = false;
@@ -547,10 +582,6 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   setDadosPaciente(null);
   setPacienteDocPath(null);
   setFichaSelecionada(null);
-
-  // ✅ Respeita a rota atual
-  const estavaEmAdmin = window.location.pathname.startsWith('/admin');
-  const hashAtual = window.location.hash.slice(1);
 
   window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
 
@@ -565,15 +596,20 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
 
   setAbaAtiva('telainicial');
 
-  // ✅ Redefine rota conforme contexto
-  if (estavaEmAdmin) {
+  // ============================================================
+  // ✅ Decide pra onde ir com base em QUEM estava logado
+  // ============================================================
+  if (eraEsteticista) {
+    // Esteticista → volta pra tela de login do /admin
     setRota('admin');
     setModoAdmin(true);
-  } else if (hashAtual) {
+  } else if (uidPacienteAtual) {
+    // Paciente → volta pra tela de login do paciente (com o UID dele)
+    setUidDaURL(uidPacienteAtual);
     setRota('login-uid');
-    setUidDaURL(hashAtual);
   } else {
-    setRota('agendamento');
+    // Sem contexto (nativo recém-instalado ou web) → tela de login do paciente
+    setRota(isNativo() ? 'login-uid' : 'agendamento');
   }
 
   setTimeout(() => {
