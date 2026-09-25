@@ -31,6 +31,7 @@ export default function AnamneseFicha() {
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [rota, setRota] = useState('verificando');
 const [uidDaURL, setUidDaURL] = useState(null);
+const uidDaURLRef = useRef(null);    
 useEffect(() => { uidDaURLRef.current = uidDaURL; }, [uidDaURL]);
 const [modoAdmin, setModoAdmin] = useState(false);
 const [buscandoPaciente, setBuscandoPaciente] = useState(false);
