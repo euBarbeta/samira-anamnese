@@ -342,105 +342,137 @@ useEffect(() => {
   // ============================================================
   // LOGIN
   // ============================================================
-  const handleLoginSucesso = async (user, opcoes = {}) => {
-    const { veioDeRefresh = false } = opcoes;
-    if (!user || !user.uid) return;
-     setRota('autenticado');
+const handleLoginSucesso = async (user, opcoes = {}) => {
+  const { veioDeRefresh = false } = opcoes;
+  if (!user || !user.uid) return;
 
-    setUsuarioLogado(user);
-    const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
+  setRota('autenticado');
+  setUsuarioLogado(user);
+  const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
 
-    // ✅ 1. ESTETICISTA
-    if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
-      window.history.replaceState({ abaAtiva: 'painel' }, '', window.location.pathname);
-      setAbaAtiva('painel');
-      setAutenticado(true);
+  // ============================================================
+  // ✅ 1. ESTETICISTA
+  // ============================================================
+  if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
+
+    // 🆕 BLOQUEIO: veio de link de paciente → nega
+    if (uidDaURL) {
+      alert('Acesso restrito ao paciente. Use /admin para acessar o painel.');
+      await signOut(auth);
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setUidDaURL(null);
+      setRota('nao-encontrado');
       return;
     }
 
-    // ✅ 2. PACIENTE
-    setBuscandoPaciente(true);
+    window.history.replaceState({ abaAtiva: 'painel' }, '', window.location.pathname);
+    setAbaAtiva('painel');
+    setAutenticado(true);
+    return;
+  }
 
-    try {
-      let pacienteEncontrado = null;
-      const mapRef = doc(db, "mapeamento_emails", emailUsuario);
-      const mapSnap = await getDoc(mapRef);
+  // ============================================================
+  // ✅ 2. PACIENTE
+  // ============================================================
+  setBuscandoPaciente(true);
 
-      if (mapSnap.exists()) {
-        const { profissionalUid, pacienteId } = mapSnap.data();
-        const pacienteRef = doc(db, "usuarios", profissionalUid, "pacientes", pacienteId);
-        const pacienteSnap = await getDoc(pacienteRef);
-        if (pacienteSnap.exists()) {
-          pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
+  try {
+    let pacienteEncontrado = null;
+    const mapRef = doc(db, 'mapeamento_emails', emailUsuario);
+    const mapSnap = await getDoc(mapRef);
+
+    if (mapSnap.exists()) {
+      const { profissionalUid, pacienteId } = mapSnap.data();
+      const pacienteRef = doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId);
+      const pacienteSnap = await getDoc(pacienteRef);
+      if (pacienteSnap.exists()) {
+        pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
+      }
+    }
+
+    if (!pacienteEncontrado) {
+      const esteticistasUids = [
+        'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
+        'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
+        'MZ5j3NpjlxY67yLRiEfg13TbPE32',
+      ];
+
+      for (const estUid of esteticistasUids) {
+        const pacientesRef = collection(db, 'usuarios', estUid, 'pacientes');
+        let q = query(pacientesRef, where('emailAcesso', '==', emailUsuario));
+        let querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          const pacienteRefAlt = doc(db, 'usuarios', estUid, 'pacientes', user.uid);
+          const altSnap = await getDoc(pacienteRefAlt);
+          if (altSnap.exists()) {
+            pacienteEncontrado = { id: altSnap.id, ...altSnap.data() };
+          }
+        } else {
+          const docMatch = querySnapshot.docs[0];
+          pacienteEncontrado = { id: docMatch.id, ...docMatch.data() };
+        }
+
+        if (pacienteEncontrado) {
+          await setDoc(mapRef, {
+            profissionalUid: estUid,
+            pacienteId: pacienteEncontrado.id,
+            atualizadoEm: new Date(),
+          }, { merge: true });
+          break;
         }
       }
+    }
 
-      if (!pacienteEncontrado) {
-        const esteticistasUids = [
-          "ZvzIxDhsh7WMZqvG5hcFSOy9I2",
-          "ZvzIxDhsh7WMZqvG5hcFQS0yd9I2",
-          "MZ5j3NpjlxY67yLRiEfg13TbPE32"
-        ];
+    // ============================================================
+    // ✅ AQUI É O PONTO QUE VOCÊ PERGUNTOU
+    // ============================================================
+    if (pacienteEncontrado) {
 
-        for (const estUid of esteticistasUids) {
-          const pacientesRef = collection(db, "usuarios", estUid, "pacientes");
-          let q = query(pacientesRef, where("emailAcesso", "==", emailUsuario));
-          let querySnapshot = await getDocs(q);
-
-          if (querySnapshot.empty) {
-            const pacienteRefAlt = doc(db, "usuarios", estUid, "pacientes", user.uid);
-            const altSnap = await getDoc(pacienteRefAlt);
-            if (altSnap.exists()) {
-              pacienteEncontrado = { id: altSnap.id, ...altSnap.data() };
-            }
-          } else {
-            const docMatch = querySnapshot.docs[0];
-            pacienteEncontrado = { id: docMatch.id, ...docMatch.data() };
-          }
-
-          if (pacienteEncontrado) {
-            await setDoc(mapRef, {
-              profissionalUid: estUid,
-              pacienteId: pacienteEncontrado.id,
-              atualizadoEm: new Date()
-            }, { merge: true });
-            break;
-          }
-        }
-      }
-
-      if (pacienteEncontrado) {
-        setDadosPaciente(pacienteEncontrado);
-
-        const mapRef2 = doc(db, "mapeamento_emails", emailUsuario);
-        const mapSnap2 = await getDoc(mapRef2);
-        if (mapSnap2.exists()) {
-          const { profissionalUid, pacienteId } = mapSnap2.data();
-          setPacienteDocPath(doc(db, "usuarios", profissionalUid, "pacientes", pacienteId));
-        }
-
-        window.history.replaceState({ abaAtiva: 'painelPaciente' }, '', window.location.pathname);
-        setAbaAtiva('painelPaciente');
-        setAutenticado(true);
-      } else {
-        alert("Sua ficha de paciente não foi encontrada nas pastas do sistema.");
+      // 🆕 BLOQUEIO: link não corresponde ao paciente logado
+      if (uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
+        alert('Este link não pertence à sua conta. Peça o link correto à profissional.');
         await signOut(auth);
         setAutenticado(false);
         setUsuarioLogado(null);
-        setAbaAtiva('telainicial');
+        setDadosPaciente(null);
+        setUidDaURL(null);
+        setRota('nao-encontrado');
+        return;
       }
-    } catch (error) {
-      console.error("Erro ao carregar pasta do paciente:", error);
-      alert("Erro ao acessar ficha do paciente.");
+
+      // ✅ Passou nas validações → segue normal
+      setDadosPaciente(pacienteEncontrado);
+
+      const mapRef2 = doc(db, 'mapeamento_emails', emailUsuario);
+      const mapSnap2 = await getDoc(mapRef2);
+      if (mapSnap2.exists()) {
+        const { profissionalUid, pacienteId } = mapSnap2.data();
+        setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
+      }
+
+      window.history.replaceState({ abaAtiva: 'painelPaciente' }, '', window.location.pathname);
+      setAbaAtiva('painelPaciente');
+      setAutenticado(true);
+    } else {
+      alert('Sua ficha de paciente não foi encontrada nas pastas do sistema.');
       await signOut(auth);
       setAutenticado(false);
       setUsuarioLogado(null);
       setAbaAtiva('telainicial');
-    } finally {
-      setBuscandoPaciente(false);
     }
-  };
-
+  } catch (error) {
+    console.error('Erro ao carregar pasta do paciente:', error);
+    alert('Erro ao acessar ficha do paciente.');
+    await signOut(auth);
+    setAutenticado(false);
+    setUsuarioLogado(null);
+    setAbaAtiva('telainicial');
+  } finally {
+    setBuscandoPaciente(false);
+  }
+};
   // ============================================================
   // LOGOUT
   // ============================================================

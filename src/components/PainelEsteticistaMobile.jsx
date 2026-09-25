@@ -274,7 +274,24 @@ export default function PainelEsteticistaMobile({ onLogout }) {
       console.error('Erro ao salvar paciente na nuvem:', e);
     }
   };
+const excluirPacienteDaNuvem = async (idPaciente) => {
+  const user = auth.currentUser;
+  if (!user) return;
 
+  try {
+    // 1. Apaga o doc do paciente
+    await deleteDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(idPaciente)));
+
+    // 2. ✅ Invalida o link (apaga o links_pacientes)
+    try {
+      await deleteDoc(doc(db, 'links_pacientes', String(idPaciente)));
+    } catch (e) {
+      console.warn('Falha ao apagar links_pacientes:', e);
+    }
+  } catch (e) {
+    console.error('Erro ao excluir paciente da nuvem:', e);
+  }
+};
   const handleSalvarAnamnese = async (dadosAnamnese) => {
     // 1. Garante que pegamos o usuário esteticista logado corretamente do Auth principal
     const userEsteticista = auth.currentUser;

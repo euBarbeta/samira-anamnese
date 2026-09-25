@@ -253,16 +253,24 @@ export default function PainelEsteticista({ onLogout }) {
   }, [db, auth]);
   
   // Função auxiliar para excluir um paciente do Firestore
-  const excluirPacienteDaNuvem = async (idPaciente) => {
-    const user = auth.currentUser;
-    if (!user) return;
+ const excluirPacienteDaNuvem = async (idPaciente) => {
+  const user = auth.currentUser;
+  if (!user) return;
 
+  try {
+    // 1. Apaga o doc do paciente
+    await deleteDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(idPaciente)));
+
+    // 2. ✅ Invalida o link (apaga o links_pacientes)
     try {
-      await deleteDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(idPaciente)));
+      await deleteDoc(doc(db, 'links_pacientes', String(idPaciente)));
     } catch (e) {
-      console.error('Erro ao excluir paciente da nuvem:', e);
+      console.warn('Falha ao apagar links_pacientes:', e);
     }
-  };
+  } catch (e) {
+    console.error('Erro ao excluir paciente da nuvem:', e);
+  }
+};
 
   const extrairDocumento = (dados) => {
     if (!dados) return 'Não informado';

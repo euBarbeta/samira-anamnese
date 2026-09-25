@@ -77,6 +77,12 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
           console.warn('Erro ao excluir doc do paciente:', e);
           throw e;
         }
+        // ✅ Invalida o link do paciente
+try {
+  await deleteDoc(doc(db, 'links_pacientes', String(pacienteId)));
+} catch (e) {
+  console.warn('Erro ao apagar links_pacientes:', e);
+}
 
         // 4) Apaga o mapeamento de e-mail
         try {
