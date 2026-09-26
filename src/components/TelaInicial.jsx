@@ -5,7 +5,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './firebase';
 import { EMAILS_ESTETICISTAS } from './constantes';
 import { isNativo } from './push-notifications-native';
-import React, { useState, useEffect } from 'react';
+
 
 export default function TelaInicial({
   onLoginSucesso,
