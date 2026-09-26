@@ -36,15 +36,13 @@ export default function AnamneseFicha() {
   const [rota, setRota] = useState('verificando');
 
   // ✅ Lê o #id também do localStorage (sobrevive ao kill do WebView)
-  const [uidDaURL, setUidDaURL] = useState(() => {
-    const salvo = lerSessao('af_uidDaURL');
-    if (salvo) return salvo;
-    try {
-      const h = window.location.hash.slice(1);
-      const hashEhUID = h && h !== 'agendar' && !h.startsWith('agendar/');
-      return hashEhUID ? h : null;
-    } catch { return null; }
-  });
+const [uidDaURL, setUidDaURL] = useState(() => {
+  try {
+    const h = window.location.hash.slice(1);
+    const hashEhUID = h && h !== 'agendar' && !h.startsWith('agendar/');
+    return hashEhUID ? h : null;
+  } catch { return null; }
+});
   const uidDaURLRef = useRef(null);
   useEffect(() => { uidDaURLRef.current = uidDaURL; }, [uidDaURL]);
 
@@ -112,28 +110,7 @@ export default function AnamneseFicha() {
   }, []);
   // ✅ Rede de segurança: garante que a URL do PACIENTE sempre tenha #id
 //    (não mexe na URL do esteticista nem na tela de agendamento)
-useEffect(() => {
-  if (!autenticado || !usuarioLogado) return;
 
-  const email = (usuarioLogado.email || '').toLowerCase().trim();
-  const ehPaciente =
-    email.endsWith('@sistema.local') &&
-    !EMAILS_ESTETICISTAS.includes(email);
-
-  if (!ehPaciente) return;
-
-  const id = dadosPaciente?.id;
-  if (!id) return;
-
-  const hashAtual = window.location.hash.slice(1);
-  if (hashAtual === String(id)) return; // já está correto, não faz nada
-
-  window.history.replaceState(
-    window.history.state,
-    '',
-    `${window.location.pathname}#${id}`
-  );
-}, [autenticado, usuarioLogado, dadosPaciente]);
 useEffect(() => {
   try {
     // ✅ NÃO persiste enquanto o auth ainda não foi verificado.
@@ -160,14 +137,8 @@ useEffect(() => {
 
     // ✅ Persiste (ou limpa) o uidDaURL — para o paciente continuar
     //    vinculado ao link mesmo depois de fechar/reabrir o WebView.
-    if (uidDaURL) {
-      salvar('af_uidDaURL', String(uidDaURL));
-    } else {
-      sessionStorage.removeItem('af_uidDaURL');
-      localStorage.removeItem('af_uidDaURL');
-    }
-  } catch {}
-}, [abaAtiva, authVerificado, autenticado, dadosPaciente, uidDaURL]);
+     } catch {}
+}, [abaAtiva, authVerificado, autenticado, dadosPaciente]);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -227,31 +198,11 @@ useEffect(() => {
     return;
   }
   // Sem hash → agendamento (SÓ se não tiver sessão salva)
-   // Sem hash → tenta restaurar do que ficou salvo, senão vai pro agendamento
+   // Sem hash → agendamento SEMPRE (URL é a fonte da verdade)
   if (!hash) {
-    // ✅ Se o paciente já tinha entrado por um link (#id), mantém na tela de
-    //    login dele mesmo que o hash tenha se perdido (PWA abrindo em "/",
-    //    iOS limpando o hash, bookmark sem fragment, etc.)
-    const uidSalvo = lerSessao('af_uidDaURL');
-    if (uidSalvo) {
-      setUidDaURL(uidSalvo);
-      uidDaURLRef.current = uidSalvo;
-      setRota('login-uid');
-
-      // Restaura o hash na URL pra ficar consistente com o link original
-      window.history.replaceState(
-        window.history.state,
-        '',
-        `${window.location.pathname}#${uidSalvo}`
-      );
-      return;
-    }
-
-    // Sem nada salvo → agendamento
-    if (!temSessaoSalva) setRota('agendamento');
+    setRota('agendamento');
     return;
   }
-
   // #agendar/xxx
   if (hash.startsWith('agendar/')) {
     setUidDaURL(hash.replace('agendar/', ''));
@@ -504,30 +455,22 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   // ============================================================
   // ✅ 1. ESTETICISTA
   // ============================================================
-if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
-  // ✅ Esteticista entra por QUALQUER link (#uid-paciente, /admin ou /).
-  //    Ignora o uidDaURL, limpa o hash e vai pro painel dela.
+  if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
+    // ✅ Esteticista: sempre /admin, ignora qualquer #id que esteja na URL
+    setUidDaURL(null);
+    setModoAdmin(true);
+    setRota('admin');
 
-  // Limpa o uidDaURL do paciente (estado + storage)
-  setUidDaURL(null);
-  try {
-    sessionStorage.removeItem('af_uidDaURL');
-    localStorage.removeItem('af_uidDaURL');
-  } catch {}
+    window.history.replaceState(
+      { abaAtiva: 'painel' },
+      '',
+      '/admin'
+    );
 
-  // Remove o #uid da URL, deixando apenas o pathname
-  window.history.replaceState(
-    { abaAtiva: 'painel' },
-    '',
-    window.location.pathname
-  );
-
-  setModoAdmin(false);
-  setAbaAtiva('painel');
-  setAutenticado(true);
-  return;
-}
-
+    setAbaAtiva('painel');
+    setAutenticado(true);
+    return;
+  }
   // ============================================================
   // ✅ 2. PACIENTE
   // ============================================================
@@ -831,22 +774,26 @@ if (eraEsteticista) {
   // ============================================================
   
 const renderizarConteudo = () => {
+// ✅ URL É A FONTE DA VERDADE (SÓ no navegador)
+//    - no APK, o state (autenticado/abaAtiva) decide
+const hashAtual = window.location.hash.slice(1);
+const pathAtual = window.location.pathname;
+const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
 
+if (!isNativo() && !hashAtual && !ehAdminUrl) {
+  return (
+    <TelaAgendamentoPublico
+      uidEsteticista={UID_ESTETICISTA_PADRAO}
+      origem="raiz"
+    />
+  );
+}
   // 1. Rotas públicas — só aparecem se NÃO estiver autenticado
   if (!autenticado) {
-    if (rota === 'agendamento') {
-      return (
-        <TelaAgendamentoPublico
-          uidEsteticista={uidDaURL || UID_ESTETICISTA_PADRAO}
-          origem="raiz"
-        />
-      );
-    }
     if (rota === 'nao-encontrado') {
       return <PaginaNaoEncontrada />;
     }
   }
-
   // 2. Enquanto Firebase ainda verifica → LOADING (evita flash de login/agendamento)
   if (!authVerificado) {
     return (
