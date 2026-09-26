@@ -332,29 +332,50 @@ useEffect(() => {
   // ✅ Usa o REF (sempre atual) em vez do state (congelado no closure)
   const uidAtual = uidDaURLRef.current;
 
-  if (uidAtual) {
-    const emailLogado = user.email ? user.email.toLowerCase().trim() : '';
-    const ehEsteticistaLogada =
-      EMAILS_ESTETICISTAS.includes(emailLogado) ||
-      !emailLogado.endsWith('@sistema.local');
+// ✅ ESTETICISTA logada → ignora uidDaURL, vai pro painel dela
+const emailLogado = user.email ? user.email.toLowerCase().trim() : '';
+const ehEsteticistaLogada =
+  EMAILS_ESTETICISTAS.includes(emailLogado) ||
+  !emailLogado.endsWith('@sistema.local');
 
-    const ehMesmoPaciente = String(user.uid) === String(uidAtual);
+if (ehEsteticistaLogada) {
+  // Limpa resquício de paciente
+  setUidDaURL(null);
+  try {
+    sessionStorage.removeItem('af_uidDaURL');
+    localStorage.removeItem('af_uidDaURL');
+  } catch {}
 
-    if (ehEsteticistaLogada || !ehMesmoPaciente) {
-      // Força logout e mostra tela de login
-      emLogoutRef.current = true;
-      try { await signOut(auth); } catch {}
-      setAutenticado(false);
-      setUsuarioLogado(null);
-      setDadosPaciente(null);
-      setPacienteDocPath(null);
-      setAbaAtiva('telainicial');
-      setRota('login-uid');
-      setAuthVerificado(true);
-      setTimeout(() => { emLogoutRef.current = false; }, 500);
-      return;
-    }
-  }
+  // Remove o #uid da URL
+  window.history.replaceState(
+    { abaAtiva: 'painel' },
+    '',
+    window.location.pathname
+  );
+
+  setUsuarioLogado(user);
+  setAutenticado(true);
+  setRota('autenticado');
+  setModoAdmin(false);
+  setAbaAtiva('painel');
+  setAuthVerificado(true);
+  return;
+}
+
+// ✅ PACIENTE logado — só aqui faz sentido validar o uidDaURL
+if (uidAtual && String(user.uid) !== String(uidAtual)) {
+  emLogoutRef.current = true;
+  try { await signOut(auth); } catch {}
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setPacienteDocPath(null);
+  setAbaAtiva('telainicial');
+  setRota('login-uid');
+  setAuthVerificado(true);
+  setTimeout(() => { emLogoutRef.current = false; }, 500);
+  return;
+}
 
   setUsuarioLogado(user);
   setAutenticado(true);
@@ -483,21 +504,29 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   // ============================================================
   // ✅ 1. ESTETICISTA
   // ============================================================
-  if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
-    if (uidDaURL) {
-      alert('Acesso não autorizado.');
-      await signOut(auth);
-      setAutenticado(false);
-      setUsuarioLogado(null);
-      setUidDaURL(null);
-      setRota('nao-encontrado');
-      return;
-    }
-    window.history.replaceState({ abaAtiva: 'painel' }, '', window.location.pathname);
-    setAbaAtiva('painel');
-    setAutenticado(true);
-    return;
-  }
+if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
+  // ✅ Esteticista entra por QUALQUER link (#uid-paciente, /admin ou /).
+  //    Ignora o uidDaURL, limpa o hash e vai pro painel dela.
+
+  // Limpa o uidDaURL do paciente (estado + storage)
+  setUidDaURL(null);
+  try {
+    sessionStorage.removeItem('af_uidDaURL');
+    localStorage.removeItem('af_uidDaURL');
+  } catch {}
+
+  // Remove o #uid da URL, deixando apenas o pathname
+  window.history.replaceState(
+    { abaAtiva: 'painel' },
+    '',
+    window.location.pathname
+  );
+
+  setModoAdmin(false);
+  setAbaAtiva('painel');
+  setAutenticado(true);
+  return;
+}
 
   // ============================================================
   // ✅ 2. PACIENTE

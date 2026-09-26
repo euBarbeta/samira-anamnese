@@ -56,11 +56,7 @@ if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)
   setCarregando(false);
   return;
 }
-if (!ehNativo && !modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-  setErro('Link inválido para este usuário.');
-  setCarregando(false);
-  return;
-}
+
 
       await signInWithEmailAndPassword(auth, emailFicticio, senha);
       setCarregando(false);
