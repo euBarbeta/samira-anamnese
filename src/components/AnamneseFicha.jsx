@@ -213,14 +213,41 @@ useEffect(() => {
   }
 
   // /admin → sempre mostra a rota (o login decide se entra)
+   // /admin → sempre mostra a rota (o login decide se entra)
   if (path === '/admin' || path.startsWith('/admin/')) {
+    // ✅ Limpa o uidDaURL do paciente — o esteta não quer ver login de paciente
+    try {
+      sessionStorage.removeItem('af_uidDaURL');
+      localStorage.removeItem('af_uidDaURL');
+    } catch {}
+    setUidDaURL(null);
+
     setModoAdmin(true);
     setRota('admin');
     return;
   }
-
   // Sem hash → agendamento (SÓ se não tiver sessão salva)
+   // Sem hash → tenta restaurar do que ficou salvo, senão vai pro agendamento
   if (!hash) {
+    // ✅ Se o paciente já tinha entrado por um link (#id), mantém na tela de
+    //    login dele mesmo que o hash tenha se perdido (PWA abrindo em "/",
+    //    iOS limpando o hash, bookmark sem fragment, etc.)
+    const uidSalvo = lerSessao('af_uidDaURL');
+    if (uidSalvo) {
+      setUidDaURL(uidSalvo);
+      uidDaURLRef.current = uidSalvo;
+      setRota('login-uid');
+
+      // Restaura o hash na URL pra ficar consistente com o link original
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}#${uidSalvo}`
+      );
+      return;
+    }
+
+    // Sem nada salvo → agendamento
     if (!temSessaoSalva) setRota('agendamento');
     return;
   }
