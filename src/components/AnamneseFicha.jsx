@@ -558,7 +558,7 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
       if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
   // ✅ Mensagem vai aparecer DENTRO do box de login (via prop erroExterno)
   setErroLoginExterno(
-    'Este link não pertence à sua conta. Peça o link correto à profissional.'
+   'Nome ou Senha incorretos'
   );
 
   await signOut(auth);
