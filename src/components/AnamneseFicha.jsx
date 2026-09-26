@@ -1,3 +1,28 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import TelaInicial from './TelaInicial';
+import TelaInicialMobile from './TelaInicialMobile';
+import TelaSemInternet from './TelaSemInternet';
+import FichaDesktop from './FichaDesktop';
+import FichaMobile from './FichaMobile';
+import FichaEvoDesktop from './FichaEvoDesktop';
+import FichaEvoMobile from './FichaEvoMobile';
+import PainelEsteticista from './PainelEsteticista';
+import PainelEsteticistaMobile from './PainelEsteticistaMobile';
+import PainelPaciente from './PainelPaciente';
+import TelaAgendamentoPublico from './agendamento/TelaAgendamentoPublico';
+import PaginaNaoEncontrada from './PaginaNaoEncontrada';
+import { validarUIDPaciente } from '../utils/validarUID';
+import { EMAILS_ESTETICISTAS, UID_ESTETICISTA_PADRAO } from './constantes';
+import { secondaryAuth } from './firebaseSecondary';
+import { Preferences } from '@capacitor/preferences';
+import { isNativo } from './push-notifications-native';
+import {
+  doc, getDoc, getDocs, setDoc, deleteDoc, collection,
+  query, where, onSnapshot
+} from "firebase/firestore";
+import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from './firebase';
+
 const lerSessao = (k) => {
   try {
     return localStorage.getItem(k) || sessionStorage.getItem(k) || null;
