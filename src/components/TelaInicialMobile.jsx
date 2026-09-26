@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MdLock, MdPerson, MdArrowForward } from 'react-icons/md';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { signInWithEmailAndPassword } from 'firebase/auth';
