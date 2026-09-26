@@ -106,7 +106,21 @@ export default function GaleriaPaciente({
       type: blob.type || 'image/jpeg',
     });
 
-    await enviarFoto(file);
+   await addDoc(
+  collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
+  {
+    url: resultado.url,
+    thumbUrl: resultado.thumbUrl,
+    publicId: resultado.publicId,
+    tamanho: resultado.tamanho,
+    enviadoEm: serverTimestamp(),
+    enviadoPor: modo,
+    vinculadoA: [],
+    notificado: false,          // ✅ campo novo
+    uidEsteticista: uidEsteticista,   // ✅ pra query rápida depois
+    pacienteNome: pacienteNome, // ✅ denormalizado
+  }
+);
   } catch (err) {
     const msg = (err?.message || '').toLowerCase();
     if (msg.includes('cancel') || msg.includes('user cancelled')) return;
@@ -240,11 +254,43 @@ export default function GaleriaPaciente({
         </div>
       )}
 
-      {enviando && (
-        <div style={estilo.aviso}>
-          <MdFileUpload size={16} /> Enviando foto...
-        </div>
-      )}
+     {enviando && (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 99999,
+    background: 'rgba(44, 22, 58, 0.65)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 18, pointerEvents: 'all',
+  }}>
+    <div style={{
+      width: 56, height: 56,
+      border: '5px solid rgba(255, 255, 255, 0.25)',
+      borderTop: '5px solid #C8A24A',
+      borderRadius: '50%',
+      animation: 'spinEnviando 0.8s linear infinite',
+    }} />
+    <span style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#fff', fontSize: 15, fontWeight: 700,
+      letterSpacing: '0.8px', textAlign: 'center',
+    }}>
+      Enviando foto…
+    </span>
+    <span style={{
+      color: 'rgba(255, 255, 255, 0.8)',
+      fontSize: 12,
+      fontFamily: "'Montserrat', sans-serif",
+      textAlign: 'center',
+      maxWidth: 260,
+    }}>
+      Aguarde. Não feche o app nem toque em outros botões.
+    </span>
+    <style>{`
+      @keyframes spinEnviando { to { transform: rotate(360deg); } }
+    `}</style>
+  </div>
+)}
 
       {carregando ? (
         <div style={estilo.aviso}>Carregando galeria...</div>

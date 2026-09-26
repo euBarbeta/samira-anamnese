@@ -133,52 +133,49 @@ useEffect(() => {
     }
   }, []);
   // src/components/AnamneseFicha.jsx
-
 useEffect(() => {
   const path = window.location.pathname;
   const hash = window.location.hash.slice(1);
 
-  // ============================================================
-  // 0) APP NATIVO (APK) → NUNCA mostra agendamento público
-  //    Vai direto pro login do paciente (ou auto-login via Preferences)
-  // ============================================================
+  // ✅ Checa se tem sessão salva ANTES de decidir a rota
+  const temSessaoSalva = (() => {
+    try {
+      return (
+        sessionStorage.getItem('af_autenticado') === '1' ||
+        localStorage.getItem('af_autenticado') === '1'
+      );
+    } catch { return false; }
+  })();
+
+  // 0) APP NATIVO
   if (isNativo()) {
-    // Se por acaso veio com um hash de paciente válido, respeita
     if (hash && !hash.startsWith('agendar')) {
       (async () => {
         const valido = await validarUIDPaciente(hash);
-        if (valido) {
-          setUidDaURL(hash);
-        }
-        setRota('login-uid');
+        if (valido) setUidDaURL(hash);
+        if (!temSessaoSalva) setRota('login-uid');
       })();
       return;
     }
-    // Caso normal: abre direto no login
-    setRota('login-uid');
+    if (!temSessaoSalva) setRota('login-uid');
+    // Se tem sessão → deixa o observer decidir (rota continua 'verificando')
     return;
   }
 
-  // ============================================================
-  // 1) /admin → LOGIN DA ESTETICISTA
-  // ============================================================
+  // /admin → sempre mostra a rota (o login decide se entra)
   if (path === '/admin' || path.startsWith('/admin/')) {
     setModoAdmin(true);
     setRota('admin');
     return;
   }
 
-  // ============================================================
-  // 2) Sem hash (raiz) → AGENDAMENTO PÚBLICO (SÓ NA WEB)
-  // ============================================================
+  // Sem hash → agendamento (SÓ se não tiver sessão salva)
   if (!hash) {
-    setRota('agendamento');
+    if (!temSessaoSalva) setRota('agendamento');
     return;
   }
 
-  // ============================================================
-  // 3) #agendar/{uidEsteticista} → agendamento multi-tenant
-  // ============================================================
+  // #agendar/xxx
   if (hash.startsWith('agendar/')) {
     setUidDaURL(hash.replace('agendar/', ''));
     setRota('agendamento');
@@ -189,9 +186,7 @@ useEffect(() => {
     return;
   }
 
-  // ============================================================
-  // 4) #{uidPaciente} → validar no Firestore
-  // ============================================================
+  // #{uidPaciente}
   (async () => {
     const valido = await validarUIDPaciente(hash);
     if (valido) {
@@ -206,9 +201,6 @@ useEffect(() => {
   // ============================================================
   // OBSERVER DE AUTH (login automático ao abrir/refrescar)
   // ============================================================
-  // ============================================================
-// OBSERVER DE AUTH (login automático ao abrir/refrescar)
-// ============================================================
 
 
 const restaurandoRef = useRef(false);
@@ -696,12 +688,25 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   // RENDER — Função interna que retorna a tela correta
   // ============================================================
   
-  const renderizarConteudo = () => {
+const renderizarConteudo = () => {
 
-  // ============================================================
-  // ROTAS PÚBLICAS — não passam por auth
-  // ============================================================
-  if (rota === 'verificando') {
+  // 1. Rotas públicas — só aparecem se NÃO estiver autenticado
+  if (!autenticado) {
+    if (rota === 'agendamento') {
+      return (
+        <TelaAgendamentoPublico
+          uidEsteticista={uidDaURL || UID_ESTETICISTA_PADRAO}
+          origem="raiz"
+        />
+      );
+    }
+    if (rota === 'nao-encontrado') {
+      return <PaginaNaoEncontrada />;
+    }
+  }
+
+  // 2. Enquanto Firebase ainda verifica → LOADING (evita flash de login/agendamento)
+  if (!authVerificado) {
     return (
       <div style={{
         display: 'flex', flexDirection: 'column',
@@ -717,219 +722,139 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
           animation: 'spinAF 0.8s linear infinite',
           marginBottom: '16px',
         }} />
-        <span style={{ fontSize: '14px', fontWeight: 700 }}>Verificando link…</span>
+        <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>
+          Reconectando…
+        </span>
         <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
-  if (rota === 'agendamento') {
-    return (
-      <TelaAgendamentoPublico
-        uidEsteticista={uidDaURL || UID_ESTETICISTA_PADRAO}
-        origem="raiz"
-      />
-    );
-  }
-
-  if (rota === 'nao-encontrado') {
-    return <PaginaNaoEncontrada />;
-  }
-
-  // ============================================================
-  // ROTAS DE LOGIN (admin OU paciente por UID)
-  // Só mostra o login se ainda não estiver autenticado.
-  // Se já estiver autenticado, cai no fluxo normal abaixo.
-  // ============================================================
+  // 3. Não autenticado → tela de login
   if (!autenticado) {
     if (rota === 'admin') {
       return isMobile
         ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} modoEsteticista />
         : <TelaInicial onLoginSucesso={handleLoginSucesso} modoEsteticista />;
     }
-    if (rota === 'login-uid') {
-      return isMobile
-        ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
-        : <TelaInicial onLoginSucesso={handleLoginSucesso} />;
-    }
+    return isMobile
+      ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
+      : <TelaInicial onLoginSucesso={handleLoginSucesso} />;
   }
- if (!authVerificado) {
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      justifyContent: 'center', alignItems: 'center',
-      height: '100vh', backgroundColor: '#d7cee0',
-      fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-    }}>
+
+  // 4. Autenticado → painéis
+  if (buscandoPaciente) {
+    return (
       <div style={{
-        width: '46px', height: '46px',
-        border: '4px solid rgba(200, 162, 74, 0.25)',
-        borderTop: '4px solid #C8A24A',
-        borderRadius: '50%',
-        animation: 'spinAF 0.8s linear infinite',
-        marginBottom: '16px',
-      }} />
-      <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>
-        Reconectando…
-      </span>
-      <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+        height: '100vh', backgroundColor: '#d7cee0',
+        fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+        fontSize: '16px', fontWeight: 700,
+      }}>
+        Carregando seu prontuário...
+      </div>
+    );
+  }
 
-    // ✅ 2. Buscando paciente
-    if (buscandoPaciente) {
-      return (
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          height: '100vh', backgroundColor: '#d7cee0',
-          fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-          fontSize: '16px', fontWeight: 700
-        }}>
-          Carregando seu prontuário...
-        </div>
-      );
-    }
+  if (abaAtiva === 'painelPaciente') {
+    return (
+      <PainelPaciente
+        pacienteData={dadosPaciente}
+        onLogout={handleLogout}
+        abrirAnamneseInicial={false}
+      />
+    );
+  }
 
-    // ✅ 3. Não autenticado → tela de login
-    if (!autenticado || abaAtiva === 'telainicial') {
-      return (
-        <div style={{ position: 'relative', width: '100vw', height: '100vh', boxSizing: 'border-box' }}>
-          {isMobile
-            ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
-            : <TelaInicial onLoginSucesso={handleLoginSucesso} />}
-        </div>
-      );
-    }
-
-    // ✅ 4. Carregando fichas da esteticista
-    if (carregandoNuvem && fichasSalvas.length === 0 && abaAtiva === 'painel') {
+  if (abaAtiva === 'painel') {
+    if (carregandoNuvem && fichasSalvas.length === 0) {
       return (
         <div style={{
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           height: '100vh', backgroundColor: '#dfc6fc',
           fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-          fontSize: '16px', fontWeight: 700
+          fontSize: '16px', fontWeight: 700,
         }}>
           Carregando dados da nuvem...
         </div>
       );
     }
+    return isMobile ? (
+      <PainelEsteticistaMobile
+        fichas={fichasSalvas}
+        onSelectFicha={(ficha) => { setFichaSelecionada(ficha); navegarPara('anamnese'); }}
+        onSelectEvolucao={(ficha) => { setFichaSelecionada(ficha); navegarPara('evolucao'); }}
+        onExcluirFicha={handleExcluirFicha}
+        onLogout={handleLogout}
+      />
+    ) : (
+      <PainelEsteticista
+        fichas={fichasSalvas}
+        onSelectFicha={(ficha) => { setFichaSelecionada(ficha); navegarPara('anamnese'); }}
+        onSelectEvolucao={(ficha) => { setFichaSelecionada(ficha); navegarPara('evolucao'); }}
+        onExcluirFicha={handleExcluirFicha}
+        onLogout={handleLogout}
+      />
+    );
+  }
 
-    // ✅ 5. Painel do Paciente
-    if (abaAtiva === 'painelPaciente') {
-      return (
-        <PainelPaciente
-          pacienteData={dadosPaciente}
-          onLogout={handleLogout}
-          abrirAnamneseInicial={false}
-        />
-      );
-    }
+  if (abaAtiva === 'anamnese') {
+    const Componente = isMobile ? FichaMobile : FichaDesktop;
+    return (
+      <Componente
+        key={`anamnese-view-${abaAtiva}`}
+        fichaSelecionada={fichaSelecionada}
+        mode="view"
+        onVoltar={() => { setFichaSelecionada(null); navegarPara('painel'); }}
+        onIrParaEdicao={() => navegarPara('editar-anamnese')}
+      />
+    );
+  }
 
-    // ✅ 6. Painel da Esteticista
-    if (abaAtiva === 'painel') {
-      return isMobile ? (
-        <PainelEsteticistaMobile
-          fichas={fichasSalvas}
-          onSelectFicha={(ficha) => {
-            setFichaSelecionada(ficha);
-            navegarPara('anamnese');
-          }}
-          onSelectEvolucao={(ficha) => {
-            setFichaSelecionada(ficha);
-            navegarPara('evolucao');
-          }}
-          onExcluirFicha={handleExcluirFicha}
-          onLogout={handleLogout}
-        />
-      ) : (
-        <PainelEsteticista
-          fichas={fichasSalvas}
-          onSelectFicha={(ficha) => {
-            setFichaSelecionada(ficha);
-            navegarPara('anamnese');
-          }}
-          onSelectEvolucao={(ficha) => {
-            setFichaSelecionada(ficha);
-            navegarPara('evolucao');
-          }}
-          onExcluirFicha={handleExcluirFicha}
-          onLogout={handleLogout}
-        />
-      );
-    }
+  if (abaAtiva === 'editar-anamnese') {
+    const Componente = isMobile ? FichaMobile : FichaDesktop;
+    return (
+      <Componente
+        key={`anamnese-edit-${abaAtiva}`}
+        fichaSelecionada={fichaSelecionada}
+        mode="edit"
+        onVoltar={() => navegarPara('anamnese')}
+        onSalvarSucesso={() => { setFichaSelecionada(null); navegarPara('painel', { forcar: true }); }}
+        onSave={handleSalvarFicha}
+      />
+    );
+  }
 
-    // ✅ 7. Anamnese (view)
-    if (abaAtiva === 'anamnese') {
-      const Componente = isMobile ? FichaMobile : FichaDesktop;
-      return (
-        <Componente
-          key={`anamnese-view-${abaAtiva}`}
-          fichaSelecionada={fichaSelecionada}
-          mode="view"
-          onVoltar={() => {
-            setFichaSelecionada(null);
-            navegarPara('painel');
-          }}
-          onIrParaEdicao={() => navegarPara('editar-anamnese')}
-        />
-      );
-    }
+  if (abaAtiva === 'evolucao') {
+    const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
+    return (
+      <Componente
+        key={`evolucao-view-${abaAtiva}`}
+        initialData={fichaSelecionada}
+        pacienteSelecionado={fichaSelecionada}
+        mode="view"
+        onVoltar={() => { setFichaSelecionada(null); navegarPara('painel'); }}
+        onIrParaEdicao={() => navegarPara('editar-evolucao')}
+      />
+    );
+  }
 
-    // ✅ 8. Editar anamnese
-    if (abaAtiva === 'editar-anamnese') {
-      const Componente = isMobile ? FichaMobile : FichaDesktop;
-      return (
-        <Componente
-          key={`anamnese-edit-${abaAtiva}`}
-          fichaSelecionada={fichaSelecionada}
-          mode="edit"
-          onVoltar={() => navegarPara('anamnese')}
-          onSalvarSucesso={() => {
-            setFichaSelecionada(null);
-            navegarPara('painel', { forcar: true });
-          }}
-          onSave={handleSalvarFicha}
-        />
-      );
-    }
+  if (abaAtiva === 'editar-evolucao') {
+    const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
+    return (
+      <Componente
+        key={`evolucao-edit-${abaAtiva}`}
+        initialData={fichaSelecionada}
+        pacienteSelecionado={fichaSelecionada}
+        mode="edit"
+        onVoltar={() => navegarPara('evolucao')}
+        onSave={handleSalvarFicha}
+      />
+    );
+  }
 
-    // ✅ 9. Evolução (view)
-    if (abaAtiva === 'evolucao') {
-      const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
-      return (
-        <Componente
-          key={`evolucao-view-${abaAtiva}`}
-          initialData={fichaSelecionada}
-          pacienteSelecionado={fichaSelecionada}
-          mode="view"
-          onVoltar={() => {
-            setFichaSelecionada(null);
-            navegarPara('painel');
-          }}
-          onIrParaEdicao={() => navegarPara('editar-evolucao')}
-        />
-      );
-    }
-
-    // ✅ 10. Editar evolução
-    if (abaAtiva === 'editar-evolucao') {
-      const Componente = isMobile ? FichaEvoMobile : FichaEvoDesktop;
-      return (
-        <Componente
-          key={`evolucao-edit-${abaAtiva}`}
-          initialData={fichaSelecionada}
-          pacienteSelecionado={fichaSelecionada}
-          mode="edit"
-          onVoltar={() => navegarPara('evolucao')}
-          onSave={handleSalvarFicha}
-        />
-      );
-    }
-
-    return null;
-  };
+  return null;
+};
 
   // ✅ ÚNICO return — Tela sem internet SEMPRE presente
   return (

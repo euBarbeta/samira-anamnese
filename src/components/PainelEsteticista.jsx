@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
+import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
 import GaleriaPaciente from './GaleriaPaciente'; 
@@ -13,6 +13,7 @@ import TermoConsentimentoPDF from './TermoConsentimentoPDF';
 import { registrarLinkPaciente } from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
+
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -69,6 +70,8 @@ export default function PainelEsteticista({ onLogout }) {
   const pacRef = useRef(null);
   const evoRef = useRef(null);
   const modalOpenRef = useRef(false);
+  const [fotosPendentes, setFotosPendentes] = useState([]);
+const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
   useEffect(() => { pacRef.current = pacienteSelecionado; }, [pacienteSelecionado]);
   useEffect(() => { evoRef.current = evolucaoSelecionada; }, [evolucaoSelecionada]);
   useEffect(() => { modalOpenRef.current = modalExclusao.isOpen; }, [modalExclusao.isOpen]);
@@ -193,6 +196,65 @@ export default function PainelEsteticista({ onLogout }) {
       inscreverPushEsteticistaWeb(user.uid).catch(() => {});
     });
   }, []);
+
+
+// ✅ Checa fotos não notificadas
+useEffect(() => {
+  if (!auth.currentUser || !pacientes.length) return;
+
+  let cancelado = false;
+
+  const checar = async () => {
+    const uid = auth.currentUser.uid;
+    const pendentes = [];
+    for (const p of pacientes) {
+      try {
+        const snap = await getDocs(query(
+          collection(db, `usuarios/${uid}/pacientes/${p.id}/fotos`),
+          where('notificado', '==', false)
+        ));
+        if (!snap.empty && !cancelado) {
+          pendentes.push({
+            pacienteId: p.id,
+            pacienteNome: p.nome,
+            count: snap.size,
+          });
+        }
+      } catch (e) { /* ignora */ }
+    }
+    if (!cancelado) setFotosPendentes(pendentes);
+  };
+
+  checar();
+
+  const onVis = () => {
+    if (document.visibilityState === 'visible') checar();
+  };
+  document.addEventListener('visibilitychange', onVis);
+  const interval = setInterval(checar, 60000); // 1x por minuto
+
+  return () => {
+    cancelado = true;
+    document.removeEventListener('visibilitychange', onVis);
+    clearInterval(interval);
+  };
+}, [pacientes]);
+
+// ✅ Marca fotos como notificadas quando abre a galeria do paciente
+const marcarFotosComoNotificadas = async (pacienteId) => {
+  try {
+    const uid = auth.currentUser.uid;
+    const snap = await getDocs(query(
+      collection(db, `usuarios/${uid}/pacientes/${pacienteId}/fotos`),
+      where('notificado', '==', false)
+    ));
+    const batch = snap.docs.map((d) => updateDoc(d.ref, { notificado: true }));
+    await Promise.all(batch);
+    setFotosPendentes((prev) => prev.filter((f) => f.pacienteId !== pacienteId));
+  } catch (e) {
+    console.warn('Falha ao marcar como notificadas:', e);
+  }
+};
 
   // ✅ Registra push da esteticista (nativo OU web) ao entrar
   useEffect(() => {
@@ -862,7 +924,73 @@ export default function PainelEsteticista({ onLogout }) {
       Agendamentos
     </button>
   </div>
+  
 </div>
+ {fotosPendentes.length > 0 && mostrarBannerFotos && (
+  <div style={{
+    marginTop: 20,
+    background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
+    border: '1.5px solid #a855f7',
+    borderRadius: 12,
+    padding: '14px 18px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  }}>
+    <MdPhotoLibrary size={24} color="#7e22ce" />
+    <div style={{ flex: 1 }}>
+      <div style={{
+        fontFamily: "'Cinzel', serif",
+        color: '#2c163a',
+        fontSize: 13,
+        fontWeight: 700,
+        marginBottom: 4,
+      }}>
+        📸 {fotosPendentes.length === 1
+          ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+          : `${fotosPendentes.length} pacientes enviaram fotos`}
+      </div>
+      <div style={{
+        fontSize: 11,
+        color: '#555',
+        fontFamily: "'Montserrat', sans-serif",
+      }}>
+        {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+      </div>
+    </div>
+    <button
+      type="button"
+      onClick={() => {
+        const primeiro = fotosPendentes[0];
+        const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
+        if (pac) {
+          marcarFotosComoNotificadas(pac.id);
+          navegarPara('galeria', { paciente: pac });
+        }
+      }}
+      style={{
+        background: '#7e22ce', color: '#fff', border: 'none',
+        padding: '8px 14px', borderRadius: 16,
+        fontFamily: "'Cinzel', serif",
+        fontSize: 10, fontWeight: 700, cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      VER
+    </button>
+    <button
+      type="button"
+      onClick={() => setMostrarBannerFotos(false)}
+      style={{
+        background: 'transparent', border: 'none', color: '#888',
+        fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
+      }}
+      title="Fechar"
+    >
+      ×
+    </button>
+  </div>
+)}
 
               {pacientes.length > 0 && (
                 <div style={{
@@ -1068,7 +1196,10 @@ export default function PainelEsteticista({ onLogout }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navegarPara('galeria')}
+                     onClick={() => {
+    marcarFotosComoNotificadas(pacienteSelecionado.id);
+    navegarPara('galeria');
+  }}
                     className="btn-efeito-hover"
                     style={{
                       fontFamily: "'Cinzel', serif",
