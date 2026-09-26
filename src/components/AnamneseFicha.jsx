@@ -50,6 +50,7 @@ export default function AnamneseFicha() {
 
   const [modoAdmin, setModoAdmin] = useState(false);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+  const [erroLoginExterno, setErroLoginExterno] = useState('');
 
   // ✅ Todos os estados iniciais leem localStorage PRIMEIRO
   const [autenticado, setAutenticado] = useState(() => lerSessao('af_autenticado') === '1');
@@ -550,22 +551,30 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
       }
     }
 
-    // ============================================================
-    // ✅ RESULTADO FINAL
-    // ============================================================
+ 
     if (pacienteEncontrado) {
 
-      // Bloqueio de link cruzado (só na WEB)
+     
       if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
-        alert('Este link não pertence à sua conta. Peça o link correto à profissional.');
-        await signOut(auth);
-        setAutenticado(false);
-        setUsuarioLogado(null);
-        setDadosPaciente(null);
-        setUidDaURL(null);
-        setRota('nao-encontrado');
-        return;
-      }
+  // ✅ Mensagem vai aparecer DENTRO do box de login (via prop erroExterno)
+  setErroLoginExterno(
+    'Este link não pertence à sua conta. Peça o link correto à profissional.'
+  );
+
+  await signOut(auth);
+
+  // ✅ NÃO apaga o uidDaURL — o link continua na URL pro paciente ver
+  // ✅ NÃO marca autenticado — volta pra tela de login
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setBuscandoPaciente(false);
+
+  // ✅ Volta pra rota de login do paciente (não pra 'nao-encontrado')
+  setRota('login-uid');
+  setAuthVerificado(true);
+  return;
+}
 
       // ✅ Salva ID no app nativo pra próximos logins
       if (isNativo()) {
@@ -639,6 +648,7 @@ setAutenticado(true);
   setDadosPaciente(null);
   setPacienteDocPath(null);
   setFichaSelecionada(null);
+  setErroLoginExterno('');
 
   window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
 
@@ -807,16 +817,29 @@ const renderizarConteudo = () => {
   }
 
   // 3. Não autenticado → tela de login
-  if (!autenticado) {
-    if (rota === 'admin') {
-      return isMobile
-        ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} modoEsteticista />
-        : <TelaInicial onLoginSucesso={handleLoginSucesso} modoEsteticista />;
-    }
+// 3. Não autenticado → tela de login
+if (!autenticado) {
+  if (rota === 'admin') {
     return isMobile
-      ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} />
-      : <TelaInicial onLoginSucesso={handleLoginSucesso} />;
+      ? <TelaInicialMobile onLoginSucesso={handleLoginSucesso} modoEsteticista />
+      : <TelaInicial onLoginSucesso={handleLoginSucesso} modoEsteticista />;
   }
+  return isMobile
+    ? (
+      <TelaInicialMobile
+        onLoginSucesso={handleLoginSucesso}
+        erroExterno={erroLoginExterno}
+        onLimparErro={() => setErroLoginExterno('')}
+      />
+    )
+    : (
+      <TelaInicial
+        onLoginSucesso={handleLoginSucesso}
+        erroExterno={erroLoginExterno}
+        onLimparErro={() => setErroLoginExterno('')}
+      />
+    );
+}
 
   // 4. Autenticado → painéis
   if (buscandoPaciente) {

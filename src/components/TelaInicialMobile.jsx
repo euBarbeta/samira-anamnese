@@ -6,13 +6,20 @@ import { auth } from './firebase';
 import { EMAILS_ESTETICISTAS } from './constantes';
 import { isNativo } from './push-notifications-native';
 
-export default function TelaInicial({ onLoginSucesso, modoEsteticista = false }) {
+export default function TelaInicial({
+  onLoginSucesso,
+  modoEsteticista = false,
+  erroExterno = '',
+  onLimparErro,
+}) {
   const [nomeCompleto, setNomeCompleto] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
-
+  useEffect(() => {
+    if (erroExterno) setErro(erroExterno);
+  }, [erroExterno]);
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErro('');
@@ -215,7 +222,11 @@ if (!ehNativo && !modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)
                   type="text"
                   id="login-nome-m"
                   value={nomeCompleto}
-                  onChange={(e) => setNomeCompleto(e.target.value)}
+                  onChange={(e) => {
+  setNomeCompleto(e.target.value);
+  if (erroExterno && onLimparErro) onLimparErro();
+  setErro('');
+}}
                   required
                   className="input-login"
                 />
@@ -232,7 +243,11 @@ if (!ehNativo && !modoEsteticista && EMAILS_ESTETICISTAS.includes(emailFicticio)
                   type={mostrarSenha ? 'text' : 'password'}
                   id="login-senha-m"
                   value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
+                 onChange={(e) => {
+  setSenha(e.target.value);
+  if (erroExterno && onLimparErro) onLimparErro();
+  setErro('');
+}}
                   required
                   className="input-login"
                 />
