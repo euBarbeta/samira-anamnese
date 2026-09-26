@@ -870,185 +870,188 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
   flexWrap: 'wrap',
   gap: '15px'
 }}>
-  <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
-    Pastas de Pacientes
-  </h2>
+                <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
+                Pastas de Pacientes
+              </h2>
 
-  {/* ✅ Container único com os 2 botões juntos */}
-  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-    <button
-      type="button"
-      onClick={() => navegarPara('criar_anamnese')}
-      className="btn-efeito-hover"
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-        color: '#fff',
-        border: 'none',
-        padding: '12px 24px',
-        borderRadius: '25px',
-        fontSize: '13px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
-      }}
-    >
-      <MdAssignment size={16} />
-      Ficha de anamnese
-    </button>
+              {/* ✅ Container único com os 2 botões juntos */}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => navegarPara('criar_anamnese')}
+                  className="btn-efeito-hover"
+                  style={{
+                    fontFamily: "'Cinzel', serif",
+                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '25px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
+                  }}
+                >
+                  <MdAssignment size={16} />
+                  Ficha de anamnese
+                </button>
 
-    <button
-      type="button"
-      onClick={() => navegarPara('agendamentos')}
-      className="btn-efeito-hover"
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-        color: '#fff',
-        border: 'none',
-        padding: '12px 24px',
-        borderRadius: '25px',
-        fontSize: '13px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-      }}
-    >
-      <MdCalendarMonth size={16} />
-      Agendamentos
-    </button>
-  </div>
-  
-</div>
- {fotosPendentes.length > 0 && mostrarBannerFotos && (
-  <div style={{
-    marginTop: 20,
-    background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
-    border: '1.5px solid #a855f7',
-    borderRadius: 12,
-    padding: '14px 18px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  }}>
-    <MdPhotoLibrary size={24} color="#7e22ce" />
-    <div style={{ flex: 1 }}>
-     <div style={{
-  fontFamily: "'Cinzel', serif",
-  color: '#2c163a',
-  fontSize: 13,
-  fontWeight: 700,
-  marginBottom: 4,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-}}>
-  <MdPhotoLibrary size={15} color="#7e22ce" />
-  {fotosPendentes.length === 1
-    ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
-    : `${fotosPendentes.length} pacientes enviaram fotos`}
-</div>
-      <div style={{
-        fontSize: 11,
-        color: '#555',
-        fontFamily: "'Montserrat', sans-serif",
-      }}>
-        {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
-      </div>
-    </div>
-    <button
-      type="button"
-      onClick={() => {
-        const primeiro = fotosPendentes[0];
-        const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
-        if (pac) {
-          marcarFotosComoNotificadas(pac.id);
-          navegarPara('galeria', { paciente: pac });
-        }
-      }}
-      style={{
-        background: '#7e22ce', color: '#fff', border: 'none',
-        padding: '8px 14px', borderRadius: 16,
-        fontFamily: "'Cinzel', serif",
-        fontSize: 10, fontWeight: 700, cursor: 'pointer',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      VER
-    </button>
-    <button
-      type="button"
-      onClick={() => setMostrarBannerFotos(false)}
-      style={{
-        background: 'transparent', border: 'none', color: '#888',
-        fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
-      }}
-      title="Fechar"
-    >
-      ×
-    </button>
-  </div>
-)}
+                <button
+                  type="button"
+                  onClick={() => navegarPara('agendamentos')}
+                  className="btn-efeito-hover"
+                  style={{
+                    fontFamily: "'Cinzel', serif",
+                    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '25px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+                  }}
+                >
+                  <MdCalendarMonth size={16} />
+                  Agendamentos
+                </button>
+              </div>
+            </div>
 
-              {pacientes.length > 0 && (
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  padding: '8px 16px',
-                  marginBottom: '20px',
-                  boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  width: '500px',
-                  maxWidth: '100%'
-                }}>
-                  <MdSearch size={20} color="#C8A24A" style={{ flexShrink: 0 }} />
-                  <input
-                    id="termoBusca"
-                    name="termoBusca"
-                    type="text"
-                    placeholder="Pesquisar pasta pelo nome do paciente ou número do documento..."
-                    value={termoBusca}
-                    onChange={(e) => setTermoBusca(e.target.value)}
+            {/* BARRA DE PESQUISA — colada no cabeçalho */}
+            {pacientes.length > 0 && (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                padding: '8px 16px',
+                marginTop: '-4px',
+                marginBottom: '20px',
+                boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}>
+                <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
+                <input
+                  id="termoBusca"
+                  name="termoBusca"
+                  type="text"
+                  placeholder="Pesquisar por nome ou documento..."
+                  value={termoBusca}
+                  onChange={(e) => setTermoBusca(e.target.value)}
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    fontSize: '12px',
+                    color: '#2c163a',
+                    fontFamily: "'Montserrat', sans-serif"
+                  }}
+                />
+                {termoBusca && (
+                  <button
+                    type="button"
+                    onClick={() => setTermoBusca('')}
                     style={{
-                      width: '100%',
-                      border: 'none',
-                      outline: 'none',
                       background: 'transparent',
-                      fontSize: '13px',
-                      color: '#2c163a',
-                      fontFamily: "'Montserrat', sans-serif"
+                      border: 'none',
+                      color: '#888',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontWeight: 600,
+                      flexShrink: 0
                     }}
-                  />
-                  {termoBusca && (
-                    <button
-                      type="button"
-                      onClick={() => setTermoBusca('')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#888',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        fontWeight: 600
-                      }}
-                    >
-                      Limpar
-                    </button>
-                  )}
-                </div>
-              )}
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+            )}
 
+            {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
+            {fotosPendentes.length > 0 && mostrarBannerFotos && (
+              <div style={{
+                marginTop: 4,
+                marginBottom: 20,
+                background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
+                border: '1.5px solid #a855f7',
+                borderRadius: 12,
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}>
+                <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontFamily: "'Cinzel', serif",
+                    color: '#2c163a',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    marginBottom: 4,
+                  }}>
+                    {fotosPendentes.length === 1
+                      ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+                      : `${fotosPendentes.length} pacientes enviaram fotos`}
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    color: '#555',
+                    fontFamily: "'Montserrat', sans-serif",
+                  }}>
+                    {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const primeiro = fotosPendentes[0];
+                    const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
+                    if (pac) {
+                      marcarFotosComoNotificadas(pac.id);
+                      navegarPara('galeria', { paciente: pac });
+                    }
+                  }}
+                  style={{
+                    background: '#7e22ce', color: '#fff', border: 'none',
+                    padding: '8px 14px', borderRadius: 16,
+                    fontFamily: "'Cinzel', serif",
+                    fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  VER
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMostrarBannerFotos(false)}
+                  style={{
+                    background: 'transparent', border: 'none', color: '#888',
+                    fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
+                    flexShrink: 0,
+                  }}
+                  title="Fechar"
+                >
+                  ×
+                </button>
+              </div>
+            )}
           {!jaCarregou ? (
   <SpinnerLoading texto="Carregando pastas de pacientes…" />
 ) : pacientes.length === 0 ? (

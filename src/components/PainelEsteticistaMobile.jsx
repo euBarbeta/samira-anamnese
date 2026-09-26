@@ -906,304 +906,323 @@ if (!jaCarregou) {
           <span style={{ fontSize: '11px', color: '#55286f', fontWeight: 600, marginTop: '-6px' }}>Samira Ferreira Estética & Cosmetologia</span>
         </div>
 
-        <div style={{ padding: '0 15px', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ padding: '0 15px', width: '100%', boxSizing: 'border-box' }}>
 
-          {/* TELA 1: LISTAGEM */}
-          {telaAtual === 'lista' && (
-            <div>
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.92)',
-                borderRadius: '14px',
-                border: '1px solid #e2d2f5',
-                padding: '16px',
-                marginBottom: '15px',
-                boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
-                backdropFilter: 'blur(5px)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px'
-              }}>
-                <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: 0 }}>
-                  Prontuários e Pastas de Pacientes
-                </h2>
-           <div style={{ display: 'flex', gap: '8px', flexDirection: 'row' }}>
-  <button
-    type="button"
-    onClick={() => navegarPara('criar_anamnese')}
-    className="btn-efeito-hover"
-    style={{
-      flex: 1,
-      fontFamily: "'Cinzel', serif",
-      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-      color: '#fff',
-      border: 'none',
-      padding: '12px 16px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-      boxShadow: '0 4px 12px rgba(200, 162, 74, 0.3)'
-    }}
-  >
-    <MdAssignment size={16} />
-    Ficha de Anamnese
-  </button>
-
-  <button
-    type="button"
-    onClick={() => navegarPara('agendamentos')}
-    className="btn-efeito-hover"
-    style={{
-      flex: 1,
-      fontFamily: "'Cinzel', serif",
-      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-      color: '#fff',
-      border: 'none',
-      padding: '12px 16px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-      boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-    }}
-  >
-    <MdCalendarMonth size={16} />
-    Agendamentos
-  </button>
-</div>    
-                </div>
-              {fotosPendentes.length > 0 && mostrarBannerFotos && (
-  <div style={{
-    marginTop: 20,
-    background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
-    border: '1.5px solid #a855f7',
-    borderRadius: 12,
-    padding: '14px 18px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  }}>
-    <MdPhotoLibrary size={24} color="#7e22ce" />
-    <div style={{ flex: 1 }}>
-     <div style={{
-  fontFamily: "'Cinzel', serif",
-  color: '#2c163a',
-  fontSize: 13,
-  fontWeight: 700,
-  marginBottom: 4,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-}}>
-  <MdPhotoLibrary size={15} color="#7e22ce" />
-  {fotosPendentes.length === 1
-    ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
-    : `${fotosPendentes.length} pacientes enviaram fotos`}
-</div>
+  {/* TELA 1: LISTAGEM */}
+  {telaAtual === 'lista' && (
+    <div>
       <div style={{
-        fontSize: 11,
-        color: '#555',
-        fontFamily: "'Montserrat', sans-serif",
+        background: 'rgba(255, 255, 255, 0.92)',
+        borderRadius: '14px',
+        border: '1px solid #e2d2f5',
+        padding: '16px',
+        marginBottom: '15px',
+        boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+        backdropFilter: 'blur(5px)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px'
       }}>
-        {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+        <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: 0 }}>
+          Prontuários e Pastas de Pacientes
+        </h2>
+
+        {/* Container com os 2 botões */}
+        <div style={{ display: 'flex', gap: '8px', flexDirection: 'row' }}>
+          <button
+            type="button"
+            onClick={() => navegarPara('criar_anamnese')}
+            className="btn-efeito-hover"
+            style={{
+              flex: 1,
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 10px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              boxShadow: '0 4px 12px rgba(200, 162, 74, 0.3)',
+              lineHeight: 1.2,
+              textAlign: 'center',
+            }}
+          >
+            <MdAssignment size={15} style={{ flexShrink: 0 }} />
+            Ficha de Anamnese
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navegarPara('agendamentos')}
+            className="btn-efeito-hover"
+            style={{
+              flex: 1,
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 10px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
+              lineHeight: 1.2,
+              textAlign: 'center',
+            }}
+          >
+            <MdCalendarMonth size={15} style={{ flexShrink: 0 }} />
+            Agendamentos
+          </button>
+        </div>
       </div>
-    </div>
-    <button
-      type="button"
-      onClick={() => {
-        const primeiro = fotosPendentes[0];
-        const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
-        if (pac) {
-          marcarFotosComoNotificadas(pac.id);
-          navegarPara('galeria', { paciente: pac });
-        }
-      }}
-      style={{
-        background: '#7e22ce', color: '#fff', border: 'none',
-        padding: '8px 14px', borderRadius: 16,
-        fontFamily: "'Cinzel', serif",
-        fontSize: 10, fontWeight: 700, cursor: 'pointer',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      VER
-    </button>
-    <button
-      type="button"
-      onClick={() => setMostrarBannerFotos(false)}
-      style={{
-        background: 'transparent', border: 'none', color: '#888',
-        fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
-      }}
-      title="Fechar"
-    >
-      ×
-    </button>
-  </div>
-)}
 
-              {/* BARRA DE PESQUISA COM EFEITO VIDRO */}
-              {pacientes.length > 0 && (
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  padding: '8px 16px',
-                  marginBottom: '15px',
-                  boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  width: '100%',
-                  boxSizing: 'border-box'
-                }}>
-                  <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
-                  <input
-                    id="termoBusca"
-                    name="termoBusca"
-                    type="text"
-                    placeholder="Pesquisar por nome ou documento..."
-                    value={termoBusca}
-                    onChange={(e) => setTermoBusca(e.target.value)}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      outline: 'none',
-                      background: 'transparent',
-                      fontSize: '12px',
-                      color: '#2c163a',
-                      fontFamily: "'Montserrat', sans-serif"
-                    }}
-                  />
-                  {termoBusca && (
-                    <button
-                      type="button"
-                      onClick={() => setTermoBusca('')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#888',
-                        fontSize: '11px',
-                        cursor: 'pointer',
-                        padding: 0,
-                        fontWeight: 600,
-                        flexShrink: 0
-                      }}
-                    >
-                      Limpar
-                    </button>
-                  )}
-                </div>
-              )}
+      {/* BARRA DE PESQUISA — colada no cabeçalho */}
+      {pacientes.length > 0 && (
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.15)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          borderRadius: '12px',
+          border: '1px solid rgba(255, 255, 255, 0.3)',
+          padding: '8px 14px',
+          marginTop: '-4px',
+          marginBottom: '16px',
+          boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          width: '100%',
+          boxSizing: 'border-box',
+        }}>
+          <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
+          <input
+            id="termoBusca"
+            name="termoBusca"
+            type="text"
+            placeholder="Pesquisar por nome ou documento..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            style={{
+              width: '100%',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontSize: '12px',
+              color: '#2c163a',
+              fontFamily: "'Montserrat', sans-serif",
+              minWidth: 0,
+            }}
+          />
+          {termoBusca && (
+            <button
+              type="button"
+              onClick={() => setTermoBusca('')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#888',
+                fontSize: '11px',
+                cursor: 'pointer',
+                padding: 0,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+      )}
 
-              {pacientes.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
-                  <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>Nenhum paciente cadastrado na nuvem ainda.</p>
-                  <span style={{ color: '#C8A24A', fontSize: '11px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
+      {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
+      {fotosPendentes.length > 0 && mostrarBannerFotos && (
+        <div style={{
+          marginTop: 4,
+          marginBottom: 16,
+          background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
+          border: '1.5px solid #a855f7',
+          borderRadius: 12,
+          padding: '12px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          {/* Ícone grande único (removida a duplicata) */}
+          <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: "'Cinzel', serif",
+              color: '#2c163a',
+              fontSize: 12,
+              fontWeight: 700,
+              marginBottom: 3,
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {fotosPendentes.length === 1
+                ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+                : `${fotosPendentes.length} pacientes enviaram fotos`}
+            </div>
+            <div style={{
+              fontSize: 10.5,
+              color: '#555',
+              fontFamily: "'Montserrat', sans-serif",
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const primeiro = fotosPendentes[0];
+              const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
+              if (pac) {
+                marcarFotosComoNotificadas(pac.id);
+                navegarPara('galeria', { paciente: pac });
+              }
+            }}
+            style={{
+              background: '#7e22ce', color: '#fff', border: 'none',
+              padding: '7px 12px', borderRadius: 14,
+              fontFamily: "'Cinzel', serif",
+              fontSize: 10, fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            VER
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMostrarBannerFotos(false)}
+            style={{
+              background: 'transparent', border: 'none', color: '#888',
+              fontSize: 18, cursor: 'pointer', padding: 2, lineHeight: 1,
+              flexShrink: 0,
+            }}
+            title="Fechar"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {pacientes.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
+          <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>Nenhum paciente cadastrado na nuvem ainda.</p>
+          <span style={{ color: '#C8A24A', fontSize: '11px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
+        </div>
+      ) : pacientesFiltradosOrdenados.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '30px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
+          <p style={{ color: '#666', fontSize: '13px', marginBottom: '6px' }}>Nenhum paciente encontrado para "{termoBusca}".</p>
+          <button
+            onClick={() => setTermoBusca('')}
+            style={{ background: 'transparent', border: 'none', color: '#C8A24A', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Limpar pesquisa
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {pacientesFiltradosOrdenados.map((pac) => (
+            <div
+              key={pac.id}
+              className="card-pasta-hover"
+              style={{
+                background: 'rgba(255, 255, 255, 0.92)',
+                border: '1.5px solid #dfc6fc',
+                borderRadius: '12px',
+                padding: '16px',
+                boxShadow: '0 4px 10px rgba(44, 22, 58, 0.05)',
+                backdropFilter: 'blur(5px)'
+              }}
+            >
+              <div
+                onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', fontFamily: "'Cinzel', serif" }}>
+                  Criado em: {pac.dataCriacao}
                 </div>
-              ) : pacientesFiltradosOrdenados.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
-                  <p style={{ color: '#666', fontSize: '13px', marginBottom: '6px' }}>Nenhum paciente encontrado para "{termoBusca}".</p>
-                  <button
-                    onClick={() => setTermoBusca('')}
-                    style={{ background: 'transparent', border: 'none', color: '#C8A24A', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '6px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
+                  Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
+                </div>
+
+                <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', margin: '0 0 4px 0' }}>
+                  📁 {pac.nome}
+                </h3>
+                <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
+                  Doc: {pac.documento || 'Não informado'}
+                </div>
+                <LinkAcessoPaciente pacienteId={pac.id} compacto empilhado />
+              </div>
+
+              <div style={{ fontSize: '11px', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0e6fa', paddingTop: '8px', marginTop: '8px' }}>
+                <span
+                  onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                  style={{ cursor: 'pointer' }}
+                >
+                  Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong>
+                </span>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <span
+                    onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                    style={{ color: '#C8A24A', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Limpar pesquisa
+                    Abrir Pasta →
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      solicitarExclusaoPasta(pac.id);
+                    }}
+                    className="btn-efeito-hover-perigo"
+                    style={{
+                      background: '#ffebee',
+                      color: '#c62828',
+                      border: '1px solid #ef9a9a',
+                      padding: '4px 8px',
+                      borderRadius: '10px',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: "'Cinzel', serif"
+                    }}
+                  >
+                    Excluir
                   </button>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {pacientesFiltradosOrdenados.map((pac) => (
-                    <div
-                      key={pac.id}
-                      className="card-pasta-hover"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.92)',
-                        border: '1.5px solid #dfc6fc',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        boxShadow: '0 4px 10px rgba(44, 22, 58, 0.05)',
-                        backdropFilter: 'blur(5px)'
-                      }}
-                    >
-                      <div
-                        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', fontFamily: "'Cinzel', serif" }}>
-                          Criado em: {pac.dataCriacao}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '6px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
-                          Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
-                        </div>
-
-                        <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', margin: '0 0 4px 0' }}>
-                          📁 {pac.nome}
-                          </h3>
-                        <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
-                          Doc: {pac.documento || 'Não informado'}
-                          </div>
-                          <LinkAcessoPaciente pacienteId={pac.id} compacto />
-                      
-                      </div>
-
-                      <div style={{ fontSize: '11px', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0e6fa', paddingTop: '8px', marginTop: '8px' }}>
-                        <span
-                          onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong>
-                        </span>
-
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                          <span
-                            onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                            style={{ color: '#C8A24A', fontWeight: 700, cursor: 'pointer' }}
-                          >
-                            Abrir Pasta →
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              solicitarExclusaoPasta(pac.id);
-                            }}
-                            className="btn-efeito-hover-perigo"
-                            style={{
-                              background: '#ffebee',
-                              color: '#c62828',
-                              border: '1px solid #ef9a9a',
-                              padding: '4px 8px',
-                              borderRadius: '10px',
-                              fontSize: '9px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              fontFamily: "'Cinzel', serif"
-                            }}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                </div>
-
-              )}
+              </div>
             </div>
-          )}
+          ))}
+        </div>
+      )}
+    </div>
+  )}
+
+              
 {telaAtual === 'agendamentos' && (
   <div>
     <button
@@ -1271,7 +1290,7 @@ if (!jaCarregou) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
                     📁 {pacienteSelecionado.nome}
-                    <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
+                  
                   </h2>
                   <button
                     type="button"
@@ -1289,9 +1308,11 @@ if (!jaCarregou) {
                       fontFamily: "'Cinzel', serif"
                     }}
                   >
-                    Excluir Pasta
+                       Excluir
                   </button>
                 </div>
+                <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} empilhado />
+
 
 
                 <div style={{ fontSize: '10px', color: '#555', marginTop: '3px' }}>Doc: {pacienteSelecionado.documento || 'Não informado'}</div>
