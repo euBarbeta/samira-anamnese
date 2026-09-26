@@ -1,3 +1,4 @@
+// src/components/GaleriaPaciente.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { isNativo } from './push-notifications-native';
@@ -8,8 +9,8 @@ import {
 import { db } from './firebase';
 import { uploadFoto, deletarFotoCloudinary } from '../utils/uploadFoto';
 import {
-  MdDelete, MdAddAPhoto, MdImage, MdClose, MdLink, MdSearch,
-  MdFileUpload, MdImageNotSupported, MdCheckCircle, MdWarning,
+  MdDelete, MdImage, MdClose, MdLink, MdSearch,
+  MdImageNotSupported, MdCheckCircle, MdWarning,
   MdClear
 } from 'react-icons/md';
 
@@ -32,10 +33,10 @@ export default function GaleriaPaciente({
     isOpen: false, foto: null, excluindo: false, erro: '',
   });
 
-  // ✅ Só paciente pode ADICIONAR fotos
+  // Só paciente pode ADICIONAR fotos
   const podeAdicionar = modo === 'paciente';
 
-  // ✅ Escuta em tempo real
+  // Escuta em tempo real
   useEffect(() => {
     if (!pacienteId || !uidEsteticista) return;
     const colRef = collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`);
@@ -50,132 +51,124 @@ export default function GaleriaPaciente({
     return () => unsub();
   }, [pacienteId, uidEsteticista]);
 
- const escolherFonte = async (source) => {
-  // ============================================================
-  // 🌐 WEB / PWA → input file direto (NÃO recarrega a página)
-  // ============================================================
-  if (!isNativo()) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    if (source === 'camera') {
-      input.capture = 'environment';   // abre a câmera traseira
-    }
+  const escolherFonte = async (source) => {
+    // ============================================================
+    // WEB / PWA → input file direto (NÃO recarrega a página)
+    // ============================================================
+    if (!isNativo()) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      if (source === 'camera') {
+        input.capture = 'environment'; // abre a câmera traseira
+      }
 
-    input.onchange = async (e) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        try {
-          await enviarFoto(file);
-        } catch (err) {
-          console.error('Erro ao enviar foto:', err);
-          alert('Erro ao enviar foto: ' + (err?.message || err));
+      input.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          try {
+            await enviarFoto(file);
+          } catch (err) {
+            console.error('Erro ao enviar foto:', err);
+            alert('Erro ao enviar foto: ' + (err?.message || err));
+          }
         }
-      }
-    };
+      };
 
-    input.click();
-    return;
-  }
-
-  // ============================================================
-  // 📱 APK / Nativo → Capacitor Camera
-  // ============================================================
-  // ============================================================
-  // 📱 APK / Nativo → Capacitor Camera (config LEVE p/ não matar o WebView)
-  // ============================================================
-  try {
-    const photo = await Camera.getPhoto({
-      quality: 75,                          // ✅ menos bytes
-      allowEditing: false,
-      resultType: CameraResultType.Uri,     // ✅ USA URI — não carrega base64 na RAM
-      source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
-      width: 1600,                          // ✅ menor que 1920
-      saveToGallery: false,                 // ✅ não salva na galeria do device
-      correctOrientation: true,
-      preserveAspectRatio: true,
-    });
-
-    // ✅ Usa webPath (Uri → arquivo no cache do app)
-    const caminho = photo.webPath || photo.path;
-    if (!caminho) throw new Error('Nenhum caminho de imagem recebido');
-
-    const res = await fetch(caminho);
-    const blob = await res.blob();
-    const file = new File([blob], `foto_${Date.now()}.jpg`, {
-      type: blob.type || 'image/jpeg',
-    });
-
-   await addDoc(
-  collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
-  {
-    url: resultado.url,
-    thumbUrl: resultado.thumbUrl,
-    publicId: resultado.publicId,
-    tamanho: resultado.tamanho,
-    enviadoEm: serverTimestamp(),
-    enviadoPor: modo,
-    vinculadoA: [],
-    notificado: false,          // ✅ campo novo
-    uidEsteticista: uidEsteticista,   // ✅ pra query rápida depois
-    pacienteNome: pacienteNome, // ✅ denormalizado
-  }
-);
-  } catch (err) {
-    const msg = (err?.message || '').toLowerCase();
-    if (msg.includes('cancel') || msg.includes('user cancelled')) return;
-    console.error('Erro ao obter foto:', err);
-    alert('Erro ao obter foto: ' + (err?.message || err));
-  }
-};
-
- const enviarFoto = async (file) => {
-  // ✅ Guarda contra toques duplos (usa ref, não state, pra não ficar preso)
-  if (enviandoRef.current) return;
-  enviandoRef.current = true;
-  setEnviando(true);
-
-  try {
-    // ✅ Timeout MESTRE — se o upload pendurar por qualquer razão,
-    //    libera a UI depois de 60s (o worker/upload terá estourado antes)
-    const resultado = await Promise.race([
-      uploadFoto(file, pacienteId),
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error('O envio demorou demais. Verifique sua conexão.')),
-          60000
-        )
-      ),
-    ]);
-
-    await addDoc(
-      collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
-      {
-        url: resultado.url,
-        thumbUrl: resultado.thumbUrl,
-        publicId: resultado.publicId,
-        tamanho: resultado.tamanho,
-        enviadoEm: serverTimestamp(),
-        enviadoPor: modo,
-        vinculadoA: [],
-      }
-    );
-
-    if (modo === 'paciente') {
-      fetch('/.netlify/functions/notificar-foto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome }),
-      }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
+      input.click();
+      return;
     }
-  } catch (err) {
-    console.error('Erro ao enviar foto:', err);
-    alert('Erro ao enviar foto: ' + (err?.message || err));
-  } finally {
-    enviandoRef.current = false;
-    setEnviando(false);
-  }
-};
+
+    // ============================================================
+    // APK / Nativo → Capacitor Camera (config LEVE p/ não matar o WebView)
+    // ============================================================
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 75,                          // menos bytes
+        allowEditing: false,
+        resultType: CameraResultType.Uri,     // usa URI — não carrega base64 na RAM
+        source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
+        width: 1600,                          // menor que 1920
+        saveToGallery: false,                 // não salva na galeria do device
+        correctOrientation: true,
+        preserveAspectRatio: true,
+      });
+
+      // Usa webPath (Uri → arquivo no cache do app)
+      const caminho = photo.webPath || photo.path;
+      if (!caminho) throw new Error('Nenhum caminho de imagem recebido');
+
+      const res = await fetch(caminho);
+      const blob = await res.blob();
+      const file = new File([blob], `foto_${Date.now()}.jpg`, {
+        type: blob.type || 'image/jpeg',
+      });
+
+      // ✅ Usa a MESMA função do branch web — faz upload, salva no
+      //    Firestore com todos os campos e notifica a esteticista.
+      //    (Antes usava uma variável `resultado` que não existia → bug.)
+      await enviarFoto(file);
+    } catch (err) {
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('cancel') || msg.includes('user cancelled')) return;
+      console.error('Erro ao obter foto:', err);
+      alert('Erro ao obter foto: ' + (err?.message || err));
+    }
+  };
+
+  const enviarFoto = async (file) => {
+    // Guarda contra toques duplos (usa ref, não state, pra não ficar preso)
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
+    setEnviando(true);
+
+    try {
+      // Timeout MESTRE — se o upload pendurar por qualquer razão,
+      // libera a UI depois de 60s (o worker/upload terá estourado antes)
+      const resultado = await Promise.race([
+        uploadFoto(file, pacienteId),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('O envio demorou demais. Verifique sua conexão.')),
+            60000
+          )
+        ),
+      ]);
+
+      await addDoc(
+        collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
+        {
+          url: resultado.url,
+          thumbUrl: resultado.thumbUrl,
+          publicId: resultado.publicId,
+          tamanho: resultado.tamanho,
+          enviadoEm: serverTimestamp(),
+          enviadoPor: modo,
+          vinculadoA: [],
+          // ✅ Campos que o PainelEsteticista usa pra mostrar o banner
+          //    "Nova foto de X" (query where('notificado', '==', false)).
+          //    Sem eles, o banner nunca aparece.
+          notificado: false,
+          uidEsteticista: uidEsteticista,
+          pacienteNome: pacienteNome,
+        }
+      );
+
+      if (modo === 'paciente') {
+        fetch('/.netlify/functions/notificar-foto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome }),
+        }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
+      }
+    } catch (err) {
+      console.error('Erro ao enviar foto:', err);
+      alert('Erro ao enviar foto: ' + (err?.message || err));
+    } finally {
+      enviandoRef.current = false;
+      setEnviando(false);
+    }
+  };
 
   const abrirModalExclusao = (foto) => {
     setModalExclusao({ isOpen: true, foto, excluindo: false, erro: '' });
@@ -233,7 +226,7 @@ export default function GaleriaPaciente({
     });
   };
 
-  // ✅ Filtro de evoluções pelo termo de busca
+  // Filtro de evoluções pelo termo de busca
   const evolucoesFiltradas = useMemo(() => {
     const termo = buscaEvolucao.toLowerCase().trim();
     if (!termo) return evolucoes;
@@ -254,43 +247,43 @@ export default function GaleriaPaciente({
         </div>
       )}
 
-     {enviando && (
-  <div style={{
-    position: 'fixed', inset: 0, zIndex: 99999,
-    background: 'rgba(44, 22, 58, 0.65)',
-    backdropFilter: 'blur(4px)',
-    display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center',
-    gap: 18, pointerEvents: 'all',
-  }}>
-    <div style={{
-      width: 56, height: 56,
-      border: '5px solid rgba(255, 255, 255, 0.25)',
-      borderTop: '5px solid #C8A24A',
-      borderRadius: '50%',
-      animation: 'spinEnviando 0.8s linear infinite',
-    }} />
-    <span style={{
-      fontFamily: "'Cinzel', serif",
-      color: '#fff', fontSize: 15, fontWeight: 700,
-      letterSpacing: '0.8px', textAlign: 'center',
-    }}>
-      Enviando foto…
-    </span>
-    <span style={{
-      color: 'rgba(255, 255, 255, 0.8)',
-      fontSize: 12,
-      fontFamily: "'Montserrat', sans-serif",
-      textAlign: 'center',
-      maxWidth: 260,
-    }}>
-      Aguarde. Não feche o app nem toque em outros botões.
-    </span>
-    <style>{`
-      @keyframes spinEnviando { to { transform: rotate(360deg); } }
-    `}</style>
-  </div>
-)}
+      {enviando && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(44, 22, 58, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 18, pointerEvents: 'all',
+        }}>
+          <div style={{
+            width: 56, height: 56,
+            border: '5px solid rgba(255, 255, 255, 0.25)',
+            borderTop: '5px solid #C8A24A',
+            borderRadius: '50%',
+            animation: 'spinEnviando 0.8s linear infinite',
+          }} />
+          <span style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#fff', fontSize: 15, fontWeight: 700,
+            letterSpacing: '0.8px', textAlign: 'center',
+          }}>
+            Enviando foto…
+          </span>
+          <span style={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontSize: 12,
+            fontFamily: "'Montserrat', sans-serif",
+            textAlign: 'center',
+            maxWidth: 260,
+          }}>
+            Aguarde. Não feche o app nem toque em outros botões.
+          </span>
+          <style>{`
+            @keyframes spinEnviando { to { transform: rotate(360deg); } }
+          `}</style>
+        </div>
+      )}
 
       {carregando ? (
         <div style={estilo.aviso}>Carregando galeria...</div>
@@ -349,7 +342,7 @@ export default function GaleriaPaciente({
         </div>
       )}
 
-      {/* Modal vincular — com LUPA de busca */}
+      {/* Modal vincular — com lupa de busca */}
       {modalVincular && (
         <div style={estilo.modal} onClick={() => setModalVincular(null)}>
           <div style={estilo.modalCard} onClick={(e) => e.stopPropagation()}>
@@ -358,7 +351,7 @@ export default function GaleriaPaciente({
               Selecione as evoluções que devem mostrar esta foto:
             </p>
 
-            {/* 🔍 Lupa de busca */}
+            {/* Barra de busca com ícone */}
             {evolucoes.length > 0 && (
               <div style={estilo.barraBusca}>
                 <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
@@ -436,7 +429,7 @@ export default function GaleriaPaciente({
         </div>
       )}
 
-      {/* Modal exclusão — estilo Samira */}
+      {/* Modal exclusão */}
       {modalExclusao.isOpen && (
         <div style={estiloExclusao.overlay}>
           <div style={estiloExclusao.card}>

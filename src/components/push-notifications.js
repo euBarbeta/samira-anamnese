@@ -10,15 +10,15 @@ import {
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
 /* ============================================================
-   Chave para persistir qual paciente foi o ÚLTIMO a registrar
-   push web NESTE navegador. Serve para evitar que o paciente A
-   continue recebendo notificações depois que o paciente B
-   logar no mesmo dispositivo.
-
-   ⚠️ Só limpa o campo "subscription" — NUNCA apaga o doc inteiro,
-      pois ele pode conter "fcmToken" do APK do outro paciente.
+   Chaves de rastreio: "quem usou este navegador por último".
+   Um navegador tem UMA ÚNICA subscription de web-push.
+   Se a esteticista e um paciente usarem o mesmo Chrome, os dois
+   docs apontam para a mesma subscription — e a notificação de
+   foto chegaria nos dois. Estas chaves resolvem isso: quando
+   alguém se inscreve, limpamos a subscription web do tipo OPOSTO.
    ============================================================ */
-const STORAGE_KEY_LAST_PACIENTE = 'push_last_paciente_id';
+const STORAGE_KEY_LAST_PATIENT = 'push_last_paciente_id';
+const STORAGE_KEY_LAST_ESTHETICIAN = 'push_last_esteticista_uid';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -31,56 +31,70 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-/**
- * Registra push escolhendo automaticamente entre:
- *   - Nativo (APK/Android) → FCM via Capacitor
- *   - Navegador (PWA)      → web-push via Service Worker
- */
+/* ============================================================
+   Helpers de limpeza — chamados ANTES de registrar uma nova
+   subscription, sempre limpando o TIPO OPOSTO primeiro.
+   ============================================================ */
+async function limparSubscriptionEsteticistaAnterior() {
+  try {
+    const anterior = localStorage.getItem(STORAGE_KEY_LAST_ESTHETICIAN);
+    if (!anterior) return;
+    console.log(`🧹 Limpando subscription web da esteticista ${anterior}`);
+    await updateDoc(
+      doc(db, 'push_subscriptions_esteticistas', anterior),
+      { subscription: null, subscriptionLimpaEm: new Date().toISOString() }
+    ).catch(() => {});
+    localStorage.removeItem(STORAGE_KEY_LAST_ESTHETICIAN);
+  } catch (e) {
+    console.warn('localStorage indisponível:', e);
+  }
+}
+
+async function limparSubscriptionPacienteAnterior() {
+  try {
+    const anterior = localStorage.getItem(STORAGE_KEY_LAST_PATIENT);
+    if (!anterior) return;
+    console.log(`🧹 Limpando subscription web do paciente ${anterior}`);
+    await updateDoc(
+      doc(db, 'push_subscriptions', anterior),
+      { subscription: null, subscriptionLimpaEm: new Date().toISOString() }
+    ).catch(() => {});
+    localStorage.removeItem(STORAGE_KEY_LAST_PATIENT);
+  } catch (e) {
+    console.warn('localStorage indisponível:', e);
+  }
+}
+
+/* ============================================================
+   PACIENTE — web-push (PWA/navegador)
+   ============================================================ */
 export async function inscreverPush(pacienteId) {
   const pacienteIdStr = String(pacienteId);
 
-  // ✅ 1) App nativo (APK) → FCM
+  // 1) App nativo (APK) → FCM
   if (isNativo()) {
     return inscreverPushNativo(pacienteId);
   }
 
-  // ✅ 2) Navegador (PWA) → web-push
+  // 2) Navegador (PWA) → web-push
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     console.warn('❌ Push não suportado no navegador.');
     return null;
   }
-
   if (!VAPID_PUBLIC_KEY) {
     console.error('❌ VAPID key não configurada (.env → VITE_VAPID_PUBLIC_KEY).');
     return null;
   }
 
-  // ============================================================
-  // ✅ Detalhe multi-dispositivo:
-  //    Se OUTRO paciente registrou push web neste navegador antes,
-  //    removemos APENAS o campo "subscription" do doc anterior.
-  //    Preservamos "fcmToken" — pode haver um APK do mesmo paciente
-  //    que continua válido e DEVE continuar recebendo notificações.
-  // ============================================================
+  // ✅ PASSO CRÍTICO: antes de registrar o paciente, limpa a subscription
+  //    web da esteticista (se ela usou este navegador antes) E do paciente
+  //    anterior (se foi outro). Só o atual fica com subscription ativa.
+  await limparSubscriptionEsteticistaAnterior();
+  await limparSubscriptionPacienteAnterior();
+
   try {
-    const ultimoPaciente = localStorage.getItem(STORAGE_KEY_LAST_PACIENTE);
-
-    if (ultimoPaciente && ultimoPaciente !== pacienteIdStr) {
-      console.log(`🧹 Limpando subscription web antiga do paciente ${ultimoPaciente}`);
-      try {
-        await updateDoc(doc(db, 'push_subscriptions', ultimoPaciente), {
-          subscription: null,
-          subscriptionLimpaEm: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.warn('Falha ao limpar subscription antiga (pode não existir):', e);
-      }
-    }
-
-    localStorage.setItem(STORAGE_KEY_LAST_PACIENTE, pacienteIdStr);
-  } catch (e) {
-    console.warn('localStorage indisponível:', e);
-  }
+    localStorage.setItem(STORAGE_KEY_LAST_PATIENT, pacienteIdStr);
+  } catch {}
 
   try {
     if (Notification.permission === 'default') {
@@ -101,7 +115,6 @@ export async function inscreverPush(pacienteId) {
     }
 
     let subscription = await registration.pushManager.getSubscription();
-
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -109,19 +122,15 @@ export async function inscreverPush(pacienteId) {
       });
     }
 
-    const subJson = subscription.toJSON();
-
-    // ✅ merge: true → preserva o "fcmToken" se ele já existir
-    //    (paciente tem APK E PWA na mesma conta)
     await setDoc(
       doc(db, 'push_subscriptions', pacienteIdStr),
       {
         pacienteId: pacienteIdStr,
-        subscription: subJson,
+        subscription: subscription.toJSON(),
         plataforma: 'web',
         subscriptionAtualizadaEm: new Date().toISOString(),
       },
-      { merge: true }
+      { merge: true } // preserva fcmToken (APK) se existir
     );
 
     return subscription;
@@ -131,27 +140,34 @@ export async function inscreverPush(pacienteId) {
   }
 }
 
-/**
- * Registra push da ESTETICISTA — coleção separada.
- *   - Nativo (APK) → FCM
- *   - Navegador (PWA) → web-push
- */
+/* ============================================================
+   ESTETICISTA — web-push (PWA/navegador) — coleção separada
+   ============================================================ */
 export async function inscreverPushEsteticistaWeb(uidEsteticista) {
-  // ✅ 1) Nativo (APK) → FCM
+  // 1) Nativo (APK) → FCM
   if (isNativo()) {
     return inscreverPushEsteticista(uidEsteticista);
   }
 
-  // ✅ 2) Navegador (PWA) → web-push
+  // 2) Navegador (PWA) → web-push
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     console.warn('❌ Push não suportado no navegador.');
     return null;
   }
-
   if (!VAPID_PUBLIC_KEY) {
     console.error('❌ VAPID key não configurada (.env → VITE_VAPID_PUBLIC_KEY).');
     return null;
   }
+
+  // ✅ PASSO CRÍTICO: antes de registrar a esteticista, limpa a subscription
+  //    web de QUALQUER paciente que usou este navegador antes. Assim a
+  //    notificação de foto só chega nela.
+  await limparSubscriptionPacienteAnterior();
+  await limparSubscriptionEsteticistaAnterior();
+
+  try {
+    localStorage.setItem(STORAGE_KEY_LAST_ESTHETICIAN, String(uidEsteticista));
+  } catch {}
 
   try {
     if (Notification.permission === 'default') {
@@ -172,7 +188,6 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
       });
     }
 
-    // ✅ merge: true → preserva fcmToken se a esteticista também usa APK
     await setDoc(
       doc(db, 'push_subscriptions_esteticistas', String(uidEsteticista)),
       {

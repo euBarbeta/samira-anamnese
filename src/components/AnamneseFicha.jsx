@@ -97,6 +97,30 @@ const [dadosPaciente, setDadosPaciente] = useState(() => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  // ✅ Rede de segurança: garante que a URL do PACIENTE sempre tenha #id
+//    (não mexe na URL do esteticista nem na tela de agendamento)
+useEffect(() => {
+  if (!autenticado || !usuarioLogado) return;
+
+  const email = (usuarioLogado.email || '').toLowerCase().trim();
+  const ehPaciente =
+    email.endsWith('@sistema.local') &&
+    !EMAILS_ESTETICISTAS.includes(email);
+
+  if (!ehPaciente) return;
+
+  const id = dadosPaciente?.id;
+  if (!id) return;
+
+  const hashAtual = window.location.hash.slice(1);
+  if (hashAtual === String(id)) return; // já está correto, não faz nada
+
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}#${id}`
+  );
+}, [autenticado, usuarioLogado, dadosPaciente]);
 useEffect(() => {
   try {
     // ✅ Escreve em AMBOS: localStorage sobrevive ao kill do WebView
@@ -187,15 +211,23 @@ useEffect(() => {
   }
 
   // #{uidPaciente}
-  (async () => {
-    const valido = await validarUIDPaciente(hash);
-    if (valido) {
-      setUidDaURL(hash);
-      setRota('login-uid');
-    } else {
-      setRota('nao-encontrado');
-    }
-  })();
+  // #{uidPaciente}
+  const hashEhUID =
+    hash &&
+    hash !== 'agendar' &&
+    !hash.startsWith('agendar/');
+
+  if (hashEhUID) {
+    // ✅ Seta síncrono — protege contra race condition
+    setUidDaURL(hash);
+    uidDaURLRef.current = hash;
+
+    (async () => {
+      const valido = await validarUIDPaciente(hash);
+      if (!valido) setRota('nao-encontrado');
+      else setRota('login-uid');
+    })();
+  }
 }, []);
 
   // ============================================================
@@ -527,10 +559,15 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
         setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
       }
 
-      window.history.replaceState({ abaAtiva: 'painelPaciente' }, '', window.location.pathname);
-      setAbaAtiva('painelPaciente');
-      setAutenticado(true);   // ← ESSA linha é a chave
-
+    const idPaciente = String(pacienteEncontrado.id);
+window.history.replaceState(
+  { abaAtiva: 'painelPaciente', pacienteId: idPaciente },
+  '',
+  `${window.location.pathname}#${idPaciente}`
+);
+setUidDaURL(idPaciente);
+setAbaAtiva('painelPaciente');
+setAutenticado(true);
     } else {
       alert('Sua ficha de paciente não foi encontrada nas pastas do sistema.');
       await signOut(auth);
@@ -594,18 +631,32 @@ const handleLoginSucesso = async (user, opcoes = {}) => {
   // ============================================================
   // ✅ Decide pra onde ir com base em QUEM estava logado
   // ============================================================
-  if (eraEsteticista) {
-    // Esteticista → volta pra tela de login do /admin
-    setRota('admin');
-    setModoAdmin(true);
-  } else if (uidPacienteAtual) {
-    // Paciente → volta pra tela de login do paciente (com o UID dele)
-    setUidDaURL(uidPacienteAtual);
-    setRota('login-uid');
-  } else {
-    // Sem contexto (nativo recém-instalado ou web) → tela de login do paciente
-    setRota(isNativo() ? 'login-uid' : 'agendamento');
-  }
+if (eraEsteticista) {
+  setRota('admin');
+  setModoAdmin(true);
+  // URL sem hash
+  window.history.replaceState(
+    { abaAtiva: 'telainicial' },
+    '',
+    window.location.pathname
+  );
+} else if (uidPacienteAtual) {
+  setUidDaURL(uidPacienteAtual);
+  setRota('login-uid');
+  // ✅ Mantém o hash #id na URL para o refresh continuar na tela de login do paciente
+  window.history.replaceState(
+    { abaAtiva: 'telainicial' },
+    '',
+    `${window.location.pathname}#${uidPacienteAtual}`
+  );
+} else {
+  setRota(isNativo() ? 'login-uid' : 'agendamento');
+  window.history.replaceState(
+    { abaAtiva: 'telainicial' },
+    '',
+    window.location.pathname
+  );
+}
 
   setTimeout(() => {
     emLogoutRef.current = false;

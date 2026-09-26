@@ -939,17 +939,21 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
   }}>
     <MdPhotoLibrary size={24} color="#7e22ce" />
     <div style={{ flex: 1 }}>
-      <div style={{
-        fontFamily: "'Cinzel', serif",
-        color: '#2c163a',
-        fontSize: 13,
-        fontWeight: 700,
-        marginBottom: 4,
-      }}>
-        📸 {fotosPendentes.length === 1
-          ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
-          : `${fotosPendentes.length} pacientes enviaram fotos`}
-      </div>
+     <div style={{
+  fontFamily: "'Cinzel', serif",
+  color: '#2c163a',
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 4,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+}}>
+  <MdPhotoLibrary size={15} color="#7e22ce" />
+  {fotosPendentes.length === 1
+    ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+    : `${fotosPendentes.length} pacientes enviaram fotos`}
+</div>
       <div style={{
         fontSize: 11,
         color: '#555',
