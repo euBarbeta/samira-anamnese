@@ -1,55 +1,42 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import TelaInicial from './TelaInicial';
-import TelaInicialMobile from './TelaInicialMobile';
-import TelaSemInternet from './TelaSemInternet';
-import FichaDesktop from './FichaDesktop';
-import FichaMobile from './FichaMobile';
-import FichaEvoDesktop from './FichaEvoDesktop';
-import FichaEvoMobile from './FichaEvoMobile';
-import PainelEsteticista from './PainelEsteticista';
-import PainelEsteticistaMobile from './PainelEsteticistaMobile';
-import PainelPaciente from './PainelPaciente';
-import TelaAgendamentoPublico from './agendamento/TelaAgendamentoPublico';
-import PaginaNaoEncontrada from './PaginaNaoEncontrada';
-import { validarUIDPaciente } from '../utils/validarUID';
-import { EMAILS_ESTETICISTAS, UID_ESTETICISTA_PADRAO } from './constantes';
-import { secondaryAuth } from './firebaseSecondary';
-import { Preferences } from '@capacitor/preferences';
-import { isNativo } from './push-notifications-native';
-import {
-  doc, getDoc, getDocs, setDoc, deleteDoc, collection,
-  query, where, onSnapshot
-} from "firebase/firestore";
-import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from './firebase';
-
-
+const lerSessao = (k) => {
+  try {
+    return localStorage.getItem(k) || sessionStorage.getItem(k) || null;
+  } catch { return null; }
+};
 
 export default function AnamneseFicha() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  
+
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [rota, setRota] = useState('verificando');
-const [uidDaURL, setUidDaURL] = useState(null);
-const uidDaURLRef = useRef(null);    
-useEffect(() => { uidDaURLRef.current = uidDaURL; }, [uidDaURL]);
-const [modoAdmin, setModoAdmin] = useState(false);
-const [buscandoPaciente, setBuscandoPaciente] = useState(false);
-const [autenticado, setAutenticado] = useState(() => {
-  try { return sessionStorage.getItem('af_autenticado') === '1'; } catch { return false; }
-});
-const [abaAtiva, setAbaAtiva] = useState(() => {
-  try { return sessionStorage.getItem('af_abaAtiva') || 'telainicial'; } catch { return 'telainicial'; }
-});
-const [authVerificado, setAuthVerificado] = useState(() => {
-  try { return sessionStorage.getItem('af_authVerificado') === '1'; } catch { return false; }
-});
-const [dadosPaciente, setDadosPaciente] = useState(() => {
-  try {
-    const s = sessionStorage.getItem('af_dadosPaciente');
-    return s ? JSON.parse(s) : null;
-  } catch { return null; }
-});
+
+  // ✅ Lê o #id também do localStorage (sobrevive ao kill do WebView)
+  const [uidDaURL, setUidDaURL] = useState(() => {
+    const salvo = lerSessao('af_uidDaURL');
+    if (salvo) return salvo;
+    try {
+      const h = window.location.hash.slice(1);
+      const hashEhUID = h && h !== 'agendar' && !h.startsWith('agendar/');
+      return hashEhUID ? h : null;
+    } catch { return null; }
+  });
+  const uidDaURLRef = useRef(null);
+  useEffect(() => { uidDaURLRef.current = uidDaURL; }, [uidDaURL]);
+
+  const [modoAdmin, setModoAdmin] = useState(false);
+  const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+
+  // ✅ Todos os estados iniciais leem localStorage PRIMEIRO
+  const [autenticado, setAutenticado] = useState(() => lerSessao('af_autenticado') === '1');
+  const [abaAtiva, setAbaAtiva] = useState(() => lerSessao('af_abaAtiva') || 'telainicial');
+  const [authVerificado, setAuthVerificado] = useState(() => lerSessao('af_authVerificado') === '1');
+  const [dadosPaciente, setDadosPaciente] = useState(() => {
+    try {
+      const s = lerSessao('af_dadosPaciente');
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  });
+
   const [fichasSalvas, setFichasSalvas] = useState([]);
   const [carregandoNuvem, setCarregandoNuvem] = useState(false);
   const [fichaSelecionada, setFichaSelecionada] = useState(null);
@@ -123,7 +110,12 @@ useEffect(() => {
 }, [autenticado, usuarioLogado, dadosPaciente]);
 useEffect(() => {
   try {
-    // ✅ Escreve em AMBOS: localStorage sobrevive ao kill do WebView
+    // ✅ NÃO persiste enquanto o auth ainda não foi verificado.
+    //    Sem isso, o React roda este efeito antes do onAuthStateChanged
+    //    disparar, e sobrescreve o localStorage com '0' — apagando a
+    //    sessão salva que sobreviveu ao kill do WebView.
+    if (!authVerificado) return;
+
     const salvar = (k, v) => {
       sessionStorage.setItem(k, v);
       localStorage.setItem(k, v);
@@ -139,9 +131,17 @@ useEffect(() => {
       sessionStorage.removeItem('af_dadosPaciente');
       localStorage.removeItem('af_dadosPaciente');
     }
-  } catch {}
-}, [abaAtiva, authVerificado, autenticado, dadosPaciente]);
 
+    // ✅ Persiste (ou limpa) o uidDaURL — para o paciente continuar
+    //    vinculado ao link mesmo depois de fechar/reabrir o WebView.
+    if (uidDaURL) {
+      salvar('af_uidDaURL', String(uidDaURL));
+    } else {
+      sessionStorage.removeItem('af_uidDaURL');
+      localStorage.removeItem('af_uidDaURL');
+    }
+  } catch {}
+}, [abaAtiva, authVerificado, autenticado, dadosPaciente, uidDaURL]);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -618,12 +618,12 @@ setAutenticado(true);
   window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
 
   try {
-    ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
-     'af_dadosPaciente', 'af_pacienteDocPath', 'pp_telaAtual']
-      .forEach(k => {
-        sessionStorage.removeItem(k);
-        localStorage.removeItem(k);
-      });
+   ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
+ 'af_dadosPaciente', 'af_pacienteDocPath', 'pp_telaAtual', 'af_uidDaURL']
+  .forEach(k => {
+    sessionStorage.removeItem(k);
+    localStorage.removeItem(k);
+  });
   } catch {}
 
   setAbaAtiva('telainicial');
