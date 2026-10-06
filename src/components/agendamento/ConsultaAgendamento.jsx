@@ -1,13 +1,14 @@
 // src/components/agendamento/ConsultaAgendamento.jsx
 import React, { useState } from 'react';
 import {
-  collection, query, where, getDocs, doc, updateDoc,
+  collection, query, where, getDocs, doc, updateDoc, deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatarTelefone } from '../../utils/agenda';
 import {
   MdSearch, MdWarning, MdCheckCircle, MdCancel, MdHourglassEmpty,
   MdCalendarMonth, MdPhone, MdBadge, MdPerson, MdInfoOutline, MdRefresh,
+  MdDelete,
 } from 'react-icons/md';
 import { AbasPublicas, EstilosTAP } from './TelaAgendamentoPublico';
 
@@ -53,10 +54,16 @@ function ModalConfirmacao({
   mensagem,
   textoConfirmar = 'Confirmar',
   textoCancelar = 'Cancelar',
+  corBotaoConfirmar = 'vermelho', // 'vermelho' | 'dourado'
   carregando = false,
   onConfirmar,
   onFechar,
 }) {
+  const fundoConfirmar =
+    corBotaoConfirmar === 'vermelho'
+      ? 'linear-gradient(135deg, #c62828 0%, #e53935 100%)'
+      : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)';
+
   return (
     <div
       onClick={carregando ? undefined : onFechar}
@@ -90,7 +97,7 @@ function ModalConfirmacao({
         <h3
           style={{
             fontFamily: "'Cinzel', serif",
-            color: '#c62828',
+            color: '#2c163a',
             fontSize: 16,
             margin: '0 0 10px 0',
           }}
@@ -137,7 +144,7 @@ function ModalConfirmacao({
             disabled={carregando}
             style={{
               flex: 1,
-              background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
+              background: fundoConfirmar,
               color: '#fff',
               border: 'none',
               padding: '12px 16px',
@@ -196,7 +203,9 @@ export default function ConsultaAgendamento({ onVoltar }) {
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState(null); // null = ainda não buscou
   const [erro, setErro] = useState('');
-  const [confirmacao, setConfirmacao] = useState(null); // { ag }
+
+  // ✅ confirmacao agora guarda a ação: 'cancelar' | 'remover'
+  const [confirmacao, setConfirmacao] = useState(null);
   const [processando, setProcessando] = useState(false);
 
   const buscar = async () => {
@@ -241,18 +250,24 @@ export default function ConsultaAgendamento({ onVoltar }) {
     }
   };
 
+  // ✅ Cancelar — reenvia nome+documento pra satisfazer a regra pública
   const cancelar = async () => {
-    if (!confirmacao) return;
+    if (!confirmacao || confirmacao.acao !== 'cancelar') return;
+    const ag = confirmacao.ag;
     setProcessando(true);
     try {
-      await updateDoc(doc(db, 'agendamentos', confirmacao.id), {
+      await updateDoc(doc(db, 'agendamentos', ag.id), {
+        // Campos exigidos pela regra pública (merge mantém o mesmo valor)
+        nome: ag.nome,
+        documento: ag.documento,
+        // Campos que realmente mudam
         status: 'cancelado',
         canceladoPor: 'paciente',
         atualizadoEm: new Date().toISOString(),
       });
       setResultados((prev) =>
         prev.map((a) =>
-          a.id === confirmacao.id
+          a.id === ag.id
             ? { ...a, status: 'cancelado', canceladoPor: 'paciente' }
             : a
         )
@@ -261,6 +276,23 @@ export default function ConsultaAgendamento({ onVoltar }) {
     } catch (e) {
       console.error('Erro ao cancelar:', e);
       setErro('Não foi possível cancelar. Tente novamente.');
+    } finally {
+      setProcessando(false);
+    }
+  };
+
+  // ✅ Remover da lista — só quando já está cancelado (regra permite)
+  const remover = async () => {
+    if (!confirmacao || confirmacao.acao !== 'remover') return;
+    const ag = confirmacao.ag;
+    setProcessando(true);
+    try {
+      await deleteDoc(doc(db, 'agendamentos', ag.id));
+      setResultados((prev) => prev.filter((a) => a.id !== ag.id));
+      setConfirmacao(null);
+    } catch (e) {
+      console.error('Erro ao remover:', e);
+      setErro('Não foi possível remover. Tente novamente.');
     } finally {
       setProcessando(false);
     }
@@ -501,6 +533,8 @@ export default function ConsultaAgendamento({ onVoltar }) {
                         ag.status === 'confirmado') &&
                       !ag.canceladoPor;
 
+                    const podeRemover = ag.status === 'cancelado';
+
                     return (
                       <div
                         key={ag.id}
@@ -631,11 +665,15 @@ export default function ConsultaAgendamento({ onVoltar }) {
                           </div>
                         )}
 
-                        {/* Ação cancelar */}
+                        {/* ===== Ações ===== */}
+
+                        {/* Cancelar (só se pendente/confirmado) */}
                         {podeCancelar && (
                           <button
                             type="button"
-                            onClick={() => setConfirmacao(ag)}
+                            onClick={() =>
+                              setConfirmacao({ ag, acao: 'cancelar' })
+                            }
                             style={{
                               marginTop: 12,
                               width: '100%',
@@ -659,6 +697,37 @@ export default function ConsultaAgendamento({ onVoltar }) {
                             Cancelar este agendamento
                           </button>
                         )}
+
+                        {/* Remover da lista (só se já cancelado) */}
+                        {podeRemover && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirmacao({ ag, acao: 'remover' })
+                            }
+                            style={{
+                              marginTop: 12,
+                              width: '100%',
+                              background: '#f5f5f5',
+                              color: '#555',
+                              border: '1.5px solid #ddd',
+                              padding: '10px 14px',
+                              borderRadius: 16,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              fontFamily: "'Cinzel', serif",
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
+                              minHeight: 42,
+                            }}
+                          >
+                            <MdDelete size={14} />
+                            Remover da lista
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -669,16 +738,33 @@ export default function ConsultaAgendamento({ onVoltar }) {
         </div>
       </div>
 
-      {confirmacao && (
+      {/* ===== Modal de confirmação (cancelar OU remover) ===== */}
+      {confirmacao && confirmacao.acao === 'cancelar' && (
         <ModalConfirmacao
           titulo="Cancelar agendamento?"
           mensagem={`Tem certeza que deseja cancelar o agendamento de ${formatarDataLonga(
-            confirmacao.data
-          )} às ${confirmacao.horaInicio}?`}
+            confirmacao.ag.data
+          )} às ${confirmacao.ag.horaInicio}?`}
           textoConfirmar="Sim, cancelar"
           textoCancelar="Voltar"
+          corBotaoConfirmar="vermelho"
           carregando={processando}
           onConfirmar={cancelar}
+          onFechar={() => setConfirmacao(null)}
+        />
+      )}
+
+      {confirmacao && confirmacao.acao === 'remover' && (
+        <ModalConfirmacao
+          titulo="Remover da lista?"
+          mensagem={`Remover o agendamento de ${formatarDataLonga(
+            confirmacao.ag.data
+          )} às ${confirmacao.ag.horaInicio} da lista?\n\nEle já está cancelado — isso só limpa a visualização.`}
+          textoConfirmar="Sim, remover"
+          textoCancelar="Voltar"
+          corBotaoConfirmar="dourado"
+          carregando={processando}
+          onConfirmar={remover}
           onFechar={() => setConfirmacao(null)}
         />
       )}
