@@ -3,6 +3,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
+import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
 import GaleriaPaciente from './GaleriaPaciente'; 
@@ -60,6 +61,7 @@ export default function PainelEsteticista({ onLogout }) {
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
+  const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
 
   const [modalExclusao, setModalExclusao] = useState(MODAL_FECHADO);
 
@@ -1261,6 +1263,28 @@ useEffect(() => {
                   >
                     + Adicionar Evolução
                   </button>
+                  <button
+  type="button"
+  onClick={() => setMostrarModalAgendar(true)}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
+    color: '#fff',
+    border: '1.5px solid #16a34a',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  }}
+>
+  <MdCalendarMonth size={14} color="#fff" />
+  Agendar Consulta
+</button>
 
                   <button
                     type="button"
@@ -1543,6 +1567,17 @@ useEffect(() => {
           )}
         </div>
       </div>
+      {mostrarModalAgendar && pacienteSelecionado && (
+  <ModalAgendarParaPaciente
+    paciente={pacienteSelecionado}
+    uidEsteticista={auth.currentUser?.uid}
+    onFechar={() => setMostrarModalAgendar(false)}
+    onSucesso={(ag) => {
+      setMostrarModalAgendar(false);
+      alert(`Agendamento criado para ${pacienteSelecionado.nome} em ${ag.data} às ${ag.horaInicio}.`);
+    }}
+  />
+)}
 
       {/* ✅ Modal do Termo de Consentimento */}
       {mostrarTermoPDF && pacienteSelecionado && (
@@ -1551,6 +1586,7 @@ useEffect(() => {
           onFechar={() => setMostrarTermoPDF(false)}
         />
       )}
+
 
       {modalExclusao.isOpen && (
         <div style={{

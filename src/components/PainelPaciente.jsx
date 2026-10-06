@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
 import GaleriaPaciente from './GaleriaPaciente';
@@ -286,7 +288,11 @@ const listaEstilo = {
   color: '#444',
   lineHeight: 1.7
 };
-
+function formatarDataBR(iso) {
+  if (!iso) return '—';
+  const [a, m, d] = iso.split('-');
+  return `${d}/${m}/${a}`;
+}
 /* ============================================================
    PAINEL DO PACIENTE
    ============================================================ */
@@ -308,7 +314,7 @@ const [telaAtual, setTelaAtual] = useState(() => {
     return 'detalhe_pasta';
   }
 });
-
+const [meusAgendamentos, setMeusAgendamentos] = useState([]);
 // ✅ Sempre que a tela muda, salva no sessionStorage
 useEffect(() => {
   try {
@@ -361,6 +367,25 @@ useEffect(() => {
   );
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+// ✅ Escuta os agendamentos deste paciente em tempo real
+useEffect(() => {
+  if (!pacienteData?.id) return;
+  const q = query(
+    collection(db, 'agendamentos'),
+    where('pacienteId', '==', String(pacienteData.id))
+  );
+  const unsub = onSnapshot(q, (snap) => {
+    const lista = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const ka = `${a.data} ${a.horaInicio}`;
+        const kb = `${b.data} ${b.horaInicio}`;
+        return kb.localeCompare(ka); // mais recentes primeiro
+      });
+    setMeusAgendamentos(lista);
+  }, (e) => console.warn('Erro listener agendamentos:', e));
+  return () => unsub();
+}, [pacienteData?.id]);
    useEffect(() => {
     const onPop = (e) => {
       const st = e.state;
@@ -843,6 +868,68 @@ if (consentimentoRecusado) {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                  {meusAgendamentos.length > 0 && (
+  <div style={{
+    background: '#f0fdf4',
+    border: '1.5px solid #86efac',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+  }}>
+    <div style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#166534',
+      fontSize: 13,
+      fontWeight: 700,
+      marginBottom: 10,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+    }}>
+      <MdCalendarMonth size={16} color="#166534" />
+      Meus Agendamentos
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {meusAgendamentos.slice(0, 3).map((ag) => (
+        <div key={ag.id} style={{
+          background: '#fff',
+          border: '1px solid #d1fae5',
+          borderRadius: 10,
+          padding: '10px 12px',
+          fontSize: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <strong style={{ color: '#166534' }}>
+              {formatarDataBR(ag.data)} às {ag.horaInicio}
+            </strong>
+            <span style={{
+              fontSize: 9,
+              fontWeight: 700,
+              padding: '1px 8px',
+              borderRadius: 10,
+              textTransform: 'capitalize',
+              background:
+                ag.status === 'confirmado' ? '#dcfce7' :
+                ag.status === 'pendente' ? '#fef3c7' :
+                ag.status === 'cancelado' ? '#fee2e2' : '#f3f4f6',
+              color:
+                ag.status === 'confirmado' ? '#166534' :
+                ag.status === 'pendente' ? '#92400e' :
+                ag.status === 'cancelado' ? '#991b1b' : '#666',
+            }}>
+              {ag.status}
+            </span>
+          </div>
+          {ag.observacoes && (
+            <div style={{ fontSize: 10.5, color: '#555', fontStyle: 'italic' }}>
+              {ag.observacoes}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
                   <button
   type="button"
   onClick={() => irParaTela('ver_anamnese')}   // ⬅️ era setTelaAtual

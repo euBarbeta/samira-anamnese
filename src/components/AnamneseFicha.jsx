@@ -16,6 +16,7 @@ import { EMAILS_ESTETICISTAS, UID_ESTETICISTA_PADRAO } from './constantes';
 import { secondaryAuth } from './firebaseSecondary';
 import { Preferences } from '@capacitor/preferences';
 import { isNativo } from './push-notifications-native';
+import ConsultaAgendamento from './agendamento/ConsultaAgendamento';
 import {
   doc, getDoc, getDocs, setDoc, deleteDoc, collection,
   query, where, onSnapshot
@@ -40,7 +41,12 @@ export default function AnamneseFicha() {
 const [uidDaURL, setUidDaURL] = useState(() => {
   try {
     const h = window.location.hash.slice(1);
-    const hashEhUID = h && h !== 'agendar' && !h.startsWith('agendar/');
+    // ✅ 'consultar' NÃO é UID
+    const hashEhUID =
+      h &&
+      h !== 'agendar' &&
+      h !== 'consultar' &&
+      !h.startsWith('agendar/');
     return hashEhUID ? h : null;
   } catch { return null; }
 });
@@ -187,7 +193,10 @@ useEffect(() => {
       );
     } catch { return false; }
   })();
-
+if (hash === 'consultar') {
+  setRota('agendamento-consulta'); // Nova rota
+  return;
+}
   // 0) APP NATIVO
   if (isNativo()) {
     if (hash && !hash.startsWith('agendar')) {
@@ -832,6 +841,17 @@ const renderizarConteudo = () => {
   //    Funciona no navegador E no PWA, logado ou deslogado.
   //    É a porta de saída do painel do paciente pra agendar.
   // ============================================================
+    // ============================================================
+  // 0) #consultar → consulta de agendamento por código
+  //    Funciona no navegador E no PWA, logado ou deslogado.
+  // ============================================================
+  if (hashAtual === 'consultar') {
+    return (
+      <ConsultaAgendamento
+        onVoltar={() => { window.location.href = '/'; }}
+      />
+    );
+  }
   if (hashAtual === 'agendar' || hashAtual.startsWith('agendar/')) {
     const uidEstetaDoHash = hashAtual.startsWith('agendar/')
       ? hashAtual.replace('agendar/', '')
