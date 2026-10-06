@@ -39,7 +39,7 @@ async function limparSubscriptionEsteticistaAnterior() {
   try {
     const anterior = localStorage.getItem(STORAGE_KEY_LAST_ESTHETICIAN);
     if (!anterior) return;
-    console.log(`🧹 Limpando subscription web da esteticista ${anterior}`);
+    
     await updateDoc(
       doc(db, 'push_subscriptions_esteticistas', anterior),
       { subscription: null, subscriptionLimpaEm: new Date().toISOString() }
@@ -54,7 +54,7 @@ async function limparSubscriptionPacienteAnterior() {
   try {
     const anterior = localStorage.getItem(STORAGE_KEY_LAST_PATIENT);
     if (!anterior) return;
-    console.log(`🧹 Limpando subscription web do paciente ${anterior}`);
+   
     await updateDoc(
       doc(db, 'push_subscriptions', anterior),
       { subscription: null, subscriptionLimpaEm: new Date().toISOString() }

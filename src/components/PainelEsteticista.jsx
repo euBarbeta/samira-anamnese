@@ -316,9 +316,7 @@ useEffect(() => {
     listaPacientes.map((p) =>
       registrarLinkPaciente(p.id, user.uid).catch(() => {})
     )
-  ).then(() => {
-    console.log('✅ Links de pacientes sincronizados:', listaPacientes.length);
-  });
+  )
 } catch (e) {
   console.error('Erro ao carregar fichas do Firestore:', e);
 } finally {
