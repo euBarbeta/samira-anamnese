@@ -268,8 +268,23 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
     });
   }, []);
 
-  // Carregar dados do Firestore ao iniciar
-  // Carregar dados do Firestore — espera o auth hidratar antes
+
+
+  // ✅ Publica o UID real da esteticista num doc global
+//    A agenda pública lê daqui pra saber de quem buscar a config
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+  setDoc(
+    doc(db, 'sistema', 'esteticista_ativa'),
+    {
+      uid: user.uid,
+      email: user.email || null,
+      atualizadoEm: new Date().toISOString(),
+    },
+    { merge: true }
+  ).catch((e) => console.warn('Falha publicando UID global:', e));
+}, []);
   useEffect(() => {
     let unsubAuth = null;
 

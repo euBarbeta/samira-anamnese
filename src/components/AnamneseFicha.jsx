@@ -30,6 +30,7 @@ const lerSessao = (k) => {
 };
 
 export default function AnamneseFicha() {
+  const [uidEsteticistaGlobal, setUidEsteticistaGlobal] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   const [usuarioLogado, setUsuarioLogado] = useState(null);
@@ -156,6 +157,22 @@ useEffect(() => {
       console.warn('Falha ao limpar query string:', e);
     }
   }, []);
+  // ✅ Lê o UID ativo da esteticista (doc global)
+useEffect(() => {
+  let cancelado = false;
+  (async () => {
+    try {
+      const snap = await getDoc(doc(db, 'sistema', 'esteticista_ativa'));
+      if (!cancelado && snap.exists()) {
+        const uid = snap.data().uid;
+        if (uid) setUidEsteticistaGlobal(uid);
+      }
+    } catch (e) {
+      console.warn('Falha lendo UID global:', e);
+    }
+  })();
+  return () => { cancelado = true; };
+}, []);
   // src/components/AnamneseFicha.jsx
 useEffect(() => {
   const path = window.location.pathname;
@@ -821,9 +838,9 @@ const renderizarConteudo = () => {
       : null;
     return (
       <TelaAgendamentoPublico
-        uidEsteticista={uidEstetaDoHash || UID_ESTETICISTA_PADRAO}
-        origem="raiz"
-      />
+  uidEsteticista={uidEsteticistaGlobal || UID_ESTETICISTA_PADRAO}
+  origem="raiz"
+/>
     );
   }
 
@@ -877,10 +894,10 @@ const renderizarConteudo = () => {
   // ============================================================
   if (!isNativo() && !hashAtual && !ehAdminUrl && !ehStandalone) {
     return (
-      <TelaAgendamentoPublico
-        uidEsteticista={UID_ESTETICISTA_PADRAO}
-        origem="raiz"
-      />
+     <TelaAgendamentoPublico
+  uidEsteticista={uidEsteticistaGlobal || UID_ESTETICISTA_PADRAO}
+  origem="raiz"
+/>
     );
   }
 
