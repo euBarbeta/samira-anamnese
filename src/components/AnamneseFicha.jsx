@@ -888,16 +888,17 @@ const renderizarConteudo = () => {
     );
   }
   if (hashAtual === 'agendar' || hashAtual.startsWith('agendar/')) {
-    const uidEstetaDoHash = hashAtual.startsWith('agendar/')
-      ? hashAtual.replace('agendar/', '')
-      : null;
-    return (
-      <TelaAgendamentoPublico
-  uidEsteticista={uidEsteticistaGlobal || UID_ESTETICISTA_PADRAO}
-  origem="raiz"
-/>
-    );
-  }
+  const uidEstetaDoHash = hashAtual.startsWith('agendar/')
+    ? hashAtual.replace('agendar/', '')
+    : null;
+
+  return (
+    <TelaAgendamentoPublico
+      uidEsteticista={uidEstetaDoHash || uidEsteticistaGlobal || UID_ESTETICISTA_PADRAO}
+      origem="raiz"
+    />
+  );
+}
 
   // ============================================================
   // 2) Detecta se está rodando como PWA standalone
