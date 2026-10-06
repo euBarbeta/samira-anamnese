@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
@@ -9,10 +9,9 @@ import ModalConsentimentoPrimeiroAcesso from './ModalConsentimentoPrimeiroAcesso
 import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning, MdCalendarMonth,
   MdFolderOpen, MdInfoOutline, MdHourglassEmpty, MdCancel,
-  MdLightbulbOutline, MdPhoneAndroid, MdHelpOutline,
+  MdLightbulbOutline, MdDelete,
 } from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
-import { Capacitor } from '@capacitor/core';
 import {
   DownloadCloud,
   X,
@@ -111,7 +110,6 @@ function ModalInstalacao({ onClose }) {
           Siga os passos abaixo de acordo com o seu aparelho.
         </p>
 
-        {/* iOS — Chrome / Firefox / Edge */}
         {isIOSNaoSafari && (
           <div style={{ ...blocoEstilo, border: '1.5px solid #ffb74d', background: '#fff3e0' }}>
             <div style={headerBloco}>
@@ -134,7 +132,6 @@ function ModalInstalacao({ onClose }) {
           </div>
         )}
 
-        {/* iOS Safari */}
         {isIOS && !isIOSNaoSafari && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
@@ -166,7 +163,6 @@ function ModalInstalacao({ onClose }) {
           </div>
         )}
 
-        {/* Android */}
         {isAndroid && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
@@ -199,7 +195,6 @@ function ModalInstalacao({ onClose }) {
           </div>
         )}
 
-        {/* Desktop */}
         {isDesktop && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
@@ -235,7 +230,6 @@ function ModalInstalacao({ onClose }) {
           </div>
         )}
 
-        {/* Notificações */}
         <div style={{ ...blocoEstilo, marginTop: '16px' }}>
           <div style={headerBloco}>
             <Bell size={16} color="#C8A24A" />
@@ -275,7 +269,6 @@ function ModalInstalacao({ onClose }) {
   );
 }
 
-/* Estilos auxiliares do modal */
 const blocoEstilo = {
   background: 'rgba(215, 206, 224, 0.25)',
   border: '1px solid rgba(226, 210, 245, 0.7)',
@@ -344,7 +337,6 @@ export default function PainelPaciente({
 
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
-  // Estados para gerenciar a instalação do WebApp (PWA)
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [appInstalado, setAppInstalado] = useState(false);
 
@@ -373,7 +365,6 @@ export default function PainelPaciente({
     [telaAtual]
   );
 
-  // ✅ LGPD — Verifica se o paciente já consentiu
   useEffect(() => {
     if (!pacienteData) return;
 
@@ -403,7 +394,6 @@ export default function PainelPaciente({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Escuta os agendamentos deste paciente em tempo real
   useEffect(() => {
     if (!pacienteData?.id) return;
     const q = query(
@@ -440,7 +430,6 @@ export default function PainelPaciente({
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // ✅ Re-registra push ao logar — nativo E navegador
   useEffect(() => {
     if (!pacienteData?.id) return;
 
@@ -462,7 +451,6 @@ export default function PainelPaciente({
     })();
   }, [pacienteData?.id]);
 
-  // ✅ Re-registra push quando o app volta ao primeiro plano
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
@@ -530,7 +518,6 @@ export default function PainelPaciente({
   const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
 
   const handleInstalarApp = async () => {
-    // ANDROID → baixa o APK direto
     if (isAndroid) {
       const confirmar = window.confirm(
         'Download do aplicativo Samira Ferreira\n\n' +
@@ -553,14 +540,12 @@ export default function PainelPaciente({
       return;
     }
 
-    // iOS → SEMPRE abre o modal
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isIOS) {
       setMostrarModalInstalacao(true);
       return;
     }
 
-    // Desktop → tenta prompt nativo, senão abre modal
     const prompt =
       deferredPrompt ||
       (typeof window !== 'undefined' ? window.__deferredPrompt : null);
@@ -587,7 +572,6 @@ export default function PainelPaciente({
     setMostrarModalInstalacao(true);
   };
 
-  // ✅ Cancela um agendamento do paciente
   const cancelarAgendamento = async (ag) => {
     if (
       !window.confirm(
@@ -607,7 +591,22 @@ export default function PainelPaciente({
     }
   };
 
-  // ✅ Tela bloqueante se o paciente recusou o consentimento
+  // ✅ NOVO: apaga definitivamente um agendamento cancelado
+  const excluirAgendamentoCancelado = async (ag) => {
+    if (
+      !window.confirm(
+        `Remover este agendamento cancelado (${formatarDataBR(ag.data)} às ${ag.horaInicio}) da lista?`
+      )
+    )
+      return;
+
+    try {
+      await deleteDoc(doc(db, 'agendamentos', ag.id));
+    } catch (e) {
+      alert('Erro ao remover: ' + (e?.message || e));
+    }
+  };
+
   if (consentimentoRecusado) {
     return (
       <div
@@ -789,7 +788,6 @@ export default function PainelPaciente({
         boxSizing: 'border-box',
       }}
     >
-      {/* MARCA D'ÁGUA RESPONSIVA */}
       <div
         style={{
           position: 'fixed',
@@ -837,9 +835,7 @@ export default function PainelPaciente({
 
       <AvisoNotificacoes pacienteId={pacienteData?.id} appInstalado={appInstalado} />
 
-      {/* CONTEÚDO PRINCIPAL */}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
-        {/* CABEÇALHO DO PACIENTE */}
         <div
           style={{
             display: 'flex',
@@ -901,9 +897,7 @@ export default function PainelPaciente({
           </span>
         </div>
 
-        {/* CONTEÚDO DINÂMICO */}
         <div style={{ padding: '0 2px', width: '100%', boxSizing: 'border-box' }}>
-          {/* TELA DE DETALHES DA PASTA */}
           {telaAtual === 'detalhe_pasta' && (
             <div
               style={{
@@ -946,9 +940,6 @@ export default function PainelPaciente({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
 
-                  {/* ============================================================
-                      BANNER: agendamentos aguardando consentimento
-                     ============================================================ */}
                   {meusAgendamentos.some(
                     (a) => a.aguardandoConsentimento && a.status === 'pendente'
                   ) && (
@@ -1018,9 +1009,6 @@ export default function PainelPaciente({
                     </div>
                   )}
 
-                  {/* ============================================================
-                      MEUS AGENDAMENTOS
-                     ============================================================ */}
                   {meusAgendamentos.length > 0 && (
                     <div
                       style={{
@@ -1117,7 +1105,7 @@ export default function PainelPaciente({
                               </div>
                             )}
 
-                            {/* ✅ Botão Cancelar — só se ainda dá pra cancelar */}
+                            {/* Pendente / Confirmado → botão Cancelar */}
                             {(ag.status === 'pendente' || ag.status === 'confirmado') && (
                               <button
                                 type="button"
@@ -1142,37 +1130,35 @@ export default function PainelPaciente({
                                 Cancelar
                               </button>
                             )}
+
+                            {/* Cancelado → botão Remover da lista */}
+                            {ag.status === 'cancelado' && (
+                              <button
+                                type="button"
+                                onClick={() => excluirAgendamentoCancelado(ag)}
+                                style={{
+                                  marginTop: 4,
+                                  background: '#f5f5f5',
+                                  color: '#555',
+                                  border: '1px solid #ddd',
+                                  padding: '4px 10px',
+                                  borderRadius: 10,
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  fontFamily: "'Cinzel', serif",
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                <MdDelete size={12} />
+                                Remover da lista
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
-
-                      {/* ✅ Link para consultar mais agendamentos por código */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.location.href = '/#consultar';
-                        }}
-                        style={{
-                          marginTop: 10,
-                          width: '100%',
-                          background: 'transparent',
-                          color: '#166534',
-                          border: '1px dashed #86efac',
-                          padding: '8px',
-                          borderRadius: 10,
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          fontFamily: "'Cinzel', serif",
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        <MdSearch size={12} />
-                        Consultar outros agendamentos por código
-                      </button>
                     </div>
                   )}
 
@@ -1255,7 +1241,6 @@ export default function PainelPaciente({
                     </button>
                   )}
 
-                  {/* Agendar novo horário */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1286,7 +1271,6 @@ export default function PainelPaciente({
                     AGENDAR NOVO HORÁRIO
                   </button>
 
-                  {/* Excluir minha conta — LGPD */}
                   <div
                     style={{
                       marginTop: '20px',
@@ -1419,7 +1403,6 @@ export default function PainelPaciente({
         </div>
       </div>
 
-      {/* Modal de Consentimento LGPD */}
       {mostrarConsentimento && !consentimentoRecusado && (
         <ModalConsentimentoPrimeiroAcesso
           pacienteData={pacienteData}
@@ -1433,7 +1416,6 @@ export default function PainelPaciente({
         />
       )}
 
-      {/* Modal de Exclusão de Conta — LGPD */}
       {mostrarExclusaoConta && (
         <ModalExclusaoConta
           pacienteData={pacienteData}
@@ -1446,7 +1428,6 @@ export default function PainelPaciente({
         />
       )}
 
-      {/* Modal de Instalação */}
       {mostrarModalInstalacao && (
         <ModalInstalacao onClose={() => setMostrarModalInstalacao(false)} />
       )}
