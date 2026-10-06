@@ -11,10 +11,61 @@ import { notificarAgendamento } from '../../utils/agendamentoNotify';
 import {
   MdCheckCircle, MdWarning, MdArrowBack, MdSearch, MdCalendarMonth,
 } from 'react-icons/md';
+import { FaWhatsapp } from 'react-icons/fa';
 import ModalConsentimentoAgendamento from './ModalConsentimentoAgendamento';
 import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+
+// ✅ Overlay global de "sem internet" — mesmo do AnamneseFicha
+import TelaSemInternet from '../TelaSemInternet';
+
+/* ============================================================
+   WhatsApp — contato direto da profissional
+   ============================================================ */
+const WHATSAPP_NUMERO = '5511934656630'; // +55 11 93465-6630
+const WHATSAPP_MENSAGEM = 'Olá! Gostaria de agendar um horário com a Samira.';
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(
+  WHATSAPP_MENSAGEM
+)}`;
+
+export function BotaoWhatsApp() {
+  return (
+    <a
+      href={WHATSAPP_LINK}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="tap-whatsapp"
+      aria-label="Falar no WhatsApp"
+      title="Falar no WhatsApp"
+    >
+      <FaWhatsapp size={30} />
+    </a>
+  );
+}
+
+/* ============================================================
+   Rodapé — Desenvolvido por Mb tech (link Instagram)
+   ============================================================ */
+const INSTAGRAM_MBTECH = 'https://www.instagram.com/miguelbarbetatech/';
+
+export function Rodape() {
+  return (
+    <footer className="tap-rodape">
+      <span className="tap-rodape-texto">
+        Desenvolvido por:{' '}
+        <a
+          href={INSTAGRAM_MBTECH}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tap-rodape-link"
+        >
+          Mb tech
+        </a>
+      </span>
+    </footer>
+  );
+}
 
 /* ============================================================
    Aba de navegação pública — Agendar | Consultar
@@ -247,7 +298,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
         criadoPor: 'publico',
         canceladoPor: null,
         consentimentoLGPD: consentimento,
-        codigoAutenticidade: codigo, // mantido no doc (uso interno), mas não exibido
+        codigoAutenticidade: codigo,
         criadoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
       });
@@ -280,421 +331,545 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   };
 
   /* =================== RENDER =================== */
+
+  // 1) Carregando
   if (carregando) {
     return (
-      <div className="tap-tela">
-        <div style={{ width: '100%', maxWidth: 720 }}>
-          <BotaoVoltarProntuario />
-          <AbasPublicas abaAtiva="agendar" />
-          <div className="tap-card" style={{ textAlign: 'center', padding: 40 }}>
-            <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-              Carregando agenda…
-            </p>
+      <>
+        <TelaSemInternet />
+        <div className="tap-tela">
+          <div className="tap-conteudo">
+            <BotaoVoltarProntuario />
+            <AbasPublicas abaAtiva="agendar" />
+            <div className="tap-card" style={{ textAlign: 'center', padding: 40 }}>
+              <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+                Carregando agenda…
+              </p>
+            </div>
+            <Rodape />
           </div>
+          <BotaoWhatsApp />
+          <EstilosTAP />
         </div>
-        <EstilosTAP />
-      </div>
+      </>
     );
   }
 
+  // 2) Config não encontrada
   if (erro && !config) {
     return (
-      <div className="tap-tela">
-        <div style={{ width: '100%', maxWidth: 720 }}>
-          <BotaoVoltarProntuario />
-          <AbasPublicas abaAtiva="agendar" />
-          <div className="tap-card" style={{ textAlign: 'center' }}>
-            <MdWarning size={40} color="#e65100" />
-            <p style={{ fontSize: 13, color: '#444', lineHeight: 1.6 }}>{erro}</p>
+      <>
+        <TelaSemInternet />
+        <div className="tap-tela">
+          <div className="tap-conteudo">
+            <BotaoVoltarProntuario />
+            <AbasPublicas abaAtiva="agendar" />
+            <div className="tap-card" style={{ textAlign: 'center' }}>
+              <MdWarning size={40} color="#e65100" />
+              <p style={{ fontSize: 13, color: '#444', lineHeight: 1.6 }}>{erro}</p>
+            </div>
+            <Rodape />
           </div>
+          <BotaoWhatsApp />
+          <EstilosTAP />
         </div>
-        <EstilosTAP />
-      </div>
+      </>
     );
   }
 
+  // 3) Sucesso
   if (sucesso) {
     return (
+      <>
+        <TelaSemInternet />
+        <div className="tap-tela">
+          <div className="tap-conteudo" style={{ maxWidth: 520 }}>
+            <BotaoVoltarProntuario />
+            <AbasPublicas abaAtiva="agendar" />
+            <div className="tap-card" style={{ textAlign: 'center' }}>
+              <MdCheckCircle size={56} color="#16a34a" />
+              <h2
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  color: '#2c163a',
+                  fontSize: 20,
+                  margin: '12px 0 8px 0',
+                }}
+              >
+                Agendamento solicitado!
+              </h2>
+              <p style={{ fontSize: 14, color: '#444' }}>
+                <strong>{formatarDataLonga(sucesso.data)}</strong> às{' '}
+                <strong>{sucesso.hora}</strong>
+              </p>
+
+              <div className="tap-instrucao">
+                <p className="tap-instrucao-titulo">
+                  Como acompanhar sua solicitação
+                </p>
+                <p className="tap-instrucao-texto">
+                  Vá até a aba <strong>Consultar</strong> e informe seu{' '}
+                  <strong>nome completo</strong> e o mesmo <strong>documento</strong>{' '}
+                  que você usou agora. Você verá se a profissional{' '}
+                  <strong>confirmou</strong> o horário.
+                </p>
+                <p className="tap-instrucao-hint">
+                  Tire um print desta tela para não esquecer os dados usados.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  marginTop: 18,
+                }}
+              >
+                <a
+                  href="/#consultar"
+                  className="tap-btn-acompanhar tap-target"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <MdSearch size={16} />
+                  Ir para Consultar
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSucesso(null);
+                    setSlotSelecionado(null);
+                    setDiaSelecionado(null);
+                    setNome('');
+                    setDocumento('');
+                    setEmail('');
+                    setObservacoes('');
+                    setTelefone('');
+                    setLgpdAceito(false);
+                  }}
+                  className="tap-btn-secundario tap-target"
+                >
+                  Fazer outro agendamento
+                </button>
+              </div>
+            </div>
+            <Rodape />
+          </div>
+          <BotaoWhatsApp />
+          <EstilosTAP />
+        </div>
+      </>
+    );
+  }
+
+  // 4) Tela principal
+  return (
+    <>
+      <TelaSemInternet />
       <div className="tap-tela">
-        <div style={{ width: '100%', maxWidth: 520 }}>
+        <div className="tap-conteudo">
           <BotaoVoltarProntuario />
           <AbasPublicas abaAtiva="agendar" />
-          <div className="tap-card" style={{ textAlign: 'center' }}>
-            <MdCheckCircle size={56} color="#16a34a" />
+
+          <div className="tap-card">
             <h2
               style={{
                 fontFamily: "'Cinzel', serif",
                 color: '#2c163a',
-                fontSize: 20,
-                margin: '12px 0 8px 0',
+                margin: '0 0 8px 0',
+                textAlign: 'center',
+                fontSize: 22,
               }}
             >
-              Agendamento solicitado!
+              Agendar horário
             </h2>
-            <p style={{ fontSize: 14, color: '#444' }}>
-              <strong>{formatarDataLonga(sucesso.data)}</strong> às{' '}
-              <strong>{sucesso.hora}</strong>
+            <p
+              style={{
+                fontSize: 12,
+                color: '#666',
+                textAlign: 'center',
+                marginBottom: 20,
+              }}
+            >
+              Samira Ferreira Estética & Cosmetologia
             </p>
 
-            <div className="tap-instrucao">
-              <p className="tap-instrucao-titulo">
-                Como acompanhar sua solicitação
-              </p>
-              <p className="tap-instrucao-texto">
-                Vá até a aba <strong>Consultar</strong> e informe seu{' '}
-                <strong>nome completo</strong> e o mesmo <strong>documento</strong>{' '}
-                que você usou agora. Você verá se a profissional{' '}
-                <strong>confirmou</strong> o horário.
-              </p>
-              <p className="tap-instrucao-hint">
-                Tire um print desta tela para não esquecer os dados usados.
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                marginTop: 18,
-              }}
-            >
-              <a
-                href="/#consultar"
-                className="tap-btn-acompanhar tap-target"
-                style={{ textDecoration: 'none' }}
-              >
-                <MdSearch size={16} />
-                Ir para Consultar
-              </a>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSucesso(null);
-                  setSlotSelecionado(null);
-                  setDiaSelecionado(null);
-                  setNome('');
-                  setDocumento('');
-                  setEmail('');
-                  setObservacoes('');
-                  setTelefone('');
-                  setLgpdAceito(false);
+            {slots.length === 0 ? (
+              <div
+                style={{
+                  background: '#fff8e1',
+                  border: '1px solid #fcd34d',
+                  borderRadius: 12,
+                  padding: 16,
+                  textAlign: 'center',
+                  fontSize: 13,
+                  color: '#92400e',
+                  lineHeight: 1.5,
                 }}
-                className="tap-btn-secundario tap-target"
               >
-                Fazer outro agendamento
-              </button>
-            </div>
-          </div>
-        </div>
-        <EstilosTAP />
-      </div>
-    );
-  }
-
-  return (
-    <div className="tap-tela">
-      <div style={{ width: '100%', maxWidth: 720 }}>
-        <BotaoVoltarProntuario />
-        <AbasPublicas abaAtiva="agendar" />
-
-        <div className="tap-card">
-          <h2
-            style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#2c163a',
-              margin: '0 0 8px 0',
-              textAlign: 'center',
-              fontSize: 22,
-            }}
-          >
-            Agendar horário
-          </h2>
-          <p
-            style={{
-              fontSize: 12,
-              color: '#666',
-              textAlign: 'center',
-              marginBottom: 20,
-            }}
-          >
-            Samira Ferreira Estética & Cosmetologia
-          </p>
-
-          {slots.length === 0 ? (
-            <div
-              style={{
-                background: '#fff8e1',
-                border: '1px solid #fcd34d',
-                borderRadius: 12,
-                padding: 16,
-                textAlign: 'center',
-                fontSize: 13,
-                color: '#92400e',
-                lineHeight: 1.5,
-              }}
-            >
-              <MdWarning
-                size={22}
-                color="#92400e"
-                style={{ verticalAlign: 'middle', marginRight: 6 }}
-              />
-              Agenda ainda não disponível. Tente novamente em alguns dias.
-            </div>
-          ) : (
-            <>
-              <h3 className="tap-secao">1. Escolha a data</h3>
-
-              <div className="tap-calendario-wrap">
-                <CalendarioAgenda
-                  mesRef={mesRef}
-                  onMudarMes={(delta) => {
-                    const nova = new Date(mesRef);
-                    nova.setMonth(nova.getMonth() + delta);
-                    setMesRef(nova);
-                    setDiaSelecionado(null);
-                  }}
-                  irHoje={() => {
-                    setMesRef(new Date());
-                    setDiaSelecionado(null);
-                  }}
-                  diaSelecionado={diaSelecionado}
-                  compacto
-                  renderDia={(data) => {
-                    const iso = toISODateLocal(data);
-                    const qtd = slotsPorDia[iso]?.length || 0;
-                    const temSlot = qtd > 0;
-                    return {
-                      status: temSlot ? 'aberto' : 'vazio',
-                      badge: temSlot ? `${qtd}×` : null,
-                      disabled: !temSlot,
-                      title: temSlot
-                        ? `${qtd} horário${qtd > 1 ? 's' : ''} disponível${qtd > 1 ? 'is' : ''}`
-                        : 'Sem vagas',
-                      onClick: (d) => setDiaSelecionado(toISODateLocal(d)),
-                    };
-                  }}
+                <MdWarning
+                  size={22}
+                  color="#92400e"
+                  style={{ verticalAlign: 'middle', marginRight: 6 }}
                 />
+                Agenda ainda não disponível. Tente novamente em alguns dias.
               </div>
-              <LegendaCalendario />
+            ) : (
+              <>
+                <h3 className="tap-secao">1. Escolha a data</h3>
 
-              {!diaSelecionado ? (
-                <div className="tap-hint-dia">
-                  Toque em um dia com vagas no calendário para ver os horários.
-                </div>
-              ) : (
-                <div style={{ marginTop: 16 }}>
-                  <div className="tap-horarios-header">
-                    <h4
-                      style={{
-                        fontFamily: "'Cinzel', serif",
-                        fontSize: 12,
-                        color: '#2c163a',
-                        margin: 0,
-                      }}
-                    >
-                      Horários de {formatarDataLonga(diaSelecionado)}
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDiaSelecionado(null);
-                        setSlotSelecionado(null);
-                      }}
-                      className="tap-btn-trocar-dia tap-target"
-                    >
-                      Trocar dia
-                    </button>
-                  </div>
-
-                  <div className="tap-slots-grid">
-                    {slotsPorDia[diaSelecionado]?.map((s, i) => {
-                      const ativo =
-                        slotSelecionado?.data === s.data &&
-                        slotSelecionado?.horaInicio === s.horaInicio;
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setSlotSelecionado(s)}
-                          className={`tap-slot-btn${ativo ? ' ativo' : ''}`}
-                        >
-                          {s.horaInicio}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {slotSelecionado && (
-            <div
-              style={{
-                marginTop: 24,
-                paddingTop: 20,
-                borderTop: '1px dashed #e2d2f5',
-              }}
-            >
-              <h3 className="tap-secao">2. Seus dados</h3>
-
-              <Campo label="Nome completo *">
-                <input
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  className="tap-input"
-                  placeholder="Como no documento"
-                  autoComplete="name"
-                />
-              </Campo>
-
-              <Campo label="Documento * (CPF, RG, passaporte, ID…)">
-                <input
-                  value={documento}
-                  onChange={(e) => setDocumento(e.target.value)}
-                  className="tap-input"
-                  placeholder="Ex: 123.456.789-00 / AB123456 / 12345678Z"
-                  autoComplete="off"
-                />
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: 10.5,
-                    color: '#7e22ce',
-                    marginTop: 4,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Guarde exatamente este nome e documento — você vai usá-los para
-                  consultar depois.
-                </span>
-              </Campo>
-
-              <Campo label="Telefone / WhatsApp *">
-                <div className="tap-phone-wrap">
-                  <PhoneInput
-                    international
-                    defaultCountry="BR"
-                    value={telefone}
-                    onChange={setTelefone}
-                    placeholder="Digite seu número"
+                <div className="tap-calendario-wrap">
+                  <CalendarioAgenda
+                    mesRef={mesRef}
+                    onMudarMes={(delta) => {
+                      const nova = new Date(mesRef);
+                      nova.setMonth(nova.getMonth() + delta);
+                      setMesRef(nova);
+                      setDiaSelecionado(null);
+                    }}
+                    irHoje={() => {
+                      setMesRef(new Date());
+                      setDiaSelecionado(null);
+                    }}
+                    diaSelecionado={diaSelecionado}
+                    compacto
+                    renderDia={(data) => {
+                      const iso = toISODateLocal(data);
+                      const qtd = slotsPorDia[iso]?.length || 0;
+                      const temSlot = qtd > 0;
+                      return {
+                        status: temSlot ? 'aberto' : 'vazio',
+                        badge: temSlot ? `${qtd}×` : null,
+                        disabled: !temSlot,
+                        title: temSlot
+                          ? `${qtd} horário${qtd > 1 ? 's' : ''} disponível${qtd > 1 ? 'is' : ''}`
+                          : 'Sem vagas',
+                        onClick: (d) => setDiaSelecionado(toISODateLocal(d)),
+                      };
+                    }}
                   />
                 </div>
-                <span
-                  style={{
-                    fontSize: 10,
-                    color: '#888',
-                    marginTop: 4,
-                    display: 'block',
-                  }}
-                >
-                  Será salvo como{' '}
-                  <code style={{ color: '#7e22ce' }}>{telefone || '…'}</code>
-                </span>
-              </Campo>
+                <LegendaCalendario />
 
-              <Campo label="E-mail (opcional)">
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                  className="tap-input"
-                  placeholder="voce@email.com"
-                  autoComplete="email"
-                />
-              </Campo>
+                {!diaSelecionado ? (
+                  <div className="tap-hint-dia">
+                    Toque em um dia com vagas no calendário para ver os horários.
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 16 }}>
+                    <div className="tap-horarios-header">
+                      <h4
+                        style={{
+                          fontFamily: "'Cinzel', serif",
+                          fontSize: 12,
+                          color: '#2c163a',
+                          margin: 0,
+                        }}
+                      >
+                        Horários de {formatarDataLonga(diaSelecionado)}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDiaSelecionado(null);
+                          setSlotSelecionado(null);
+                        }}
+                        className="tap-btn-trocar-dia tap-target"
+                      >
+                        Trocar dia
+                      </button>
+                    </div>
 
-              <Campo label="Observações (opcional)">
-                <textarea
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  rows={3}
-                  className="tap-input"
-                  style={{ resize: 'vertical', minHeight: 70 }}
-                  placeholder="Alguma informação que a profissional precise saber?"
-                />
-              </Campo>
+                    <div className="tap-slots-grid">
+                      {slotsPorDia[diaSelecionado]?.map((s, i) => {
+                        const ativo =
+                          slotSelecionado?.data === s.data &&
+                          slotSelecionado?.horaInicio === s.horaInicio;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSlotSelecionado(s)}
+                            className={`tap-slot-btn${ativo ? ' ativo' : ''}`}
+                          >
+                            {s.horaInicio}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
-              <label
-                className={`tap-lgpd${lgpdAceito ? ' aceito' : ''}`}
-                style={{ cursor: 'pointer', marginTop: 10 }}
+            {slotSelecionado && (
+              <div
+                style={{
+                  marginTop: 24,
+                  paddingTop: 20,
+                  borderTop: '1px dashed #e2d2f5',
+                }}
               >
-                <input
-                  type="checkbox"
-                  checked={lgpdAceito}
-                  onChange={(e) => setLgpdAceito(e.target.checked)}
-                  style={{ marginTop: 3, width: 20, height: 20, flexShrink: 0 }}
-                />
-                <span style={{ fontSize: 11.5, color: '#333', lineHeight: 1.6 }}>
-                  Autorizo o tratamento dos meus dados pessoais e de saúde para
-                  fins de agendamento e realização dos procedimentos, conforme a
-                  LGPD.{' '}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setMostrarModalLgpd(true);
-                    }}
+                <h3 className="tap-secao">2. Seus dados</h3>
+
+                <Campo label="Nome completo *">
+                  <input
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
+                    className="tap-input"
+                    placeholder="Como no documento"
+                    autoComplete="name"
+                  />
+                </Campo>
+
+                <Campo label="Documento * (CPF, RG, passaporte, ID…)">
+                  <input
+                    value={documento}
+                    onChange={(e) => setDocumento(e.target.value)}
+                    className="tap-input"
+                    placeholder="Ex: 123.456.789-00 / AB123456 / 12345678Z"
+                    autoComplete="off"
+                  />
+                  <span
                     style={{
-                      background: 'none',
-                      border: 'none',
+                      display: 'block',
+                      fontSize: 10.5,
                       color: '#7e22ce',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      padding: 0,
+                      marginTop: 4,
+                      lineHeight: 1.5,
                     }}
                   >
-                    Ver política
-                  </button>
-                </span>
-              </label>
+                    Guarde exatamente este nome e documento — você vai usá-los para
+                    consultar depois.
+                  </span>
+                </Campo>
 
-              {erro && <div className="tap-erro">{erro}</div>}
+                <Campo label="Telefone / WhatsApp *">
+                  <div className="tap-phone-wrap">
+                    <PhoneInput
+                      international
+                      defaultCountry="BR"
+                      value={telefone}
+                      onChange={setTelefone}
+                      placeholder="Digite seu número"
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: '#888',
+                      marginTop: 4,
+                      display: 'block',
+                    }}
+                  >
+                    Será salvo como{' '}
+                    <code style={{ color: '#7e22ce' }}>{telefone || '…'}</code>
+                  </span>
+                </Campo>
 
-              <button
-                type="button"
-                onClick={agendar}
-                disabled={enviando}
-                className="tap-btn-confirmar tap-target"
-              >
-                {enviando ? 'ENVIANDO…' : 'CONFIRMAR AGENDAMENTO'}
-              </button>
-            </div>
-          )}
+                <Campo label="E-mail (opcional)">
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
+                    className="tap-input"
+                    placeholder="voce@email.com"
+                    autoComplete="email"
+                  />
+                </Campo>
+
+                <Campo label="Observações (opcional)">
+                  <textarea
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    rows={3}
+                    className="tap-input"
+                    style={{ resize: 'vertical', minHeight: 70 }}
+                    placeholder="Alguma informação que a profissional precise saber?"
+                  />
+                </Campo>
+
+                <label
+                  className={`tap-lgpd${lgpdAceito ? ' aceito' : ''}`}
+                  style={{ cursor: 'pointer', marginTop: 10 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={lgpdAceito}
+                    onChange={(e) => setLgpdAceito(e.target.checked)}
+                    style={{ marginTop: 3, width: 20, height: 20, flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: 11.5, color: '#333', lineHeight: 1.6 }}>
+                    Autorizo o tratamento dos meus dados pessoais e de saúde para
+                    fins de agendamento e realização dos procedimentos, conforme a
+                    LGPD.{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setMostrarModalLgpd(true);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#7e22ce',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        padding: 0,
+                      }}
+                    >
+                      Ver política
+                    </button>
+                  </span>
+                </label>
+
+                {erro && <div className="tap-erro">{erro}</div>}
+
+                <button
+                  type="button"
+                  onClick={agendar}
+                  disabled={enviando}
+                  className="tap-btn-confirmar tap-target"
+                >
+                  {enviando ? 'ENVIANDO…' : 'CONFIRMAR AGENDAMENTO'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <Rodape />
         </div>
+
+        {mostrarModalLgpd && (
+          <ModalConsentimentoAgendamento
+            onFechar={() => setMostrarModalLgpd(false)}
+          />
+        )}
+
+        <BotaoWhatsApp />
+        <EstilosTAP />
       </div>
-
-      {mostrarModalLgpd && (
-        <ModalConsentimentoAgendamento
-          onFechar={() => setMostrarModalLgpd(false)}
-        />
-      )}
-
-      <EstilosTAP />
-    </div>
+    </>
   );
 }
 
 /* ============================================================
-   Estilos injetados — responsivo (com abas)
+   Estilos injetados — responsivo (com abas, background e rodapé)
    ============================================================ */
 export function EstilosTAP() {
   return (
     <style>{`
+      /* ====== TELA COM BACKGROUND ====== */
       .tap-tela {
+        position: relative;
         min-height: 100vh;
-        background: #f3eef8;
+        background-color: #f3eef8;
         display: flex;
-        justify-content: center;
-        align-items: flex-start;
-        padding: 30px 16px;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 30px 16px 100px 16px;
         padding-top: max(30px, env(safe-area-inset-top));
         font-family: 'Montserrat', sans-serif;
         box-sizing: border-box;
+        overflow-x: hidden;
+      }
+
+      /* Background fixo cobrindo todo o navegador */
+      .tap-tela::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image: url('/imagens/logo-telainicial.jpeg');
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      /* Coluna de conteúdo — mantém o rodapé sempre embaixo */
+      .tap-conteudo {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 720px;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      /* WhatsApp FAB */
+      .tap-tela > .tap-whatsapp {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        bottom: max(20px, env(safe-area-inset-bottom));
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(37, 211, 102, 0.45);
+        cursor: pointer;
+        z-index: 100;
+        text-decoration: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 2px solid #ffffff;
+      }
+      .tap-tela > .tap-whatsapp:hover {
+        transform: scale(1.08) translateY(-2px);
+        box-shadow: 0 12px 32px rgba(37, 211, 102, 0.6);
+      }
+      .tap-tela > .tap-whatsapp::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: rgba(37, 211, 102, 0.5);
+        animation: tapPulse 2s ease-out infinite;
+        z-index: -1;
+      }
+      @keyframes tapPulse {
+        0%   { transform: scale(1);   opacity: 0.7; }
+        100% { transform: scale(1.6); opacity: 0;   }
+      }
+
+      /* ====== RODAPÉ ====== */
+      .tap-rodape {
+        margin-top: 28px;
+        padding: 14px 12px 4px 12px;
+        text-align: center;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11px;
+        color: #4b3b63;
+        letter-spacing: 0.3px;
+        border-top: 1px solid rgba(200, 162, 74, 0.25);
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .tap-rodape-texto {
+        display: inline-block;
+        line-height: 1.5;
+      }
+      .tap-rodape-link {
+        color: #7e22ce;
+        font-weight: 700;
+        text-decoration: none;
+        border-bottom: 1px dashed rgba(126, 34, 206, 0.45);
+        padding-bottom: 1px;
+        transition: color 0.2s ease, border-color 0.2s ease;
+      }
+      .tap-rodape-link:hover {
+        color: #C8A24A;
+        border-bottom-color: #C8A24A;
       }
 
       /* ====== ABAS ====== */
@@ -702,13 +877,13 @@ export function EstilosTAP() {
         display: flex;
         gap: 6px;
         margin-bottom: 14px;
-        background: rgba(255, 255, 255, 0.55);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(200, 162, 74, 0.35);
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(200, 162, 74, 0.4);
         border-radius: 14px;
         padding: 5px;
-        box-shadow: 0 3px 10px rgba(44, 22, 58, 0.05);
+        box-shadow: 0 3px 12px rgba(44, 22, 58, 0.08);
       }
       .tap-tab {
         flex: 1;
@@ -740,14 +915,17 @@ export function EstilosTAP() {
         box-shadow: 0 3px 10px rgba(200, 162, 74, 0.35);
       }
 
+      /* ====== CARD ====== */
       .tap-card {
-        background: #fff;
+        background: rgba(255, 255, 255, 0.97);
         border-radius: 20px;
         border: 1.5px solid #C8A24A;
         padding: 28px;
         width: 100%;
-        box-shadow: 0 15px 40px rgba(44, 22, 58, 0.15);
+        box-shadow: 0 15px 40px rgba(44, 22, 58, 0.18);
         box-sizing: border-box;
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
       }
 
       .tap-secao {
@@ -1022,16 +1200,22 @@ export function EstilosTAP() {
 
       /* ====== RESPONSIVO ====== */
       @media (min-width: 768px) {
-        .tap-tela { padding: 40px 24px; }
+        .tap-tela { padding: 40px 24px 110px 24px; }
         .tap-card { padding: 32px; }
         .tap-slots-grid {
           grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
           gap: 10px;
         }
+        .tap-tela > .tap-whatsapp {
+          width: 64px;
+          height: 64px;
+          right: 28px;
+          bottom: 28px;
+        }
       }
 
       @media (max-width: 640px) {
-        .tap-tela { padding: 18px 12px; }
+        .tap-tela { padding: 18px 12px 90px 12px; }
         .tap-card {
           padding: 20px 16px;
           border-radius: 18px;
@@ -1081,10 +1265,24 @@ export function EstilosTAP() {
         }
         .tap-instrucao-titulo { font-size: 12px; }
         .tap-instrucao-texto { font-size: 11.5px; }
+
+        .tap-tela > .tap-whatsapp {
+          width: 54px;
+          height: 54px;
+          right: 16px;
+          bottom: 16px;
+          bottom: max(16px, env(safe-area-inset-bottom));
+        }
+
+        .tap-rodape {
+          font-size: 10.5px;
+          margin-top: 22px;
+          padding: 12px 10px 4px 10px;
+        }
       }
 
       @media (max-width: 380px) {
-        .tap-tela { padding: 12px 8px; }
+        .tap-tela { padding: 12px 8px 88px 8px; }
         .tap-card {
           padding: 16px 12px;
           border-radius: 14px;
@@ -1110,6 +1308,9 @@ export function EstilosTAP() {
           font-size: 11px;
           padding: 9px 6px;
         }
+        .tap-rodape {
+          font-size: 10px;
+        }
       }
 
       .tap-target {
@@ -1117,7 +1318,7 @@ export function EstilosTAP() {
       }
 
       @media (max-height: 500px) and (orientation: landscape) {
-        .tap-tela { padding: 12px; }
+        .tap-tela { padding: 12px 12px 90px 12px; }
         .tap-card { padding: 16px; }
       }
     `}</style>
