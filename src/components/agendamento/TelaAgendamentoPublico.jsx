@@ -8,34 +8,11 @@ import {
   gerarSlotsDisponiveis, gerarCodigoAutenticidade, validarCPF, toISODateLocal,
 } from '../../utils/agenda';
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
-import { MdCheckCircle, MdWarning, MdArrowBack } from 'react-icons/md';
+import { MdCheckCircle, MdWarning, MdArrowBack, MdSearch } from 'react-icons/md';
 import ModalConsentimentoAgendamento from './ModalConsentimentoAgendamento';
 import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
-
-
-/* ============================================================
-   Lista de países suportados
-   ============================================================ */
-const PAISES = [
-  { code: 'BR', nome: 'Brasil',        ddi: '55',  flag: '🇧🇷', mask: '(##) #####-####' },
-  { code: 'PT', nome: 'Portugal',      ddi: '351', flag: '🇵🇹', mask: '### ### ###' },
-  { code: 'US', nome: 'Estados Unidos',ddi: '1',   flag: '🇺🇸', mask: '(###) ###-####' },
-  { code: 'ES', nome: 'Espanha',       ddi: '34',  flag: '🇪🇸', mask: '### ## ## ##' },
-  { code: 'IT', nome: 'Itália',        ddi: '39',  flag: '🇮🇹', mask: '### ### ####' },
-  { code: 'FR', nome: 'França',        ddi: '33',  flag: '🇫🇷', mask: '# ## ## ## ##' },
-  { code: 'DE', nome: 'Alemanha',      ddi: '49',  flag: '🇩🇪', mask: '#### #######' },
-  { code: 'GB', nome: 'Reino Unido',   ddi: '44',  flag: '🇬🇧', mask: '#### ######' },
-  { code: 'AR', nome: 'Argentina',     ddi: '54',  flag: '🇦🇷', mask: '## ####-####' },
-  { code: 'CL', nome: 'Chile',         ddi: '56',  flag: '🇨🇱', mask: '# #### ####' },
-  { code: 'MX', nome: 'México',        ddi: '52',  flag: '🇲🇽', mask: '## #### ####' },
-  { code: 'CO', nome: 'Colômbia',      ddi: '57',  flag: '🇨🇴', mask: '### ### ####' },
-  { code: 'PY', nome: 'Paraguai',      ddi: '595', flag: '🇵🇾', mask: '### ### ###' },
-  { code: 'UY', nome: 'Uruguai',       ddi: '598', flag: '🇺🇾', mask: '## ### ###' },
-  { code: 'JP', nome: 'Japão',         ddi: '81',  flag: '🇯🇵', mask: '##-####-####' },
-  { code: 'CA', nome: 'Canadá',        ddi: '1',   flag: '🇨🇦', mask: '(###) ###-####' },
-];
 
 /* ============================================================
    Botão "Voltar pro prontuário"
@@ -72,7 +49,8 @@ function BotaoVoltarProntuario() {
       className="btn-voltar-lista"
       style={{
         fontFamily: "'Cinzel', serif",
-        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+        background:
+          'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
         color: '#2c163a',
         border: '1.5px solid #C8A24A',
         padding: '10px 20px',
@@ -326,9 +304,50 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
             >
               {sucesso.codigo}
             </div>
+
             <p style={{ fontSize: 11, color: '#888', marginTop: 16 }}>
               A profissional vai confirmar em breve. Você receberá um aviso.
             </p>
+
+            {/* ✅ Botão para acompanhar o agendamento pelo código */}
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = '/#consultar';
+              }}
+              style={{
+                marginTop: 18,
+                width: '100%',
+                fontFamily: "'Cinzel', serif",
+                background:
+                  'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                color: '#7e22ce',
+                border: '1.5px solid #7e22ce',
+                padding: '12px 24px',
+                borderRadius: 22,
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 3px 10px rgba(126, 34, 206, 0.15)',
+                transition: 'all 0.25s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 18px rgba(126, 34, 206, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 3px 10px rgba(126, 34, 206, 0.15)';
+              }}
+            >
+              <MdSearch size={16} />
+              Acompanhar este agendamento
+            </button>
           </div>
         </div>
       </div>
@@ -391,7 +410,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 1. Escolha a data
               </h3>
 
-              {/* Calendário visual */}
               <CalendarioAgenda
                 mesRef={mesRef}
                 onMudarMes={(delta) => {
@@ -423,7 +441,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
               />
               <LegendaCalendario />
 
-              {/* Horários do dia escolhido */}
               {!diaSelecionado ? (
                 <div style={{
                   marginTop: 16,

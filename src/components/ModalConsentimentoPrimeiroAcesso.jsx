@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { MdLock, MdWarning } from 'react-icons/md';
-import { doc, updateDoc } from 'firebase/firestore';
+import {
+  doc, updateDoc, getDocs, collection, query, where,
+} from 'firebase/firestore';
 import { db } from './firebase';
 import PoliticaPrivacidade from './PoliticaPrivacidade';
 
@@ -39,10 +41,37 @@ export default function ModalConsentimentoPrimeiroAcesso({
         userAgent: (navigator.userAgent || '').slice(0, 200),
       };
 
+      // 1) Salva o consentimento no doc do paciente
       await updateDoc(
         doc(db, `usuarios/${uidEsteticista}/pacientes`, String(pacienteId)),
         { consentimentoLGPD }
       );
+
+      // 2) Confirma todos os agendamentos pendentes que estavam
+      //    aguardando o aceite do termo (agendados pela esteta)
+      try {
+        const agsSnap = await getDocs(query(
+          collection(db, 'agendamentos'),
+          where('pacienteId', '==', String(pacienteId)),
+          where('status', '==', 'pendente'),
+          where('aguardandoConsentimento', '==', true)
+        ));
+
+        await Promise.all(
+          agsSnap.docs.map((d) =>
+            updateDoc(d.ref, {
+              status: 'confirmado',
+              aguardandoConsentimento: false,
+              atualizadoEm: new Date().toISOString(),
+            })
+          )
+        );
+      } catch (e) {
+        // Silencioso — se falhar aqui, o consentimento já foi salvo.
+        // Os agendamentos continuam pendentes e podem ser confirmados
+        // pela esteta manualmente.
+        console.warn('Falha ao confirmar agendamentos pendentes:', e);
+      }
 
       onAceitar?.(consentimentoLGPD);
     } catch (err) {

@@ -34,10 +34,33 @@ exports.handler = async (event) => {
       process.env.VAPID_PRIVATE_KEY
     );
 
-    const { pacienteId, agendamento } = JSON.parse(event.body || '{}');
+    const { pacienteId, agendamento, tipoEvento = 'criado' } = JSON.parse(event.body || '{}');
     if (!pacienteId || !agendamento) {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados incompletos' }) };
     }
+
+    // ============================================================
+    // Mapa de mensagens por tipo de evento
+    // ============================================================
+    const mapa = {
+      criado: {
+        titulo: '📅 Novo agendamento com a Samira',
+        corpo: `Marcado para ${agendamento.data} às ${agendamento.horaInicio}. Toque para ver.`,
+        tipoData: 'agendamento_criado',
+      },
+      confirmado: {
+        titulo: '✅ Agendamento confirmado',
+        corpo: `Sua consulta em ${agendamento.data} às ${agendamento.horaInicio} foi confirmada.`,
+        tipoData: 'agendamento_confirmado',
+      },
+      cancelado: {
+        titulo: '❌ Agendamento cancelado',
+        corpo: `Sua consulta em ${agendamento.data} às ${agendamento.horaInicio} foi cancelada.`,
+        tipoData: 'agendamento_cancelado',
+      },
+    };
+
+    const info = mapa[tipoEvento] || mapa.criado;
 
     const subDoc = await db.collection('push_subscriptions').doc(String(pacienteId)).get();
     if (!subDoc.exists) {
@@ -45,8 +68,6 @@ exports.handler = async (event) => {
     }
 
     const subData = subDoc.data();
-    const titulo = '📅 Novo agendamento com a Samira';
-    const corpo = `Marcado para ${agendamento.data} às ${agendamento.horaInicio}. Toque para ver.`;
     const tagUnica = `agend-${pacienteId}-${Date.now()}`;
 
     const resultados = { fcm: false, webpush: false };
@@ -56,9 +77,10 @@ exports.handler = async (event) => {
       try {
         await getMessaging().send({
           token: subData.fcmToken,
-          notification: { title: titulo, body: corpo },
+          notification: { title: info.titulo, body: info.corpo },
           data: {
-            tipo: 'agendamento_criado',
+            tipo: info.tipoData,
+            tipoEvento,
             agendamentoId: String(agendamento.id || ''),
             url: '/',
             tag: tagUnica,
@@ -87,11 +109,12 @@ exports.handler = async (event) => {
         await webpush.sendNotification(
           subData.subscription,
           JSON.stringify({
-            title: titulo,
-            body: corpo,
+            title: info.titulo,
+            body: info.corpo,
             tag: tagUnica,
             url: '/',
-            tipo: 'agendamento_criado',
+            tipo: info.tipoData,
+            tipoEvento,
             agendamentoId: String(agendamento.id || ''),
           })
         );

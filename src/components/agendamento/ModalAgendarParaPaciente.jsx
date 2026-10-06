@@ -117,8 +117,9 @@ export default function ModalAgendarParaPaciente({
         observacoes: observacoes.trim(),
 
         // ✅ Já nasce confirmado — foi a esteticista que marcou
-        status: 'confirmado',
-        criadoPor: 'esteticista',
+        status: paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente',
+criadoPor: 'esteticista',
+aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
         canceladoPor: null,
         consentimentoLGPD: consentimentoPaciente,
         codigoAutenticidade: codigo,

@@ -1,24 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
 import GaleriaPaciente from './GaleriaPaciente';
 import { isNativo } from './push-notifications-native';
 import ModalConsentimentoPrimeiroAcesso from './ModalConsentimentoPrimeiroAcesso';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning,MdCalendarMonth} from 'react-icons/md';
+import {
+  MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning, MdCalendarMonth,
+  MdFolderOpen, MdInfoOutline, MdHourglassEmpty, MdCancel,
+  MdLightbulbOutline, MdPhoneAndroid, MdHelpOutline,
+} from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
 import { Capacitor } from '@capacitor/core';
 import {
   DownloadCloud,
   X,
-  Images,  
+  Images,
   Share,
   MoreVertical,
   Monitor,
   Smartphone,
   Bell,
-  AlertTriangle   // ← adicionar
+  AlertTriangle,
 } from 'lucide-react';
 import FichaDesktop from './FichaDesktop';
 import FichaMobile from './FichaMobile';
@@ -34,7 +38,6 @@ function ModalInstalacao({ onClose }) {
   const isAndroid = /Android/i.test(ua);
   const isDesktop = !isIOS && !isAndroid;
 
-  // Detecta se é Chrome/Firefox/Edge no iOS (todos NÃO suportam PWA)
   const isIOSChrome = isIOS && /CriOS/i.test(ua);
   const isIOSFirefox = isIOS && /FxiOS/i.test(ua);
   const isIOSEdge = isIOS && /EdgiOS/i.test(ua);
@@ -53,7 +56,7 @@ function ModalInstalacao({ onClose }) {
         alignItems: 'center',
         zIndex: 9999,
         padding: '20px',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -68,7 +71,7 @@ function ModalInstalacao({ onClose }) {
           overflowY: 'auto',
           boxShadow: '0 20px 60px rgba(44, 22, 58, 0.35)',
           fontFamily: "'Montserrat', sans-serif",
-          position: 'relative'
+          position: 'relative',
         }}
       >
         <button
@@ -86,7 +89,7 @@ function ModalInstalacao({ onClose }) {
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
           }}
         >
           <X size={20} color="#2c163a" />
@@ -98,7 +101,7 @@ function ModalInstalacao({ onClose }) {
             color: '#2c163a',
             fontSize: '18px',
             margin: '0 0 6px 0',
-            paddingRight: '30px'
+            paddingRight: '30px',
           }}
         >
           Instalar o Web App
@@ -108,13 +111,13 @@ function ModalInstalacao({ onClose }) {
           Siga os passos abaixo de acordo com o seu aparelho.
         </p>
 
-        {/* ============ iOS — Chrome / Firefox / Edge ============ */}
+        {/* iOS — Chrome / Firefox / Edge */}
         {isIOSNaoSafari && (
           <div style={{ ...blocoEstilo, border: '1.5px solid #ffb74d', background: '#fff3e0' }}>
             <div style={headerBloco}>
               <AlertTriangle size={16} color="#e65100" />
               <span style={{ ...tituloBloco, color: '#e65100' }}>
-                ⚠️ Use o Safari para instalar
+                Use o Safari para instalar
               </span>
             </div>
             <p style={{ fontSize: '12px', color: '#5d4037', margin: '0 0 8px 0', lineHeight: 1.5 }}>
@@ -131,7 +134,7 @@ function ModalInstalacao({ onClose }) {
           </div>
         )}
 
-        {/* ============ iOS Safari ============ */}
+        {/* iOS Safari */}
         {isIOS && !isIOSNaoSafari && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
@@ -149,18 +152,21 @@ function ModalInstalacao({ onClose }) {
               <li>
                 Confirme tocando em <strong>"Adicionar"</strong>.
               </li>
-              <li>
-                O ícone aparecerá na sua Tela de Início como um app normal.
-              </li>
+              <li>O ícone aparecerá na sua Tela de Início como um app normal.</li>
             </ol>
             <p style={{ fontSize: '11px', color: '#666', margin: '10px 0 0 0', lineHeight: 1.5 }}>
-              💡 <strong>Dica:</strong> depois de instalar, abra o app pela Tela de Início (não
+              <MdLightbulbOutline
+                size={13}
+                color="#C8A24A"
+                style={{ verticalAlign: 'middle', marginRight: 4 }}
+              />
+              <strong>Dica:</strong> depois de instalar, abra o app pela Tela de Início (não
               pelo Safari) para receber notificações.
             </p>
           </div>
         )}
 
-        {/* ============ Android ============ */}
+        {/* Android */}
         {isAndroid && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
@@ -182,13 +188,18 @@ function ModalInstalacao({ onClose }) {
               </li>
             </ol>
             <p style={{ fontSize: '11px', color: '#666', margin: '10px 0 0 0', lineHeight: 1.5 }}>
-              💡 Prefere o app nativo? Baixe o <strong>APK da Samira</strong> — tem notificações
+              <MdLightbulbOutline
+                size={13}
+                color="#C8A24A"
+                style={{ verticalAlign: 'middle', marginRight: 4 }}
+              />
+              Prefere o app nativo? Baixe o <strong>APK da Samira</strong> — tem notificações
               mais confiáveis.
             </p>
           </div>
         )}
 
-        {/* ============ Desktop ============ */}
+        {/* Desktop */}
         {isDesktop && (
           <div style={blocoEstilo}>
             <div style={headerBloco}>
@@ -213,13 +224,18 @@ function ModalInstalacao({ onClose }) {
               </li>
             </ol>
             <p style={{ fontSize: '11px', color: '#666', margin: '10px 0 0 0', lineHeight: 1.5 }}>
-              💡 <strong>Não aparece o ícone?</strong> Acesse em outro navegador (Edge, Brave) ou
+              <MdLightbulbOutline
+                size={13}
+                color="#C8A24A"
+                style={{ verticalAlign: 'middle', marginRight: 4 }}
+              />
+              <strong>Não aparece o ícone?</strong> Acesse em outro navegador (Edge, Brave) ou
               limpe os dados do site nas configurações.
             </p>
           </div>
         )}
 
-        {/* ============ Notificações ============ */}
+        {/* Notificações */}
         <div style={{ ...blocoEstilo, marginTop: '16px' }}>
           <div style={headerBloco}>
             <Bell size={16} color="#C8A24A" />
@@ -249,7 +265,7 @@ function ModalInstalacao({ onClose }) {
             borderRadius: '16px',
             fontSize: '11px',
             fontWeight: 700,
-            cursor: 'pointer'
+            cursor: 'pointer',
           }}
         >
           Entendi
@@ -264,21 +280,21 @@ const blocoEstilo = {
   background: 'rgba(215, 206, 224, 0.25)',
   border: '1px solid rgba(226, 210, 245, 0.7)',
   borderRadius: '14px',
-  padding: '14px'
+  padding: '14px',
 };
 
 const headerBloco = {
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
-  marginBottom: '10px'
+  marginBottom: '10px',
 };
 
 const tituloBloco = {
   fontFamily: "'Cinzel', serif",
   fontSize: '12px',
   fontWeight: 700,
-  color: '#2c163a'
+  color: '#2c163a',
 };
 
 const listaEstilo = {
@@ -286,13 +302,15 @@ const listaEstilo = {
   paddingLeft: '20px',
   fontSize: '12px',
   color: '#444',
-  lineHeight: 1.7
+  lineHeight: 1.7,
 };
+
 function formatarDataBR(iso) {
   if (!iso) return '—';
   const [a, m, d] = iso.split('-');
   return `${d}/${m}/${a}`;
 }
+
 /* ============================================================
    PAINEL DO PACIENTE
    ============================================================ */
@@ -302,26 +320,28 @@ export default function PainelPaciente({
   abrirAnamneseInicial = false,
 }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-const [telaAtual, setTelaAtual] = useState(() => {
-  try {
-    // ✅ localStorage primeiro (sobrevive ao kill)
-    const salva =
-      localStorage.getItem('pp_telaAtual') ||
-      sessionStorage.getItem('pp_telaAtual');
-    const validas = ['detalhe_pasta', 'galeria', 'ver_anamnese'];
-    return validas.includes(salva) ? salva : 'detalhe_pasta';
-  } catch {
-    return 'detalhe_pasta';
-  }
-});
-const [meusAgendamentos, setMeusAgendamentos] = useState([]);
-// ✅ Sempre que a tela muda, salva no sessionStorage
-useEffect(() => {
-  try {
-    sessionStorage.setItem('pp_telaAtual', telaAtual);
-    localStorage.setItem('pp_telaAtual', telaAtual);
-  } catch {}
-}, [telaAtual]);
+
+  const [telaAtual, setTelaAtual] = useState(() => {
+    try {
+      const salva =
+        localStorage.getItem('pp_telaAtual') ||
+        sessionStorage.getItem('pp_telaAtual');
+      const validas = ['detalhe_pasta', 'galeria', 'ver_anamnese'];
+      return validas.includes(salva) ? salva : 'detalhe_pasta';
+    } catch {
+      return 'detalhe_pasta';
+    }
+  });
+
+  const [meusAgendamentos, setMeusAgendamentos] = useState([]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('pp_telaAtual', telaAtual);
+      localStorage.setItem('pp_telaAtual', telaAtual);
+    } catch {}
+  }, [telaAtual]);
+
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
   // Estados para gerenciar a instalação do WebApp (PWA)
@@ -330,79 +350,89 @@ useEffect(() => {
 
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
   const [mostrarConsentimento, setMostrarConsentimento] = useState(false);
-const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
-const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
-   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-const irParaTela = useCallback((novaTela) => {
-  if (novaTela === telaAtual) return;
+  const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
+  const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
 
-  // ✅ Preserva o hash #UID
-  const hashAtual = window.location.hash || '';
-  const urlCompleta = window.location.pathname + hashAtual;
+  const isAndroid =
+    typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
-  window.history.pushState(
-    { ...(window.history.state || {}), painelPacienteTela: novaTela },
-    '',
-    urlCompleta
+  const irParaTela = useCallback(
+    (novaTela) => {
+      if (novaTela === telaAtual) return;
+
+      const hashAtual = window.location.hash || '';
+      const urlCompleta = window.location.pathname + hashAtual;
+
+      window.history.pushState(
+        { ...(window.history.state || {}), painelPacienteTela: novaTela },
+        '',
+        urlCompleta
+      );
+      setTelaAtual(novaTela);
+    },
+    [telaAtual]
   );
-  setTelaAtual(novaTela);
-}, [telaAtual]);
-  // ✅ LGPD — Verifica se o paciente já consentiu com o tratamento de dados
-useEffect(() => {
-  if (!pacienteData) return;
 
-  const consentimento = pacienteData.consentimentoLGPD;
-  const aceito = consentimento?.aceito === true;
-  const versaoOk = consentimento?.versaoTermo === '1.0';
+  // ✅ LGPD — Verifica se o paciente já consentiu
+  useEffect(() => {
+    if (!pacienteData) return;
 
-  if (aceito && versaoOk) {
-    setMostrarConsentimento(false);
-    return;
-  }
+    const consentimento = pacienteData.consentimentoLGPD;
+    const aceito = consentimento?.aceito === true;
+    const versaoOk = consentimento?.versaoTermo === '1.0';
 
-  // Sem consentimento (ou versão desatualizada) → mostra o modal
-  setMostrarConsentimento(true);
-}, [pacienteData]);
-useEffect(() => {
-  const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
+    if (aceito && versaoOk) {
+      setMostrarConsentimento(false);
+      return;
+    }
 
-  // ✅ Preserva o hash #UID do paciente
-  const hashAtual = window.location.hash || '';
-  const urlCompleta = window.location.pathname + hashAtual;
+    setMostrarConsentimento(true);
+  }, [pacienteData]);
 
-  window.history.replaceState(
-    { ...(window.history.state || {}), painelPacienteTela: telaInicial },
-    '',
-    urlCompleta
-  );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-// ✅ Escuta os agendamentos deste paciente em tempo real
-useEffect(() => {
-  if (!pacienteData?.id) return;
-  const q = query(
-    collection(db, 'agendamentos'),
-    where('pacienteId', '==', String(pacienteData.id))
-  );
-  const unsub = onSnapshot(q, (snap) => {
-    const lista = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => {
-        const ka = `${a.data} ${a.horaInicio}`;
-        const kb = `${b.data} ${b.horaInicio}`;
-        return kb.localeCompare(ka); // mais recentes primeiro
-      });
-    setMeusAgendamentos(lista);
-  }, (e) => console.warn('Erro listener agendamentos:', e));
-  return () => unsub();
-}, [pacienteData?.id]);
-   useEffect(() => {
+  useEffect(() => {
+    const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
+
+    const hashAtual = window.location.hash || '';
+    const urlCompleta = window.location.pathname + hashAtual;
+
+    window.history.replaceState(
+      { ...(window.history.state || {}), painelPacienteTela: telaInicial },
+      '',
+      urlCompleta
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ Escuta os agendamentos deste paciente em tempo real
+  useEffect(() => {
+    if (!pacienteData?.id) return;
+    const q = query(
+      collection(db, 'agendamentos'),
+      where('pacienteId', '==', String(pacienteData.id))
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const lista = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => {
+            const ka = `${a.data} ${a.horaInicio}`;
+            const kb = `${b.data} ${b.horaInicio}`;
+            return kb.localeCompare(ka);
+          });
+        setMeusAgendamentos(lista);
+      },
+      (e) => console.warn('Erro listener agendamentos:', e)
+    );
+    return () => unsub();
+  }, [pacienteData?.id]);
+
+  useEffect(() => {
     const onPop = (e) => {
       const st = e.state;
       if (st?.painelPacienteTela) {
         setTelaAtual(st.painelPacienteTela);
       } else {
-        // Sem state nosso → volta pro menu da pasta
         setTelaAtual('detalhe_pasta');
       }
     };
@@ -410,61 +440,60 @@ useEffect(() => {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-// ✅ Re-registra push ao logar — funciona em nativo E navegador
-useEffect(() => {
-  if (!pacienteData?.id) return;
-
-  (async () => {
-    try {
-      const { inscreverPush } = await import('./push-notifications');
-
-      if (isNativo()) {
-        // ✅ Nativo: tenta registrar direto (a função interna já checa permissão)
-        await inscreverPush(pacienteData.id);
-        return;
-      }
-
-      // 🌐 Navegador: só registra se permissão já foi concedida
-      if (typeof Notification === 'undefined') return;
-      if (Notification.permission !== 'granted') return;
-      await inscreverPush(pacienteData.id);
-    } catch (e) {
-      console.warn('Falha ao re-registrar push:', e);
-    }
-  })();
-}, [pacienteData?.id]);
-// ✅ Re-registra push quando o app volta ao primeiro plano
-useEffect(() => {
-  const handleVisibility = () => {
-    if (document.visibilityState !== 'visible') return;
+  // ✅ Re-registra push ao logar — nativo E navegador
+  useEffect(() => {
     if (!pacienteData?.id) return;
 
-    import('./push-notifications').then(({ inscreverPush }) => {
-      if (isNativo()) {
-        // Nativo: tenta sempre
-        inscreverPush(pacienteData.id).catch(() => {});
-      } else {
-        // Navegador: só se permissão concedida
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          inscreverPush(pacienteData.id).catch(() => {});
-        }
-      }
-    });
-  };
+    (async () => {
+      try {
+        const { inscreverPush } = await import('./push-notifications');
 
-  document.addEventListener('visibilitychange', handleVisibility);
-  return () => document.removeEventListener('visibilitychange', handleVisibility);
-}, [pacienteData?.id]);
+        if (isNativo()) {
+          await inscreverPush(pacienteData.id);
+          return;
+        }
+
+        if (typeof Notification === 'undefined') return;
+        if (Notification.permission !== 'granted') return;
+        await inscreverPush(pacienteData.id);
+      } catch (e) {
+        console.warn('Falha ao re-registrar push:', e);
+      }
+    })();
+  }, [pacienteData?.id]);
+
+  // ✅ Re-registra push quando o app volta ao primeiro plano
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!pacienteData?.id) return;
+
+      import('./push-notifications').then(({ inscreverPush }) => {
+        if (isNativo()) {
+          inscreverPush(pacienteData.id).catch(() => {});
+        } else {
+          if (
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'granted'
+          ) {
+            inscreverPush(pacienteData.id).catch(() => {});
+          }
+        }
+      });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [pacienteData?.id]);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
 
-    // ✅ Se for APK nativo → considera "instalado" (esconde o botão Baixar)
     if (isNativo()) {
       setAppInstalado(true);
     }
 
-    // Recupera prompt global (capturado no main.jsx)
     if (window.__deferredPrompt) {
       setDeferredPrompt(window.__deferredPrompt);
     }
@@ -490,160 +519,197 @@ useEffect(() => {
     ) {
       setAppInstalado(true);
     }
-   
-     return () => {
+
+    return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
- const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
 
-const handleInstalarApp = async () => {
-  // ✅ ANDROID → baixa o APK direto
-  if (isAndroid) {
-    const confirmar = window.confirm(
-      '📱 Download do aplicativo Samira Ferreira\n\n' +
-      'Após o download:\n' +
-      '1. Abra o arquivo .apk\n' +
-      '2. Permita "Instalar de fontes desconhecidas"\n' +
-      '3. Confirme a instalação\n\n' +
-      'Deseja baixar agora?'
-    );
+  const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
 
-    if (!confirmar) return;
+  const handleInstalarApp = async () => {
+    // ANDROID → baixa o APK direto
+    if (isAndroid) {
+      const confirmar = window.confirm(
+        'Download do aplicativo Samira Ferreira\n\n' +
+          'Após o download:\n' +
+          '1. Abra o arquivo .apk\n' +
+          '2. Permita "Instalar de fontes desconhecidas"\n' +
+          '3. Confirme a instalação\n\n' +
+          'Deseja baixar agora?'
+      );
 
-    const link = document.createElement('a');
-    link.href = APK_URL;
-    link.download = 'samira-ferreira.apk';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    return;
-  }
+      if (!confirmar) return;
 
-  // ✅ iOS → SEMPRE abre o modal (iOS nunca tem prompt nativo)
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (isIOS) {
-    setMostrarModalInstalacao(true);
-    return;
-  }
+      const link = document.createElement('a');
+      link.href = APK_URL;
+      link.download = 'samira-ferreira.apk';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
 
-  // ✅ Desktop → tenta prompt nativo, senão abre modal
-  const prompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPrompt : null);
-
-  if (prompt && typeof prompt.prompt === 'function') {
-    try {
-      await prompt.prompt();
-      const { outcome } = await prompt.userChoice;
-
-      setDeferredPrompt(null);
-      window.__deferredPrompt = null;
-
-      if (outcome === 'accepted') {
-        setAppInstalado(true);
-        return;
-      }
-      // Cancelou → abre modal com instruções
+    // iOS → SEMPRE abre o modal
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
       setMostrarModalInstalacao(true);
       return;
-    } catch (e) {
-      console.warn('beforeinstallprompt falhou, abrindo modal:', e);
-      // Cai no modal
     }
-  }
 
-  // Sem prompt nativo → modal custom
-  setMostrarModalInstalacao(true);
-};
-// ✅ Tela bloqueante se o paciente recusou o consentimento
-if (consentimentoRecusado) {
-  return (
-    <div style={{
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: '#d7cee0',
-      fontFamily: "'Montserrat', sans-serif",
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: '20px',
-      boxSizing: 'border-box',
-    }}>
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.98)',
-        borderRadius: '20px',
-        border: '1.5px solid #C8A24A',
-        padding: '36px 28px',
-        maxWidth: '420px',
-        width: '100%',
-        textAlign: 'center',
-        boxShadow: '0 15px 40px rgba(44, 22, 58, 0.25)',
-      }}>
-        <div style={{
-          width: '72px', height: '72px',
-          margin: '0 auto 16px auto',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
-          border: '2px solid #ffb74d',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <MdWarning size={34} color="#e65100" />
-        </div>
+    // Desktop → tenta prompt nativo, senão abre modal
+    const prompt =
+      deferredPrompt ||
+      (typeof window !== 'undefined' ? window.__deferredPrompt : null);
 
-        <h2 style={{
-          fontFamily: "'Cinzel', serif",
-          color: '#2c163a',
-          fontSize: '18px',
-          margin: '0 0 12px 0',
-        }}>
-          Consentimento necessário
-        </h2>
+    if (prompt && typeof prompt.prompt === 'function') {
+      try {
+        await prompt.prompt();
+        const { outcome } = await prompt.userChoice;
 
-        <p style={{
-          fontSize: '13px',
-          color: '#555',
-          lineHeight: 1.6,
-          margin: '0 0 24px 0',
-        }}>
-          Sem autorizar o tratamento dos seus dados, <strong>não podemos</strong> exibir seu
-          prontuário, suas fotos ou enviar lembretes.
-        </p>
+        setDeferredPrompt(null);
+        window.__deferredPrompt = null;
 
-        <p style={{
-          fontSize: '12px',
-          color: '#888',
-          fontStyle: 'italic',
-          marginBottom: '20px',
-        }}>
-          Se mudar de ideia, faça login novamente e aceite o termo.
-        </p>
+        if (outcome === 'accepted') {
+          setAppInstalado(true);
+          return;
+        }
+        setMostrarModalInstalacao(true);
+        return;
+      } catch (e) {
+        console.warn('beforeinstallprompt falhou, abrindo modal:', e);
+      }
+    }
 
-        <button
-          type="button"
-          onClick={onLogout}
+    setMostrarModalInstalacao(true);
+  };
+
+  // ✅ Cancela um agendamento do paciente
+  const cancelarAgendamento = async (ag) => {
+    if (
+      !window.confirm(
+        `Cancelar o agendamento de ${formatarDataBR(ag.data)} às ${ag.horaInicio}?`
+      )
+    )
+      return;
+
+    try {
+      await updateDoc(doc(db, 'agendamentos', ag.id), {
+        status: 'cancelado',
+        canceladoPor: 'paciente',
+        atualizadoEm: new Date().toISOString(),
+      });
+    } catch (e) {
+      alert('Erro ao cancelar: ' + (e?.message || e));
+    }
+  };
+
+  // ✅ Tela bloqueante se o paciente recusou o consentimento
+  if (consentimentoRecusado) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          minHeight: '100vh',
+          backgroundColor: '#d7cee0',
+          fontFamily: "'Montserrat', sans-serif",
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '20px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
           style={{
-            fontFamily: "'Cinzel', serif",
-            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-            color: '#fff',
-            border: '1.5px solid #9c7826',
-            padding: '13px 26px',
-            borderRadius: '24px',
-            fontSize: '12px',
-            fontWeight: 700,
-            letterSpacing: '1px',
-            cursor: 'pointer',
+            background: 'rgba(255, 255, 255, 0.98)',
+            borderRadius: '20px',
+            border: '1.5px solid #C8A24A',
+            padding: '36px 28px',
+            maxWidth: '420px',
             width: '100%',
-            boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+            textAlign: 'center',
+            boxShadow: '0 15px 40px rgba(44, 22, 58, 0.25)',
           }}
         >
-          VOLTAR AO LOGIN
-        </button>
+          <div
+            style={{
+              width: '72px',
+              height: '72px',
+              margin: '0 auto 16px auto',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
+              border: '2px solid #ffb74d',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <MdWarning size={34} color="#e65100" />
+          </div>
+
+          <h2
+            style={{
+              fontFamily: "'Cinzel', serif",
+              color: '#2c163a',
+              fontSize: '18px',
+              margin: '0 0 12px 0',
+            }}
+          >
+            Consentimento necessário
+          </h2>
+
+          <p
+            style={{
+              fontSize: '13px',
+              color: '#555',
+              lineHeight: 1.6,
+              margin: '0 0 24px 0',
+            }}
+          >
+            Sem autorizar o tratamento dos seus dados, <strong>não podemos</strong> exibir seu
+            prontuário, suas fotos ou enviar lembretes.
+          </p>
+
+          <p
+            style={{
+              fontSize: '12px',
+              color: '#888',
+              fontStyle: 'italic',
+              marginBottom: '20px',
+            }}
+          >
+            Se mudar de ideia, faça login novamente e aceite o termo.
+          </p>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+              color: '#fff',
+              border: '1.5px solid #9c7826',
+              padding: '13px 26px',
+              borderRadius: '24px',
+              fontSize: '12px',
+              fontWeight: 700,
+              letterSpacing: '1px',
+              cursor: 'pointer',
+              width: '100%',
+              boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+            }}
+          >
+            VOLTAR AO LOGIN
+          </button>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
   if (!pacienteData) {
     return (
       <div
@@ -656,7 +722,7 @@ if (consentimentoRecusado) {
           justifyContent: 'center',
           alignItems: 'center',
           padding: '20px',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
         }}
       >
         <div
@@ -668,7 +734,7 @@ if (consentimentoRecusado) {
             textAlign: 'center',
             maxWidth: '450px',
             width: '100%',
-            boxShadow: '0 8px 24px rgba(44, 22, 58, 0.1)'
+            boxShadow: '0 8px 24px rgba(44, 22, 58, 0.1)',
           }}
         >
           <h2
@@ -676,7 +742,7 @@ if (consentimentoRecusado) {
               fontFamily: "'Cinzel', serif",
               color: '#2c163a',
               fontSize: '18px',
-              margin: '0 0 12px 0'
+              margin: '0 0 12px 0',
             }}
           >
             Nenhum dado encontrado
@@ -699,7 +765,7 @@ if (consentimentoRecusado) {
                 fontWeight: 700,
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(44, 22, 58, 0.2)',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
               }}
             >
               Sair / Voltar
@@ -720,7 +786,7 @@ if (consentimentoRecusado) {
         paddingBottom: '30px',
         position: 'relative',
         overflowX: 'hidden',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
       }}
     >
       {/* MARCA D'ÁGUA RESPONSIVA */}
@@ -736,7 +802,7 @@ if (consentimentoRecusado) {
           alignItems: 'center',
           pointerEvents: 'none',
           zIndex: 0,
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
         <img
@@ -747,7 +813,7 @@ if (consentimentoRecusado) {
             maxWidth: '450px',
             height: 'auto',
             opacity: 0.12,
-            objectFit: 'contain'
+            objectFit: 'contain',
           }}
         />
       </div>
@@ -767,14 +833,11 @@ if (consentimentoRecusado) {
         .painel-sair-hover:hover {
           background: rgba(231, 76, 60, 0.1) !important;
         }
-         
       `}</style>
-     <AvisoNotificacoes
-  pacienteId={pacienteData?.id}
-  appInstalado={appInstalado}
-/>
-   
-    {/* CONTEÚDO PRINCIPAL */}
+
+      <AvisoNotificacoes pacienteId={pacienteData?.id} appInstalado={appInstalado} />
+
+      {/* CONTEÚDO PRINCIPAL */}
       <div style={{ position: 'relative', zIndex: 1, width: '100%', boxSizing: 'border-box' }}>
         {/* CABEÇALHO DO PACIENTE */}
         <div
@@ -788,7 +851,7 @@ if (consentimentoRecusado) {
             marginBottom: '20px',
             background: 'rgba(255, 255, 255, 0.5)',
             backdropFilter: 'blur(5px)',
-            boxShadow: '0 2px 10px rgba(44, 22, 58, 0.03)'
+            boxShadow: '0 2px 10px rgba(44, 22, 58, 0.03)',
           }}
         >
           <div
@@ -796,7 +859,7 @@ if (consentimentoRecusado) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              width: '100%'
+              width: '100%',
             }}
           >
             <h1
@@ -805,7 +868,7 @@ if (consentimentoRecusado) {
                 color: '#2c163a',
                 fontSize: '20px',
                 margin: 0,
-                textShadow: '0 1px 2px rgba(255,255,255,0.8)'
+                textShadow: '0 1px 2px rgba(255,255,255,0.8)',
               }}
             >
               Meu Prontuário
@@ -826,7 +889,7 @@ if (consentimentoRecusado) {
                   fontSize: '10px',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
                 }}
               >
                 Sair
@@ -849,7 +912,7 @@ if (consentimentoRecusado) {
                 border: '1px solid rgba(226, 210, 245, 0.9)',
                 padding: '24px',
                 boxShadow: '0 8px 24px rgba(44, 22, 58, 0.06)',
-                backdropFilter: 'blur(8px)'
+                backdropFilter: 'blur(8px)',
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '10px' }}>
@@ -858,7 +921,7 @@ if (consentimentoRecusado) {
                     padding: '16px',
                     background: 'rgba(215, 206, 224, 0.25)',
                     borderRadius: '14px',
-                    border: '1px solid rgba(226, 210, 245, 0.6)'
+                    border: '1px solid rgba(226, 210, 245, 0.6)',
                   }}
                 >
                   <h2
@@ -866,10 +929,14 @@ if (consentimentoRecusado) {
                       fontFamily: "'Cinzel', serif",
                       color: '#2c163a',
                       fontSize: '18px',
-                      margin: '0 0 6px 0'
+                      margin: '0 0 6px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
                     }}
                   >
-                    📁 {pacienteData.nome}
+                    <MdFolderOpen size={20} color="#C8A24A" />
+                    {pacienteData.nome}
                   </h2>
                   <span style={{ fontSize: '11px', color: '#555' }}>
                     Pasta criada em:{' '}
@@ -878,332 +945,508 @@ if (consentimentoRecusado) {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+
+                  {/* ============================================================
+                      BANNER: agendamentos aguardando consentimento
+                     ============================================================ */}
+                  {meusAgendamentos.some(
+                    (a) => a.aguardandoConsentimento && a.status === 'pendente'
+                  ) && (
+                    <div
+                      style={{
+                        background: 'linear-gradient(135deg, #fff8e1 0%, #fef3c7 100%)',
+                        border: '1.5px solid #fcd34d',
+                        borderRadius: 14,
+                        padding: 14,
+                        marginBottom: 4,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 12,
+                      }}
+                    >
+                      <MdHourglassEmpty
+                        size={22}
+                        color="#92400e"
+                        style={{ flexShrink: 0, marginTop: 2 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontFamily: "'Cinzel', serif",
+                            color: '#92400e',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            marginBottom: 4,
+                          }}
+                        >
+                          Você tem agendamento(s) aguardando confirmação
+                        </div>
+                        <p
+                          style={{
+                            fontSize: 11,
+                            color: '#5d4037',
+                            margin: '0 0 10px 0',
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          Para confirmar, aceite o termo de consentimento abaixo.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setMostrarConsentimento(true)}
+                          style={{
+                            width: '100%',
+                            fontFamily: "'Cinzel', serif",
+                            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                            color: '#fff',
+                            border: '1.5px solid #9c7826',
+                            padding: '10px 16px',
+                            borderRadius: 16,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <MdHourglassEmpty size={14} />
+                          ACEITAR E CONFIRMAR AGENDAMENTOS
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ============================================================
+                      MEUS AGENDAMENTOS
+                     ============================================================ */}
                   {meusAgendamentos.length > 0 && (
-  <div style={{
-    background: '#f0fdf4',
-    border: '1.5px solid #86efac',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-  }}>
-    <div style={{
-      fontFamily: "'Cinzel', serif",
-      color: '#166534',
-      fontSize: 13,
-      fontWeight: 700,
-      marginBottom: 10,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-    }}>
-      <MdCalendarMonth size={16} color="#166534" />
-      Meus Agendamentos
-    </div>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {meusAgendamentos.slice(0, 3).map((ag) => (
-        <div key={ag.id} style={{
-          background: '#fff',
-          border: '1px solid #d1fae5',
-          borderRadius: 10,
-          padding: '10px 12px',
-          fontSize: 12,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <strong style={{ color: '#166534' }}>
-              {formatarDataBR(ag.data)} às {ag.horaInicio}
-            </strong>
-            <span style={{
-              fontSize: 9,
-              fontWeight: 700,
-              padding: '1px 8px',
-              borderRadius: 10,
-              textTransform: 'capitalize',
-              background:
-                ag.status === 'confirmado' ? '#dcfce7' :
-                ag.status === 'pendente' ? '#fef3c7' :
-                ag.status === 'cancelado' ? '#fee2e2' : '#f3f4f6',
-              color:
-                ag.status === 'confirmado' ? '#166534' :
-                ag.status === 'pendente' ? '#92400e' :
-                ag.status === 'cancelado' ? '#991b1b' : '#666',
-            }}>
-              {ag.status}
-            </span>
-          </div>
-          {ag.observacoes && (
-            <div style={{ fontSize: 10.5, color: '#555', fontStyle: 'italic' }}>
-              {ag.observacoes}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  </div>
-)}
+                    <div
+                      style={{
+                        background: '#f0fdf4',
+                        border: '1.5px solid #86efac',
+                        borderRadius: 14,
+                        padding: 16,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "'Cinzel', serif",
+                          color: '#166534',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          marginBottom: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <MdCalendarMonth size={16} color="#166534" />
+                        Meus Agendamentos
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {meusAgendamentos.slice(0, 3).map((ag) => (
+                          <div
+                            key={ag.id}
+                            style={{
+                              background: '#fff',
+                              border: '1px solid #d1fae5',
+                              borderRadius: 10,
+                              padding: '10px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: 4,
+                                gap: 8,
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <strong style={{ color: '#166534' }}>
+                                {formatarDataBR(ag.data)} às {ag.horaInicio}
+                              </strong>
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  padding: '1px 8px',
+                                  borderRadius: 10,
+                                  textTransform: 'capitalize',
+                                  background:
+                                    ag.status === 'confirmado'
+                                      ? '#dcfce7'
+                                      : ag.status === 'pendente'
+                                      ? '#fef3c7'
+                                      : ag.status === 'cancelado'
+                                      ? '#fee2e2'
+                                      : ag.status === 'concluido'
+                                      ? '#e5e7eb'
+                                      : '#f3f4f6',
+                                  color:
+                                    ag.status === 'confirmado'
+                                      ? '#166534'
+                                      : ag.status === 'pendente'
+                                      ? '#92400e'
+                                      : ag.status === 'cancelado'
+                                      ? '#991b1b'
+                                      : ag.status === 'concluido'
+                                      ? '#374151'
+                                      : '#666',
+                                }}
+                              >
+                                {ag.status}
+                              </span>
+                            </div>
+
+                            {ag.observacoes && (
+                              <div
+                                style={{
+                                  fontSize: 10.5,
+                                  color: '#555',
+                                  fontStyle: 'italic',
+                                  marginBottom: 6,
+                                }}
+                              >
+                                {ag.observacoes}
+                              </div>
+                            )}
+
+                            {/* ✅ Botão Cancelar — só se ainda dá pra cancelar */}
+                            {(ag.status === 'pendente' || ag.status === 'confirmado') && (
+                              <button
+                                type="button"
+                                onClick={() => cancelarAgendamento(ag)}
+                                style={{
+                                  marginTop: 4,
+                                  background: '#ffebee',
+                                  color: '#c62828',
+                                  border: '1px solid #ef9a9a',
+                                  padding: '4px 10px',
+                                  borderRadius: 10,
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  fontFamily: "'Cinzel', serif",
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                <MdCancel size={12} />
+                                Cancelar
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ✅ Link para consultar mais agendamentos por código */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = '/#consultar';
+                        }}
+                        style={{
+                          marginTop: 10,
+                          width: '100%',
+                          background: 'transparent',
+                          color: '#166534',
+                          border: '1px dashed #86efac',
+                          padding: '8px',
+                          borderRadius: 10,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: "'Cinzel', serif",
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <MdSearch size={12} />
+                        Consultar outros agendamentos por código
+                      </button>
+                    </div>
+                  )}
+
                   <button
-  type="button"
-  onClick={() => irParaTela('ver_anamnese')}   // ⬅️ era setTelaAtual
-  className="painel-btn-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-    color: '#fff',
-    border: 'none',
-    padding: '14px 18px',
-    borderRadius: '16px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    width: '100%',
-    textAlign: 'center',
-    boxShadow: '0 4px 12px rgba(200, 162, 74, 0.25)',
-    transition: 'all 0.25s ease'
-  }}
->
-  Ver Ficha de Anamnese
-</button>
-<button
-  type="button"
-  onClick={() => irParaTela('galeria')}
-  className="painel-btn-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-    color: '#fff',
-    border: 'none',
-    padding: '14px 18px',
-    borderRadius: '16px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
-    transition: 'all 0.25s ease',
-  }}
->
-  <Images size={16} color="#fff" />
-  Minha Galeria
-</button>
-{!appInstalado && (
-  <button
-    type="button"
-    onClick={handleInstalarApp}
-    className="painel-btn-lavanda-hover"
-    style={{
-      fontFamily: "'Cinzel', serif",
-      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-      color: '#2c163a',
-      border: '1.2px solid #8a6fa8',
-      padding: '14px 18px',
-      borderRadius: '16px',
-      fontSize: '11px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      width: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '8px',
-      boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
-      transition: 'all 0.25s ease'
-    }}
-  >
-    <DownloadCloud size={16} color="#2c163a" />
-    {isAndroid ? 'Baixar App' : 'Baixar Web App'}
-  </button>
-)}
+                    type="button"
+                    onClick={() => irParaTela('ver_anamnese')}
+                    className="painel-btn-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '14px 18px',
+                      borderRadius: '16px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      width: '100%',
+                      textAlign: 'center',
+                      boxShadow: '0 4px 12px rgba(200, 162, 74, 0.25)',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    Ver Ficha de Anamnese
+                  </button>
 
-{/* ✅ Agendar novo horário — sai do painel e vai pro agendamento */}
-<button
-  type="button"
-  onClick={() => {
-    window.location.href = '/#agendar';
-  }}
-  className="painel-btn-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-    color: '#fff',
-    border: '1.5px solid #9c7826',
-    padding: '14px 18px',
-    borderRadius: '16px',
-    fontSize: '11px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    cursor: 'pointer',
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
-    transition: 'all 0.25s ease',
-  }}
->
-  <MdCalendarMonth size={16} color="#fff" />
-  AGENDAR NOVO HORÁRIO
-</button>
+                  <button
+                    type="button"
+                    onClick={() => irParaTela('galeria')}
+                    className="painel-btn-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '14px 18px',
+                      borderRadius: '16px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    <Images size={16} color="#fff" />
+                    Minha Galeria
+                  </button>
 
+                  {!appInstalado && (
+                    <button
+                      type="button"
+                      onClick={handleInstalarApp}
+                      className="painel-btn-lavanda-hover"
+                      style={{
+                        fontFamily: "'Cinzel', serif",
+                        background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                        color: '#2c163a',
+                        border: '1.2px solid #8a6fa8',
+                        padding: '14px 18px',
+                        borderRadius: '16px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
+                        transition: 'all 0.25s ease',
+                      }}
+                    >
+                      <DownloadCloud size={16} color="#2c163a" />
+                      {isAndroid ? 'Baixar App' : 'Baixar Web App'}
+                    </button>
+                  )}
 
-{/* ✅ Excluir minha conta — LGPD (discreto, no rodapé) */}
-<div style={{
-  marginTop: '20px',
-  paddingTop: '16px',
-  borderTop: '1px dashed rgba(198, 40, 40, 0.2)',
-  display: 'flex',
-  justifyContent: 'center',
-}}>
-  <button
-  type="button"
-  onClick={() => setMostrarExclusaoConta(true)}
-  style={{
-    background: 'transparent',
-    border: 'none',
-    color: '#b0a8b8',
-    fontFamily: "'Montserrat', sans-serif",
-    fontSize: '10px',
-    fontWeight: 400,
-    letterSpacing: '0.3px',
-    cursor: 'pointer',
-    padding: '6px 12px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-    transition: 'color 0.25s ease',
-  }}
-  onMouseEnter={(e) => { e.currentTarget.style.color = '#c62828'; }}
-  onMouseLeave={(e) => { e.currentTarget.style.color = '#b0a8b8'; }}
->
-  <span style={{ fontSize: '9px', opacity: 0.7 }}>ⓘ</span>
-  excluir minha conta
-</button>
-</div>
+                  {/* Agendar novo horário */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.href = '/#agendar';
+                    }}
+                    className="painel-btn-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
+                      color: '#fff',
+                      border: '1.5px solid #9c7826',
+                      padding: '14px 18px',
+                      borderRadius: '16px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      letterSpacing: '0.5px',
+                      cursor: 'pointer',
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+                      transition: 'all 0.25s ease',
+                    }}
+                  >
+                    <MdCalendarMonth size={16} color="#fff" />
+                    AGENDAR NOVO HORÁRIO
+                  </button>
 
+                  {/* Excluir minha conta — LGPD */}
+                  <div
+                    style={{
+                      marginTop: '20px',
+                      paddingTop: '16px',
+                      borderTop: '1px dashed rgba(198, 40, 40, 0.2)',
+                      display: 'flex',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setMostrarExclusaoConta(true)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#b0a8b8',
+                        fontFamily: "'Montserrat', sans-serif",
+                        fontSize: '10px',
+                        fontWeight: 400,
+                        letterSpacing: '0.3px',
+                        cursor: 'pointer',
+                        padding: '6px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'color 0.25s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#c62828';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#b0a8b8';
+                      }}
+                    >
+                      <MdInfoOutline size={11} style={{ opacity: 0.7 }} />
+                      excluir minha conta
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           )}
-          {telaAtual === 'galeria' && (
-  <div>
-    <button
-  type="button"
-  onClick={() => window.history.back()}
-  className="btn-voltar-lista"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #C8A24A',
-    padding: '10px 20px',
-    borderRadius: '25px',
-    fontSize: '12px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '16px',
-    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-    transition: 'all 0.25s ease',
-    backdropFilter: 'blur(6px)',
-  }}
->
-  <MdArrowBack size={15} color="#C8A24A" />
-  Voltar para o menu da pasta
-</button>
-  <GaleriaPaciente
-  pacienteId={pacienteData.id}
-  uidEsteticista={pacienteData.criadoPorUid}
-  pacienteNome={pacienteData.nome}
-  modo="paciente"
-/>
-  </div>
-)}
 
-          {/* TELA DE VISUALIZAÇÃO DA ANAMNESE */}
+          {telaAtual === 'galeria' && (
+            <div>
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background:
+                    'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 20px',
+                  borderRadius: '25px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={15} color="#C8A24A" />
+                Voltar para o menu da pasta
+              </button>
+              <GaleriaPaciente
+                pacienteId={pacienteData.id}
+                uidEsteticista={pacienteData.criadoPorUid}
+                pacienteNome={pacienteData.nome}
+                modo="paciente"
+              />
+            </div>
+          )}
+
           {telaAtual === 'ver_anamnese' && (
-  <div>
-    <button
-  type="button"
-  onClick={() => window.history.back()}
-  className="btn-voltar-lista"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #C8A24A',
-    padding: '10px 20px',
-    borderRadius: '25px',
-    fontSize: '12px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '16px',
-    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-    transition: 'all 0.25s ease',
-    backdropFilter: 'blur(6px)',
-  }}
->
-  <MdArrowBack size={15} color="#C8A24A" />
-  Voltar para o menu da pasta
-</button>
-    <div style={{ opacity: 0.98 }}>
-      {isMobile ? (
-        <FichaMobile
-          mode="view"
-          fichaSelecionada={pacienteData.anamnese || pacienteData}
-          onVoltar={() => window.history.back()}   // ⬅️ botão interno também
-        />
-      ) : (
-        <FichaDesktop
-          mode="view"
-          fichaSelecionada={pacienteData.anamnese || pacienteData}
-          onVoltar={() => window.history.back()}   // ⬅️ botão interno também
-        />
-      )}
-    </div>
-  </div>
-)}
+            <div>
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background:
+                    'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 20px',
+                  borderRadius: '25px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={15} color="#C8A24A" />
+                Voltar para o menu da pasta
+              </button>
+              <div style={{ opacity: 0.98 }}>
+                {isMobile ? (
+                  <FichaMobile
+                    mode="view"
+                    fichaSelecionada={pacienteData.anamnese || pacienteData}
+                    onVoltar={() => window.history.back()}
+                  />
+                ) : (
+                  <FichaDesktop
+                    mode="view"
+                    fichaSelecionada={pacienteData.anamnese || pacienteData}
+                    onVoltar={() => window.history.back()}
+                  />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
-      {/* BANNER DE PERMISSÃO DE NOTIFICAÇÃO */}
-{/* ✅ Modal de Consentimento LGPD — Bloqueia acesso até aceitar */}
-{mostrarConsentimento && !consentimentoRecusado && (
-  <ModalConsentimentoPrimeiroAcesso
-    pacienteData={pacienteData}
-    onAceitar={(consentimento) => {
-      setMostrarConsentimento(false);
-      // Atualiza o estado local para refletir o consentimento salvo
-      // (o listener do Firestore também vai atualizar, mas isso evita delay visual)
-    }}
-    onRecusar={() => {
-      setMostrarConsentimento(false);
-      setConsentimentoRecusado(true);
-    }}
-  />
-)}
-{/* ✅ Modal de Exclusão de Conta — LGPD */}
-{mostrarExclusaoConta && (
-  <ModalExclusaoConta
-    pacienteData={pacienteData}
-    onFechar={() => setMostrarExclusaoConta(false)}
-    onExcluido={() => {
-      alert('Sua conta foi excluída com sucesso. Todos os seus dados foram removidos.');
-      setMostrarExclusaoConta(false);
-      if (onLogout) onLogout();
-    }}
-  />
-)}
 
-      {/* MODAL DE INSTALAÇÃO (renderizado por cima de tudo) */}
+      {/* Modal de Consentimento LGPD */}
+      {mostrarConsentimento && !consentimentoRecusado && (
+        <ModalConsentimentoPrimeiroAcesso
+          pacienteData={pacienteData}
+          onAceitar={(consentimento) => {
+            setMostrarConsentimento(false);
+          }}
+          onRecusar={() => {
+            setMostrarConsentimento(false);
+            setConsentimentoRecusado(true);
+          }}
+        />
+      )}
+
+      {/* Modal de Exclusão de Conta — LGPD */}
+      {mostrarExclusaoConta && (
+        <ModalExclusaoConta
+          pacienteData={pacienteData}
+          onFechar={() => setMostrarExclusaoConta(false)}
+          onExcluido={() => {
+            alert('Sua conta foi excluída com sucesso. Todos os seus dados foram removidos.');
+            setMostrarExclusaoConta(false);
+            if (onLogout) onLogout();
+          }}
+        />
+      )}
+
+      {/* Modal de Instalação */}
       {mostrarModalInstalacao && (
         <ModalInstalacao onClose={() => setMostrarModalInstalacao(false)} />
       )}
