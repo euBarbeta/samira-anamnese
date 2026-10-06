@@ -127,7 +127,6 @@ useEffect(() => {
     salvar('af_abaAtiva', abaAtiva);
     salvar('af_authVerificado', authVerificado ? '1' : '0');
     salvar('af_autenticado', autenticado ? '1' : '0');
-
     if (dadosPaciente) {
       salvar('af_dadosPaciente', JSON.stringify(dadosPaciente));
     } else {
@@ -135,10 +134,14 @@ useEffect(() => {
       localStorage.removeItem('af_dadosPaciente');
     }
 
-    // ✅ Persiste (ou limpa) o uidDaURL — para o paciente continuar
-    //    vinculado ao link mesmo depois de fechar/reabrir o WebView.
-     } catch {}
-}, [abaAtiva, authVerificado, autenticado, dadosPaciente]);
+    // ✅ Guarda o último #id do paciente (só quando há um)
+    //    Usado pra restaurar em modo PWA standalone quando o
+    //    "Abrir no app" corta o hash da URL.
+    if (uidDaURL) {
+      salvar('af_uidDaURL', String(uidDaURL));
+    }
+  } catch {}
+}, [abaAtiva, authVerificado, autenticado, dadosPaciente, uidDaURL]);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -199,7 +202,36 @@ useEffect(() => {
   }
   // Sem hash → agendamento (SÓ se não tiver sessão salva)
    // Sem hash → agendamento SEMPRE (URL é a fonte da verdade)
+  // Sem hash → decide pelo contexto
   if (!hash) {
+    // ✅ Detecta se está rodando como PWA instalado (standalone)
+    const ehStandalone =
+      (typeof window !== 'undefined' &&
+        window.matchMedia &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+      (typeof window !== 'undefined' && window.navigator.standalone === true);
+
+    // ✅ Em PWA: restaura o último #id do paciente.
+    //    Motivo: o "Abrir no app" do Android abre o PWA em start_url "/"
+    //    e descarta o hash. Sem isso, o paciente cai no agendamento
+    //    quando clica no link vindo do WhatsApp.
+   if (ehStandalone) {
+  const uidSalvo = lerSessao('af_uidDaURL');
+  if (uidSalvo) {
+    setUidDaURL(uidSalvo);
+    uidDaURLRef.current = uidSalvo;
+    setRota('login-uid');
+
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}#${uidSalvo}`
+    );
+    return;
+  }
+}
+
+    // Navegador comum (ou PWA sem uid salvo) → agendamento
     setRota('agendamento');
     return;
   }
@@ -774,20 +806,85 @@ if (eraEsteticista) {
   // ============================================================
   
 const renderizarConteudo = () => {
-// ✅ URL É A FONTE DA VERDADE (SÓ no navegador)
-//    - no APK, o state (autenticado/abaAtiva) decide
-const hashAtual = window.location.hash.slice(1);
-const pathAtual = window.location.pathname;
-const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
+  const hashAtual = window.location.hash.slice(1);
+  const pathAtual = window.location.pathname;
+  const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
 
-if (!isNativo() && !hashAtual && !ehAdminUrl) {
-  return (
-    <TelaAgendamentoPublico
-      uidEsteticista={UID_ESTETICISTA_PADRAO}
-      origem="raiz"
-    />
-  );
-}
+  // ============================================================
+  // 1) #agendar → agendamento público (PRIORIDADE MÁXIMA)
+  //    Funciona no navegador E no PWA, logado ou deslogado.
+  //    É a porta de saída do painel do paciente pra agendar.
+  // ============================================================
+  if (hashAtual === 'agendar' || hashAtual.startsWith('agendar/')) {
+    const uidEstetaDoHash = hashAtual.startsWith('agendar/')
+      ? hashAtual.replace('agendar/', '')
+      : null;
+    return (
+      <TelaAgendamentoPublico
+        uidEsteticista={uidEstetaDoHash || UID_ESTETICISTA_PADRAO}
+        origem="raiz"
+      />
+    );
+  }
+
+  // ============================================================
+  // 2) Detecta se está rodando como PWA standalone
+  // ============================================================
+  const ehStandalone =
+    (typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(display-mode: standalone)').matches) ||
+    (typeof window !== 'undefined' && window.navigator.standalone === true);
+
+  // ============================================================
+  // 3) PWA standalone SEM hash: NÃO cai em agendamento.
+  //    Se tem uid salvo, o useEffect de rotas repõe o hash e manda
+  //    pro login/painel. Mostramos loading enquanto isso.
+  // ============================================================
+  if (ehStandalone && !hashAtual && !ehAdminUrl) {
+    const uidSalvo = lerSessao('af_uidDaURL');
+
+    if (uidSalvo) {
+      // Tem uid salvo → mostra loading (o useEffect vai repor o hash)
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          justifyContent: 'center', alignItems: 'center',
+          height: '100vh', backgroundColor: '#d7cee0',
+          fontFamily: "'Cinzel', serif", color: '#4a2e7a',
+        }}>
+          <div style={{
+            width: '46px', height: '46px',
+            border: '4px solid rgba(200, 162, 74, 0.25)',
+            borderTop: '4px solid #C8A24A',
+            borderRadius: '50%',
+            animation: 'spinAF 0.8s linear infinite',
+            marginBottom: '16px',
+          }} />
+          <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>
+            Reconectando…
+          </span>
+          <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      );
+    }
+    // Sem uid salvo → cai no fluxo normal (vai pro agendamento abaixo)
+  }
+
+  // ============================================================
+  // 4) Navegador normal (não-standalone): sem hash e sem /admin → agendamento
+  //    Respeita a URL como fonte da verdade.
+  // ============================================================
+  if (!isNativo() && !hashAtual && !ehAdminUrl && !ehStandalone) {
+    return (
+      <TelaAgendamentoPublico
+        uidEsteticista={UID_ESTETICISTA_PADRAO}
+        origem="raiz"
+      />
+    );
+  }
+
+ 
   // 1. Rotas públicas — só aparecem se NÃO estiver autenticado
   if (!autenticado) {
     if (rota === 'nao-encontrado') {

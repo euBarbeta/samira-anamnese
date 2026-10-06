@@ -7,7 +7,11 @@ import {
 import { db } from '../firebase';
 import { formatarCPF, formatarTelefone } from '../../utils/agenda';
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
-import { MdCheckCircle, MdCancel, MdWarning, MdSearch } from 'react-icons/md';
+import {
+  MdCheckCircle, MdCancel, MdWarning, MdSearch,
+  MdCalendarMonth, MdSettings, MdPhone, MdBadge,
+  MdEmail, MdChatBubbleOutline,
+} from 'react-icons/md';
 import ConfiguradorAgenda from './ConfiguradorAgenda';
 
 export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
@@ -64,20 +68,16 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   return (
     <div style={{ padding: '20px 0' }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <button
-          type="button"
-          onClick={() => setAba('agenda')}
-          style={abaBtn(aba === 'agenda')}
-        >
-          📅 Agendamentos
-        </button>
-        <button
-          type="button"
-          onClick={() => setAba('config')}
-          style={abaBtn(aba === 'config')}
-        >
-          ⚙️ Configurar horários
-        </button>
+      <button type="button" onClick={() => setAba('agenda')} style={abaBtn(aba === 'agenda')}>
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <MdCalendarMonth size={14} /> Agendamentos
+  </span>
+</button>
+        <button type="button" onClick={() => setAba('config')} style={abaBtn(aba === 'config')}>
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <MdSettings size={14} /> Configurar horários
+  </span>
+</button>
       </div>
 
       {aba === 'config' && <ConfiguradorAgenda uidEsteticista={uidEsteticista} />}
@@ -123,31 +123,42 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                         {ag.nome}
                       </h4>
                       <div style={{ fontSize: 12, color: '#555', lineHeight: 1.7 }}>
-                        <div><strong>📅</strong> {ag.data} às {ag.horaInicio} ({ag.duracaoMin}min)</div>
-                        <div><strong>📞</strong> {formatarTelefone(ag.telefone)}</div>
-                        <div>
-  <strong>🆔</strong> {ag.documento || ag.cpf}
-  {ag.paisCodigo && ag.paisCodigo !== 'BR' && (
-    <span style={{ marginLeft: 6, fontSize: 10, color: '#7e22ce' }}>
-      ({ag.paisCodigo})
-    </span>
-  )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+  <MdCalendarMonth size={13} color="#C8A24A" />
+  {ag.data} às {ag.horaInicio} ({ag.duracaoMin}min)
 </div>
-<div>
-  <strong>📞</strong> {formatarTelefoneInternacional(ag.telefone)}
+<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+  <MdPhone size={13} color="#C8A24A" />
+  {formatarTelefoneInternacional(ag.telefone)}
 </div>
-                        {ag.email && <div><strong>✉️</strong> {ag.email}</div>}
-                        {ag.observacoes && (
-                          <div style={{ marginTop: 6, fontStyle: 'italic', color: '#7e22ce' }}>
-                            💬 {ag.observacoes}
-                          </div>
-                        )}
+<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+  <MdBadge size={13} color="#C8A24A" />
+  {ag.documento || ag.cpf}
+</div>
+{ag.email && (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <MdEmail size={13} color="#C8A24A" />
+    {ag.email}
+  </div>
+)}
+{ag.observacoes && (
+  <div style={{ marginTop: 6, fontStyle: 'italic', color: '#7e22ce', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+    <MdChatBubbleOutline size={13} style={{ marginTop: 3, flexShrink: 0 }} />
+    {ag.observacoes}
+  </div>
+)}
                       </div>
                       {ag.consentimentoLGPD?.aceito ? (
-                        <span style={badgeOk}>✅ LGPD aceito</span>
-                      ) : (
-                        <span style={badgeWarn}>⚠️ Sem LGPD</span>
-                      )}
+  <span style={badgeOk}>
+    <MdCheckCircle size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+    LGPD aceito
+  </span>
+) : (
+  <span style={badgeWarn}>
+    <MdWarning size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+    Sem LGPD
+  </span>
+)}
                     </div>
 
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -194,8 +205,8 @@ const cardAg = { background: '#fff', border: '1.5px solid #e2d2f5', borderRadius
 const vazio = { textAlign: 'center', padding: 40, color: '#888', background: '#fff', borderRadius: 12, border: '1px dashed #ddd' };
 const btnOk = { background: '#16a34a', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 16, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 };
 const btnDanger = { background: '#c62828', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 16, fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 };
-const badgeOk = { display: 'inline-block', marginTop: 8, background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 700 };
-const badgeWarn = { display: 'inline-block', marginTop: 8, background: '#fff8e1', color: '#92400e', border: '1px solid #fcd34d', padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 700 };
+const badgeOk = { display: 'inline-flex', alignItems: 'center', marginTop: 8, background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac', padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 700 };
+const badgeWarn = { display: 'inline-flex', alignItems: 'center', marginTop: 8, background: '#fff8e1', color: '#92400e', border: '1px solid #fcd34d', padding: '2px 10px', borderRadius: 12, fontSize: 10, fontWeight: 700 };
 function formatarTelefoneInternacional(e164) {
   if (!e164) return '—';
   const match = e164.match(/^\+(\d{1,3})(\d+)$/);

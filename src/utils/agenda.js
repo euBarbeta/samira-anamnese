@@ -1,17 +1,43 @@
 // src/utils/agenda.js
 
 /**
- * Gera lista de slots a partir da config + agendamentos já ocupados.
- * @param {Object} config - agenda_config/principal
- * @param {Array}  agendamentosOcupados - [{data, horaInicio, horaFim}]
- * @param {String} dataInicioISO - 'YYYY-MM-DD'
- * @param {String} dataFimISO    - 'YYYY-MM-DD'
- * @returns {Array<{data, horaInicio, horaFim}>}
+ * Converte Date → 'YYYY-MM-DD' USANDO TIMEZONE LOCAL
+ * (o toISOString() puro usa UTC e quebra no Brasil à noite)
  */
-export function gerarSlotsDisponiveis(config, agendamentosOcupados = [], dataInicioISO, dataFimISO) {
-  if (!config?.blocosSemanais?.length) return [];
+function toISODateLocal(d) {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
 
-  const bloqueiosSet = new Set((config.bloqueios || []).map((b) => b.data));
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * Gera slots disponíveis. Agora respeita:
+ *   - blocosSemanais    → padrão recorrente (dia da semana)
+ *   - datasEspecificas  → override por data exata
+ *                        { 'YYYY-MM-DD': { bloqueado: bool, blocos: [...] } }
+ *   - bloqueios         → lista de folgas { data, motivo }
+ *   - liberacoesAvulsas → horários extras { data, inicio, fim }
+ *   - antecedenciaMinimaHoras
+ */
+export function gerarSlotsDisponiveis(
+  config,
+  agendamentosOcupados = [],
+  dataInicioISO,
+  dataFimISO
+) {
+  if (!config?.blocosSemanais?.length && !config?.datasEspecificas) {
+    return [];
+  }
+
+  const bloqueiosSet = new Set(
+    (config.bloqueios || []).map((b) => b.data)
+  );
+
   const ocupadosSet = new Set(
     agendamentosOcupados
       .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
@@ -19,27 +45,43 @@ export function gerarSlotsDisponiveis(config, agendamentosOcupados = [], dataIni
   );
 
   const agora = new Date();
-  const minAntecedencia = new Date(agora.getTime() + (config.antecedenciaMinimaHoras || 4) * 3600 * 1000);
+  const minAntecedencia = new Date(
+    agora.getTime() + (config.antecedenciaMinimaHoras || 4) * 3600 * 1000
+  );
 
   const slots = [];
   const inicio = new Date(dataInicioISO + 'T00:00:00');
   const fim = new Date(dataFimISO + 'T23:59:59');
 
   for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
-    const iso = d.toISOString().slice(0, 10);
+    // ✅ Data LOCAL
+    const iso = toISODateLocal(d);
+
+    // Folga global (lista de bloqueios)
     if (bloqueiosSet.has(iso)) continue;
 
-    const diaSemana = d.getDay(); // 0..6
+    const diaSemana = d.getDay(); // 0..6 (local)
 
-    // Blocos recorrentes do dia da semana
-    const blocosDoDia = (config.blocosSemanais || []).filter((b) => b.diaSemana === diaSemana);
+    // ✅ Prioridade 1: override por data específica
+    const override = config.datasEspecificas?.[iso];
+    let blocos;
 
-    // + liberações avulsas
+    if (override) {
+      if (override.bloqueado) continue; // folga só desse dia
+      blocos = override.blocos || [];
+    } else {
+      // ✅ Prioridade 2: padrão semanal
+      blocos = (config.blocosSemanais || []).filter(
+        (b) => b.diaSemana === diaSemana
+      );
+    }
+
+    // Liberações avulsas (extras)
     const avulsos = (config.liberacoesAvulsas || [])
       .filter((l) => l.data === iso)
       .map((l) => ({ inicio: l.inicio, fim: l.fim, duracaoMin: 60 }));
 
-    for (const bloco of [...blocosDoDia, ...avulsos]) {
+    for (const bloco of [...blocos, ...avulsos]) {
       const [hI, mI] = bloco.inicio.split(':').map(Number);
       const [hF, mF] = bloco.fim.split(':').map(Number);
       const duracao = bloco.duracaoMin || 60;
@@ -53,8 +95,8 @@ export function gerarSlotsDisponiveis(config, agendamentosOcupados = [], dataIni
         const proximo = new Date(cursor.getTime() + duracao * 60000);
         if (proximo > fimBloco) break;
 
-        const horaInicio = cursor.toTimeString().slice(0, 5);
-        const horaFim = proximo.toTimeString().slice(0, 5);
+        const horaInicio = `${pad(cursor.getHours())}:${pad(cursor.getMinutes())}`;
+        const horaFim = `${pad(proximo.getHours())}:${pad(proximo.getMinutes())}`;
 
         const jaOcupado = ocupadosSet.has(`${iso}|${horaInicio}`);
         const dentroAntecedencia = cursor < minAntecedencia;
@@ -119,3 +161,8 @@ export function formatarTelefone(tel) {
   if (s.length === 10) return `(${s.slice(0, 2)}) ${s.slice(2, 6)}-${s.slice(6)}`;
   return tel;
 }
+
+/**
+ * Exporta utilitário pra quem precisar (usado no Configurador)
+ */
+export { toISODateLocal };

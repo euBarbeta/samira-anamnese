@@ -4,7 +4,7 @@ import AvisoNotificacoes from './AvisoNotificacoes';
 import GaleriaPaciente from './GaleriaPaciente';
 import { isNativo } from './push-notifications-native';
 import ModalConsentimentoPrimeiroAcesso from './ModalConsentimentoPrimeiroAcesso';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning} from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning,MdCalendarMonth} from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -891,7 +891,6 @@ if (consentimentoRecusado) {
   <Images size={16} color="#fff" />
   Minha Galeria
 </button>
-
 {!appInstalado && (
   <button
     type="button"
@@ -919,8 +918,39 @@ if (consentimentoRecusado) {
     <DownloadCloud size={16} color="#2c163a" />
     {isAndroid ? 'Baixar App' : 'Baixar Web App'}
   </button>
-  
 )}
+
+{/* ✅ Agendar novo horário — sai do painel e vai pro agendamento */}
+<button
+  type="button"
+  onClick={() => {
+     window.location.href = '/#agendar';
+  }}
+  className="painel-btn-sec-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '14px 18px',
+    borderRadius: '16px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  <MdCalendarMonth size={16} color="#fff" />
+  Agendar novo horário
+</button>
+
+
 {/* ✅ Excluir minha conta — LGPD (discreto, no rodapé) */}
 <div style={{
   marginTop: '20px',
