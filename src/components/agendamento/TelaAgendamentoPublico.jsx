@@ -757,16 +757,22 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
 }
 
 /* ============================================================
-   Estilos injetados — responsivo (com abas, background e rodapé)
+   Estilos injetados — responsivo (aurora viva + brilho varrendo)
    ============================================================ */
 export function EstilosTAP() {
   return (
     <style>{`
-      /* ====== TELA COM BACKGROUND ====== */
+      /* ====== TELA — fundo vivo, chamativo, paleta do sistema ====== */
       .tap-tela {
         position: relative;
         min-height: 100vh;
-        background-color: #f3eef8;
+        background: linear-gradient(
+          135deg,
+          #ece1f5 0%,
+          #f3eef8 30%,
+          #ede4f5 60%,
+          #f3eef8 100%
+        );
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
@@ -776,26 +782,92 @@ export function EstilosTAP() {
         font-family: 'Montserrat', sans-serif;
         box-sizing: border-box;
         overflow-x: hidden;
+        isolation: isolate;
       }
 
-      /* Background fixo cobrindo todo o navegador — logo pequena e centralizada */
+      /* Camada 1 — Aurora de blobs (roxo + dourado) com blur */
       .tap-tela::before {
         content: '';
         position: fixed;
+        inset: -25%;
+        background-image:
+          radial-gradient(ellipse 55% 50% at 15% 20%,
+            rgba(168, 85, 247, 0.50) 0%,
+            transparent 60%),
+          radial-gradient(ellipse 50% 60% at 85% 22%,
+            rgba(226, 190, 100, 0.45) 0%,
+            transparent 60%),
+          radial-gradient(ellipse 55% 55% at 22% 85%,
+            rgba(126, 34, 206, 0.40) 0%,
+            transparent 65%),
+          radial-gradient(ellipse 45% 45% at 90% 82%,
+            rgba(200, 162, 74, 0.42) 0%,
+            transparent 60%),
+          radial-gradient(ellipse 40% 40% at 50% 50%,
+            rgba(85, 40, 111, 0.25) 0%,
+            transparent 70%);
+        z-index: 0;
+        pointer-events: none;
+        filter: blur(55px) saturate(115%);
+        -webkit-filter: blur(55px) saturate(115%);
+        animation: tapAurora 28s ease-in-out infinite alternate;
+        will-change: transform;
+        transform: translateZ(0);
+      }
+
+      /* Camada 2 — Brilho dourado/roxo varrendo na diagonal */
+      .tap-tela::after {
+        content: '';
+        position: fixed;
         inset: 0;
-        background-image: url('/imagens/logo-telainicial.jpeg');
-        background-size: min(55%, 420px) auto;
-        background-position: center center;
+        background: linear-gradient(
+          115deg,
+          transparent 25%,
+          rgba(226, 190, 100, 0.14) 42%,
+          rgba(168, 85, 247, 0.16) 55%,
+          rgba(255, 255, 255, 0.10) 62%,
+          transparent 75%
+        );
+        background-size: 260% 100%;
         background-repeat: no-repeat;
         z-index: 0;
         pointer-events: none;
-        opacity: 0.35;
+        animation: tapShine 16s linear infinite;
+        will-change: background-position;
+      }
+
+      @keyframes tapAurora {
+        0% {
+          transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+        }
+        33% {
+          transform: translate3d(-4%, 3%, 0) scale(1.08) rotate(3deg);
+        }
+        66% {
+          transform: translate3d(3%, -4%, 0) scale(1.05) rotate(-2deg);
+        }
+        100% {
+          transform: translate3d(-2%, 2%, 0) scale(1.10) rotate(1deg);
+        }
+      }
+
+      @keyframes tapShine {
+        0%   { background-position: 160% 0; }
+        100% { background-position: -160% 0; }
+      }
+
+      /* Acessibilidade: quem pediu "reduzir movimento" não vê as animações */
+      @media (prefers-reduced-motion: reduce) {
+        .tap-tela::before,
+        .tap-tela::after {
+          animation: none !important;
+        }
       }
 
       /* Coluna de conteúdo — mantém o rodapé sempre embaixo */
       .tap-conteudo {
         position: relative;
-        z-index: 1;
+        z-index: 2;
         width: 100%;
         max-width: 720px;
         display: flex;
@@ -818,7 +890,8 @@ export function EstilosTAP() {
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 8px 24px rgba(37, 211, 102, 0.45);
+        box-shadow: 0 8px 24px rgba(37, 211, 102, 0.55),
+                    0 0 0 0 rgba(37, 211, 102, 0.5);
         cursor: pointer;
         z-index: 100;
         text-decoration: none;
@@ -827,7 +900,7 @@ export function EstilosTAP() {
       }
       .tap-tela > .tap-whatsapp:hover {
         transform: scale(1.08) translateY(-2px);
-        box-shadow: 0 12px 32px rgba(37, 211, 102, 0.6);
+        box-shadow: 0 12px 32px rgba(37, 211, 102, 0.7);
       }
       .tap-tela > .tap-whatsapp::before {
         content: '';
@@ -845,17 +918,18 @@ export function EstilosTAP() {
 
       /* ====== RODAPÉ — grande e fixado no fim ====== */
       .tap-rodape {
-        margin-top: auto;                 /* empurra pro fim da tela */
-        padding: 44px 12px 10px 12px;     /* espaço mínimo acima + respiro embaixo */
+        margin-top: auto;
+        padding: 44px 12px 10px 12px;
         text-align: center;
         font-family: 'Montserrat', sans-serif;
         font-size: 14px;
-        font-weight: 500;
-        color: #3b2a52;
+        font-weight: 600;
+        color: #4b2a68;
         letter-spacing: 0.4px;
         width: 100%;
         box-sizing: border-box;
         flex-shrink: 0;
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.7);
       }
       .tap-rodape-texto {
         display: inline-block;
@@ -865,12 +939,12 @@ export function EstilosTAP() {
         color: #7e22ce;
         font-weight: 800;
         text-decoration: none;
-        border-bottom: 1.5px dashed rgba(126, 34, 206, 0.5);
+        border-bottom: 1.5px dashed rgba(126, 34, 206, 0.55);
         padding-bottom: 2px;
         transition: color 0.2s ease, border-color 0.2s ease;
       }
       .tap-rodape-link:hover {
-        color: #C8A24A;
+        color: #a86a00;
         border-bottom-color: #C8A24A;
       }
 
@@ -879,13 +953,14 @@ export function EstilosTAP() {
         display: flex;
         gap: 6px;
         margin-bottom: 14px;
-        background: rgba(255, 255, 255, 0.75);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(200, 162, 74, 0.4);
+        background: rgba(255, 255, 255, 0.80);
+        backdrop-filter: blur(12px) saturate(140%);
+        -webkit-backdrop-filter: blur(12px) saturate(140%);
+        border: 1px solid rgba(200, 162, 74, 0.5);
         border-radius: 14px;
         padding: 5px;
-        box-shadow: 0 3px 12px rgba(44, 22, 58, 0.08);
+        box-shadow: 0 3px 14px rgba(44, 22, 58, 0.12),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.6);
       }
       .tap-tab {
         flex: 1;
@@ -909,25 +984,28 @@ export function EstilosTAP() {
         box-sizing: border-box;
       }
       .tap-tab:hover {
-        background: rgba(168, 85, 247, 0.08);
+        background: rgba(168, 85, 247, 0.10);
       }
       .tap-tab.ativo {
         background: linear-gradient(135deg, #C8A24A 0%, #e2be64 100%);
         color: #fff;
-        box-shadow: 0 3px 10px rgba(200, 162, 74, 0.35);
+        box-shadow: 0 3px 10px rgba(200, 162, 74, 0.45),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.35);
       }
 
-      /* ====== CARD ====== */
+      /* ====== CARD — ligeiramente translúcido para o fundo respirar ====== */
       .tap-card {
-        background: rgba(255, 255, 255, 0.97);
+        background: rgba(255, 255, 255, 0.94);
         border-radius: 20px;
         border: 1.5px solid #C8A24A;
         padding: 28px;
         width: 100%;
-        box-shadow: 0 15px 40px rgba(44, 22, 58, 0.18);
+        box-shadow:
+          0 20px 50px rgba(44, 22, 58, 0.20),
+          0 0 0 1px rgba(255, 255, 255, 0.5) inset;
         box-sizing: border-box;
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(10px) saturate(120%);
+        -webkit-backdrop-filter: blur(10px) saturate(120%);
       }
 
       .tap-secao {
@@ -954,7 +1032,7 @@ export function EstilosTAP() {
       }
       .tap-input:focus {
         border-color: #a855f7;
-        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
       }
 
       .tap-calendario-wrap {
@@ -1019,12 +1097,15 @@ export function EstilosTAP() {
       .tap-slot-btn:hover {
         border-color: #a855f7;
         background: #faf5ff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(168, 85, 247, 0.18);
       }
       .tap-slot-btn.ativo {
         border: 2px solid #7e22ce;
         background: #faf5ff;
         color: #7e22ce;
         font-weight: 700;
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
       }
 
       .tap-phone-wrap .PhoneInput {
@@ -1042,7 +1123,7 @@ export function EstilosTAP() {
       }
       .tap-phone-wrap .PhoneInput:focus-within {
         border-color: #a855f7;
-        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
       }
       .tap-phone-wrap .PhoneInputInput {
         border: none;
@@ -1100,11 +1181,11 @@ export function EstilosTAP() {
         cursor: pointer;
         min-height: 48px;
         transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-        box-shadow: 0 4px 14px rgba(200, 162, 74, 0.3);
+        box-shadow: 0 6px 18px rgba(200, 162, 74, 0.4);
       }
       .tap-btn-confirmar:hover:not(:disabled) {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(200, 162, 74, 0.4);
+        box-shadow: 0 10px 24px rgba(200, 162, 74, 0.55);
       }
       .tap-btn-confirmar:disabled {
         opacity: 0.7;
@@ -1114,7 +1195,7 @@ export function EstilosTAP() {
       .tap-btn-acompanhar {
         width: 100%;
         font-family: 'Cinzel', serif;
-        background: linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%);
+        background: linear-gradient(135deg, rgba(200, 162, 74, 0.15) 0%, rgba(168, 85, 247, 0.13) 100%);
         color: #7e22ce;
         border: 1.5px solid #7e22ce;
         padding: 12px 24px;
@@ -1127,14 +1208,14 @@ export function EstilosTAP() {
         align-items: center;
         justify-content: center;
         gap: 8px;
-        box-shadow: 0 3px 10px rgba(126, 34, 206, 0.15);
+        box-shadow: 0 3px 12px rgba(126, 34, 206, 0.2);
         transition: all 0.25s ease;
         min-height: 48px;
         box-sizing: border-box;
       }
       .tap-btn-acompanhar:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(126, 34, 206, 0.3);
+        box-shadow: 0 8px 22px rgba(126, 34, 206, 0.35);
       }
 
       .tap-btn-secundario {
@@ -1142,7 +1223,7 @@ export function EstilosTAP() {
         font-family: 'Cinzel', serif;
         background: transparent;
         color: #55286f;
-        border: 1.5px solid rgba(85, 40, 111, 0.35);
+        border: 1.5px solid rgba(85, 40, 111, 0.4);
         padding: 11px 20px;
         border-radius: 22px;
         font-size: 11px;
@@ -1154,7 +1235,7 @@ export function EstilosTAP() {
         box-sizing: border-box;
       }
       .tap-btn-secundario:hover {
-        background: rgba(85, 40, 111, 0.06);
+        background: rgba(85, 40, 111, 0.08);
       }
 
       .tap-instrucao {
@@ -1192,8 +1273,8 @@ export function EstilosTAP() {
       }
       .btn-voltar-lista:hover {
         transform: translateX(-3px);
-        background: linear-gradient(135deg, rgba(200, 162, 74, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%) !important;
-        box-shadow: 0 6px 18px rgba(200, 162, 74, 0.35) !important;
+        background: linear-gradient(135deg, rgba(200, 162, 74, 0.25) 0%, rgba(168, 85, 247, 0.20) 100%) !important;
+        box-shadow: 0 6px 18px rgba(200, 162, 74, 0.4) !important;
         border-color: #a8852f !important;
       }
       .btn-voltar-lista:active {
@@ -1283,6 +1364,12 @@ export function EstilosTAP() {
         .tap-rodape {
           font-size: 13px;
           padding: 36px 10px 8px 10px;
+        }
+
+        /* Em mobile, blur menor = menos trabalho pra GPU */
+        .tap-tela::before {
+          filter: blur(40px) saturate(115%);
+          -webkit-filter: blur(40px) saturate(115%);
         }
       }
 
