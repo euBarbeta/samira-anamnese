@@ -79,12 +79,15 @@ const [uidDaURL, setUidDaURL] = useState(() => {
   // ============================================================
   // NAVEGAÇÃO — histórico do navegador
   // ============================================================
-  const navegarPara = useCallback((novaAba, opcoes = {}) => {
-    if (novaAba === abaAtiva && !opcoes.forcar) return;
-    window.history.pushState({ abaAtiva: novaAba }, '', window.location.pathname);
-    setAbaAtiva(novaAba);
-  }, [abaAtiva]);
+ const navegarPara = useCallback((novaAba, opcoes = {}) => {
+  if (novaAba === abaAtiva && !opcoes.forcar) return;
 
+  const hashAtual = window.location.hash || '';
+  const urlCompleta = window.location.pathname + hashAtual;
+
+  window.history.pushState({ abaAtiva: novaAba }, '', urlCompleta);
+  setAbaAtiva(novaAba);
+}, [abaAtiva]);
   // Listener do botão VOLTAR (navegador e celular)
   useEffect(() => {
     const handlePopState = (event) => {

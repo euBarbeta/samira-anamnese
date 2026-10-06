@@ -48,34 +48,29 @@ function BotaoVoltarProntuario() {
       sessionStorage.getItem('af_uidDaURL');
   } catch {}
 
-  if (!uidSalvo) return null;
+  const podeVoltar = !!uidSalvo;
+  if (!podeVoltar) return null;
 
   return (
     <button
       type="button"
       onClick={() => {
-        window.location.href = `/#${uidSalvo}`;
+        // ✅ Se tem histórico do SPA, usa back() (preserva estado)
+        if (window.history.length > 1 && window.history.state) {
+          window.history.back();
+
+          // Fallback: se em 400ms a URL não voltou pro #UID, força
+          setTimeout(() => {
+            if (!window.location.hash || window.location.hash === '#agendar') {
+              window.location.href = `/#${uidSalvo}`;
+            }
+          }, 400);
+        } else {
+          window.location.href = `/#${uidSalvo}`;
+        }
       }}
       className="btn-voltar-lista"
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-        color: '#2c163a',
-        border: '1.5px solid #C8A24A',
-        padding: '10px 20px',
-        borderRadius: '25px',
-        fontSize: '12px',
-        fontWeight: 700,
-        letterSpacing: '0.5px',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '16px',
-        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-        transition: 'all 0.25s ease',
-        backdropFilter: 'blur(6px)',
-      }}
+      style={{ /* seus estilos atuais */ }}
     >
       <MdArrowBack size={15} color="#C8A24A" />
       Voltar pro meu prontuário

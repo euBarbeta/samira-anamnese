@@ -275,6 +275,8 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
                   blocosDoDia.map((b) => (
                     <div key={b.idx} style={linhaBloco}>
                       <input
+                        id={`padrao-${b.idx}-inicio`}
+                        name={`padrao-${b.idx}-inicio`}
                         type="time"
                         value={b.inicio}
                         onChange={(e) => atualizarBlocoPadrao(b.idx, 'inicio', e.target.value)}
@@ -282,12 +284,16 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
                       />
                       <span style={{ fontSize: 11, color: '#888' }}>até</span>
                       <input
+                        id={`padrao-${b.idx}-fim`}
+                        name={`padrao-${b.idx}-fim`}
                         type="time"
                         value={b.fim}
                         onChange={(e) => atualizarBlocoPadrao(b.idx, 'fim', e.target.value)}
                         style={inputTempo}
                       />
                       <input
+                        id={`padrao-${b.idx}-duracao`}
+                        name={`padrao-${b.idx}-duracao`}
                         type="number"
                         min="15"
                         step="15"
@@ -329,7 +335,7 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
           marginBottom: 14,
           gap: 8,
         }}>
-          <button type="button" onClick={() => mudarMes(-1)} style={btnNav}>
+          <button type="button" onClick={() => mudarMes(-1)} style={btnNav} aria-label="Mês anterior">
             <MdArrowBack size={18} color="#7e22ce" />
           </button>
 
@@ -350,7 +356,7 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
             {MESES[mesRef.getMonth()]} {mesRef.getFullYear()}
           </button>
 
-          <button type="button" onClick={() => mudarMes(1)} style={btnNav}>
+          <button type="button" onClick={() => mudarMes(1)} style={btnNav} aria-label="Próximo mês">
             <MdArrowForward size={18} color="#7e22ce" />
           </button>
         </div>
@@ -488,9 +494,11 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
         flexWrap: 'wrap',
         alignItems: 'center',
       }}>
-        <label style={labelStyle}>
+        <label htmlFor="cfg-dias-futuros" style={labelStyle}>
           Aceitar agendamentos até
           <input
+            id="cfg-dias-futuros"
+            name="diasFuturosMaximo"
             type="number"
             value={config.diasFuturosMaximo}
             onChange={(e) => setConfig((c) => ({ ...c, diasFuturosMaximo: e.target.value }))}
@@ -498,9 +506,11 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
           />
           dias à frente
         </label>
-        <label style={labelStyle}>
+        <label htmlFor="cfg-antecedencia" style={labelStyle}>
           Antecedência mínima
           <input
+            id="cfg-antecedencia"
+            name="antecedenciaMinimaHoras"
             type="number"
             value={config.antecedenciaMinimaHoras}
             onChange={(e) => setConfig((c) => ({ ...c, antecedenciaMinimaHoras: e.target.value }))}
@@ -664,24 +674,30 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
               display: 'flex',
               alignItems: 'center',
             }}
+            aria-label="Fechar"
           >
             <MdClose size={20} color="#2c163a" />
           </button>
         </div>
 
         {/* Toggle bloquear */}
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: 12,
-          background: bloqueado ? '#ffebee' : '#fafafa',
-          border: `1.5px solid ${bloqueado ? '#ef9a9a' : '#e0e0e0'}`,
-          borderRadius: 10,
-          cursor: 'pointer',
-          marginBottom: 14,
-        }}>
+        <label
+          htmlFor="modal-bloquear"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: 12,
+            background: bloqueado ? '#ffebee' : '#fafafa',
+            border: `1.5px solid ${bloqueado ? '#ef9a9a' : '#e0e0e0'}`,
+            borderRadius: 10,
+            cursor: 'pointer',
+            marginBottom: 14,
+          }}
+        >
           <input
+            id="modal-bloquear"
+            name="bloquearDia"
             type="checkbox"
             checked={bloqueado}
             onChange={(e) => setBloqueado(e.target.checked)}
@@ -706,6 +722,8 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
         {/* Motivo se bloqueado */}
         {bloqueado && (
           <input
+            id="modal-motivo"
+            name="motivo"
             type="text"
             placeholder="Motivo (opcional, ex: feriado)"
             value={motivo}
@@ -730,15 +748,20 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
               }}>
                 Horários deste dia
               </strong>
-              <label style={{
-                fontSize: 10,
-                color: '#666',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                cursor: 'pointer',
-              }}>
+              <label
+                htmlFor="modal-usa-padrao"
+                style={{
+                  fontSize: 10,
+                  color: '#666',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  cursor: 'pointer',
+                }}
+              >
                 <input
+                  id="modal-usa-padrao"
+                  name="usaPadrao"
                   type="checkbox"
                   checked={usaPadrao}
                   onChange={(e) => setUsaPadrao(e.target.checked)}
@@ -786,6 +809,8 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
                   blocosDia.map((b, i) => (
                     <div key={i} style={linhaBloco}>
                       <input
+                        id={`modal-bloco-${i}-inicio`}
+                        name={`modal-bloco-${i}-inicio`}
                         type="time"
                         value={b.inicio}
                         onChange={(e) => atualizarBloco(i, 'inicio', e.target.value)}
@@ -793,12 +818,16 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
                       />
                       <span style={{ fontSize: 11, color: '#888' }}>até</span>
                       <input
+                        id={`modal-bloco-${i}-fim`}
+                        name={`modal-bloco-${i}-fim`}
                         type="time"
                         value={b.fim}
                         onChange={(e) => atualizarBloco(i, 'fim', e.target.value)}
                         style={inputTempo}
                       />
                       <input
+                        id={`modal-bloco-${i}-duracao`}
+                        name={`modal-bloco-${i}-duracao`}
                         type="number"
                         min="15"
                         step="15"
@@ -811,6 +840,7 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
                         type="button"
                         onClick={() => removerBloco(i)}
                         style={btnIconPerigo}
+                        aria-label="Remover bloco"
                       >
                         <MdDelete size={14} />
                       </button>

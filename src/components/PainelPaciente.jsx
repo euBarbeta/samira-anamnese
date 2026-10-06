@@ -333,15 +333,20 @@ useEffect(() => {
 const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
 const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-  const irParaTela = useCallback((novaTela) => {
-    if (novaTela === telaAtual) return;
-    window.history.pushState(
-      { ...(window.history.state || {}), painelPacienteTela: novaTela },
-      '',
-      window.location.pathname
-    );
-    setTelaAtual(novaTela);
-  }, [telaAtual]);
+const irParaTela = useCallback((novaTela) => {
+  if (novaTela === telaAtual) return;
+
+  // ✅ Preserva o hash #UID
+  const hashAtual = window.location.hash || '';
+  const urlCompleta = window.location.pathname + hashAtual;
+
+  window.history.pushState(
+    { ...(window.history.state || {}), painelPacienteTela: novaTela },
+    '',
+    urlCompleta
+  );
+  setTelaAtual(novaTela);
+}, [telaAtual]);
   // ✅ LGPD — Verifica se o paciente já consentiu com o tratamento de dados
 useEffect(() => {
   if (!pacienteData) return;
@@ -358,12 +363,17 @@ useEffect(() => {
   // Sem consentimento (ou versão desatualizada) → mostra o modal
   setMostrarConsentimento(true);
 }, [pacienteData]);
-  useEffect(() => {
+useEffect(() => {
   const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
+
+  // ✅ Preserva o hash #UID do paciente
+  const hashAtual = window.location.hash || '';
+  const urlCompleta = window.location.pathname + hashAtual;
+
   window.history.replaceState(
     { ...(window.history.state || {}), painelPacienteTela: telaInicial },
     '',
-    window.location.pathname
+    urlCompleta
   );
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
