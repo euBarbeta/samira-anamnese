@@ -11,6 +11,7 @@ import {
   MdDelete, MdEmail, MdContentCopy, MdCheck, MdClose,
 } from 'react-icons/md';
 import { AbasPublicas, EstilosTAP, BotaoWhatsApp, Rodape } from './TelaAgendamentoPublico';
+import TelaSemInternet from '../TelaSemInternet';
 
 /* ============================================================
    Mapa visual dos status
