@@ -1,3 +1,4 @@
+// src/components/PainelPaciente.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
@@ -9,7 +10,7 @@ import ModalConsentimentoPrimeiroAcesso from './ModalConsentimentoPrimeiroAcesso
 import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning, MdCalendarMonth,
   MdFolderOpen, MdInfoOutline, MdHourglassEmpty, MdCancel,
-  MdLightbulbOutline, MdDelete,
+  MdLightbulbOutline, MdDelete, MdCheckCircle, MdErrorOutline, MdClose,
 } from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
 import {
@@ -27,6 +28,206 @@ import FichaDesktop from './FichaDesktop';
 import FichaMobile from './FichaMobile';
 import FichaEvoDesktop from './FichaEvoDesktop';
 import FichaEvoMobile from './FichaEvoMobile';
+import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
+
+/* ============================================================
+   MODAL DE AVISO / CONFIRMAÇÃO — estética do sistema
+   Substitui alert() e window.confirm() nativos
+   ============================================================ */
+function ModalAviso({
+  tipo = 'info',       // 'info' | 'sucesso' | 'aviso' | 'erro'
+  titulo,
+  mensagem,
+  textoConfirmar = 'OK',
+  textoCancelar = 'Cancelar',
+  mostrarCancelar = false,
+  onConfirmar,
+  onFechar,
+  carregando = false,
+}) {
+  const config = {
+    info:     { cor: '#7e22ce', bg: '#faf5ff', borda: '#d8b4fe', Icone: MdInfoOutline },
+    sucesso:  { cor: '#166534', bg: '#f0fdf4', borda: '#86efac', Icone: MdCheckCircle },
+    aviso:    { cor: '#92400e', bg: '#fff8e1', borda: '#fcd34d', Icone: MdWarning },
+    erro:     { cor: '#991b1b', bg: '#fef2f2', borda: '#fca5a5', Icone: MdErrorOutline },
+  }[tipo] || { cor: '#7e22ce', bg: '#faf5ff', borda: '#d8b4fe', Icone: MdInfoOutline };
+
+  const { cor, bg, borda, Icone } = config;
+
+  const handleFechar = () => {
+    if (carregando) return;
+    onFechar?.();
+  };
+
+  const handleConfirmar = async () => {
+    if (carregando) return;
+    if (onConfirmar) {
+      await onConfirmar();
+    } else {
+      onFechar?.();
+    }
+  };
+
+  return (
+    <div
+      onClick={carregando ? undefined : handleFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(44, 22, 58, 0.6)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999999,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '28px 24px 24px 24px',
+          maxWidth: 420,
+          width: '100%',
+          boxShadow: '0 20px 60px rgba(44, 22, 58, 0.4)',
+          border: '1.5px solid #e2d2f5',
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            margin: '0 auto 14px auto',
+            borderRadius: '50%',
+            background: bg,
+            border: `2px solid ${borda}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: `0 4px 14px ${cor}22`,
+          }}
+        >
+          <Icone size={30} color={cor} />
+        </div>
+
+        {titulo && (
+          <h3
+            style={{
+              fontFamily: "'Cinzel', serif",
+              color: cor,
+              fontSize: 17,
+              fontWeight: 700,
+              margin: '0 0 10px 0',
+              letterSpacing: '0.4px',
+            }}
+          >
+            {titulo}
+          </h3>
+        )}
+
+        {mensagem && (
+          <p
+            style={{
+              fontSize: 13,
+              color: '#2c163a',
+              margin: '0 0 18px 0',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {mensagem}
+          </p>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'center' }}>
+          {mostrarCancelar && (
+            <button
+              type="button"
+              onClick={handleFechar}
+              disabled={carregando}
+              style={{
+                flex: 1,
+                background: '#f0f0f0',
+                color: '#333',
+                border: 'none',
+                padding: '12px 16px',
+                borderRadius: 22,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: carregando ? 'not-allowed' : 'pointer',
+                fontFamily: "'Cinzel', serif",
+                opacity: carregando ? 0.6 : 1,
+              }}
+            >
+              {textoCancelar.toUpperCase()}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleConfirmar}
+            disabled={carregando}
+            style={{
+              flex: 1,
+              background:
+                tipo === 'erro' || tipo === 'aviso'
+                  ? 'linear-gradient(135deg, #c62828 0%, #e53935 100%)'
+                  : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+              color: '#fff',
+              border:
+                tipo === 'erro' || tipo === 'aviso'
+                  ? '1.5px solid #9c1c1c'
+                  : '1.5px solid #9c7826',
+              padding: '12px 16px',
+              borderRadius: 22,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: carregando ? 'wait' : 'pointer',
+              fontFamily: "'Cinzel', serif",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              boxShadow:
+                tipo === 'erro' || tipo === 'aviso'
+                  ? '0 4px 14px rgba(198, 40, 40, 0.35)'
+                  : '0 4px 14px rgba(200, 162, 74, 0.35)',
+              opacity: carregando ? 0.7 : 1,
+            }}
+          >
+            {carregando ? (
+              <>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 13,
+                    height: 13,
+                    border: '2px solid #fff',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spinAviso 0.8s linear infinite',
+                  }}
+                />
+                AGUARDE…
+              </>
+            ) : (
+              textoConfirmar.toUpperCase()
+            )}
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes spinAviso { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    </div>
+  );
+}
 
 /* ============================================================
    MODAL DE INSTALAÇÃO (PWA) — embutido no mesmo arquivo
@@ -305,6 +506,192 @@ function formatarDataBR(iso) {
 }
 
 /* ============================================================
+   MODAL DE CONFIRMAÇÃO DE REMOÇÃO DE AGENDAMENTO
+   ============================================================ */
+function ModalRemoverAgendamento({ agendamento, onFechar, onConfirmar }) {
+  const [removendo, setRemovendo] = useState(false);
+
+  const isConcluido = agendamento?.status === 'concluido';
+
+  const handleConfirmar = async () => {
+    if (removendo) return;
+    setRemovendo(true);
+    try {
+      await onConfirmar();
+    } finally {
+      setRemovendo(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={removendo ? undefined : onFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(44, 22, 58, 0.6)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999999,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '28px 24px 24px 24px',
+          maxWidth: 400,
+          width: '100%',
+          boxShadow: '0 20px 60px rgba(44, 22, 58, 0.4)',
+          border: '1.5px solid #e2d2f5',
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            margin: '0 auto 14px auto',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ffebee 0%, #fde8e8 100%)',
+            border: '2px solid #ef9a9a',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(198, 40, 40, 0.15)',
+          }}
+        >
+          <MdDelete size={30} color="#c62828" />
+        </div>
+
+        <h3
+          style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#c62828',
+            fontSize: 17,
+            fontWeight: 700,
+            margin: '0 0 10px 0',
+            letterSpacing: '0.4px',
+          }}
+        >
+          Remover da lista
+        </h3>
+
+        <p
+          style={{
+            fontSize: 13,
+            color: '#2c163a',
+            margin: '0 0 6px 0',
+            fontWeight: 600,
+            lineHeight: 1.5,
+          }}
+        >
+          {formatarDataBR(agendamento?.data)} às {agendamento?.horaInicio}
+        </p>
+
+        <p
+          style={{
+            fontSize: 12,
+            color: '#666',
+            margin: '0 0 18px 0',
+            lineHeight: 1.6,
+          }}
+        >
+          {isConcluido
+            ? 'Este atendimento já foi concluído. Deseja removê-lo do seu histórico?'
+            : 'Deseja remover este agendamento cancelado da sua lista?'}
+          <br />
+          <span style={{ fontSize: 11, color: '#888', display: 'block', marginTop: 6 }}>
+            Esta ação não pode ser desfeita.
+          </span>
+        </p>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+          <button
+            type="button"
+            onClick={onFechar}
+            disabled={removendo}
+            style={{
+              flex: 1,
+              background: '#f0f0f0',
+              color: '#333',
+              border: 'none',
+              padding: '12px 16px',
+              borderRadius: 22,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: removendo ? 'not-allowed' : 'pointer',
+              fontFamily: "'Cinzel', serif",
+              opacity: removendo ? 0.6 : 1,
+            }}
+          >
+            CANCELAR
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirmar}
+            disabled={removendo}
+            style={{
+              flex: 1,
+              background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 16px',
+              borderRadius: 22,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: removendo ? 'wait' : 'pointer',
+              fontFamily: "'Cinzel', serif",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              boxShadow: '0 4px 14px rgba(198, 40, 40, 0.35)',
+              opacity: removendo ? 0.7 : 1,
+            }}
+          >
+            {removendo ? (
+              <>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 13,
+                    height: 13,
+                    border: '2px solid #fff',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spinRemover 0.8s linear infinite',
+                  }}
+                />
+                REMOVENDO…
+              </>
+            ) : (
+              <>
+                <MdDelete size={14} />
+                REMOVER
+              </>
+            )}
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes spinRemover {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    PAINEL DO PACIENTE
    ============================================================ */
 export default function PainelPaciente({
@@ -344,6 +731,15 @@ export default function PainelPaciente({
   const [mostrarConsentimento, setMostrarConsentimento] = useState(false);
   const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
   const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
+
+  // ✅ Modal de remoção de agendamento
+  const [agendamentoParaRemover, setAgendamentoParaRemover] = useState(null);
+
+  // ✅ NOVO: controla o modal de agendar pelo próprio painel do paciente
+  const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
+
+  // ✅ NOVO: modal genérico de avisos / confirmações (substitui alert/confirm)
+  const [aviso, setAviso] = useState(null);
 
   const isAndroid =
     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
@@ -519,24 +915,28 @@ export default function PainelPaciente({
 
   const handleInstalarApp = async () => {
     if (isAndroid) {
-      const confirmar = window.confirm(
-        'Download do aplicativo Samira Ferreira\n\n' +
+      setAviso({
+        tipo: 'aviso',
+        titulo: 'Baixar aplicativo',
+        mensagem:
           'Após o download:\n' +
           '1. Abra o arquivo .apk\n' +
           '2. Permita "Instalar de fontes desconhecidas"\n' +
-          '3. Confirme a instalação\n\n' +
-          'Deseja baixar agora?'
-      );
-
-      if (!confirmar) return;
-
-      const link = document.createElement('a');
-      link.href = APK_URL;
-      link.download = 'samira-ferreira.apk';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+          '3. Confirme a instalação',
+        textoConfirmar: 'Baixar agora',
+        textoCancelar: 'Cancelar',
+        mostrarCancelar: true,
+        onConfirmar: () => {
+          setAviso(null);
+          const link = document.createElement('a');
+          link.href = APK_URL;
+          link.download = 'samira-ferreira.apk';
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        },
+      });
       return;
     }
 
@@ -572,40 +972,68 @@ export default function PainelPaciente({
     setMostrarModalInstalacao(true);
   };
 
-  const cancelarAgendamento = async (ag) => {
-    if (
-      !window.confirm(
-        `Cancelar o agendamento de ${formatarDataBR(ag.data)} às ${ag.horaInicio}?`
-      )
-    )
-      return;
+  const cancelarAgendamento = (ag) => {
+    setAviso({
+      tipo: 'aviso',
+      titulo: 'Cancelar agendamento?',
+      mensagem: `Deseja cancelar o agendamento de ${formatarDataBR(ag.data)} às ${ag.horaInicio}?`,
+      textoConfirmar: 'Sim, cancelar',
+      textoCancelar: 'Voltar',
+      mostrarCancelar: true,
+      onConfirmar: async () => {
+        try {
+          await updateDoc(doc(db, 'agendamentos', ag.id), {
+            status: 'cancelado',
+            canceladoPor: 'paciente',
+            atualizadoEm: new Date().toISOString(),
+          });
+          setAviso(null);
+          setAviso({
+            tipo: 'sucesso',
+            titulo: 'Agendamento cancelado',
+            mensagem: 'Seu agendamento foi cancelado com sucesso.',
+            textoConfirmar: 'OK',
+            onConfirmar: () => setAviso(null),
+          });
+        } catch (e) {
+          setAviso(null);
+          setAviso({
+            tipo: 'erro',
+            titulo: 'Erro ao cancelar',
+            mensagem: e?.message || 'Não foi possível cancelar. Tente novamente.',
+            textoConfirmar: 'OK',
+            onConfirmar: () => setAviso(null),
+          });
+        }
+      },
+    });
+  };
 
+  // ✅ Abre o modal de confirmação de remoção
+  const abrirModalRemoverAgendamento = (ag) => {
+    setAgendamentoParaRemover(ag);
+  };
+
+  // ✅ Confirma e apaga o documento
+  const confirmarRemocaoAgendamento = async () => {
+    if (!agendamentoParaRemover) return;
     try {
-      await updateDoc(doc(db, 'agendamentos', ag.id), {
-        status: 'cancelado',
-        canceladoPor: 'paciente',
-        atualizadoEm: new Date().toISOString(),
+      await deleteDoc(doc(db, 'agendamentos', agendamentoParaRemover.id));
+      setAgendamentoParaRemover(null);
+    } catch (e) {
+      setAgendamentoParaRemover(null);
+      setAviso({
+        tipo: 'erro',
+        titulo: 'Erro ao remover',
+        mensagem: e?.message || 'Não foi possível remover. Tente novamente.',
+        textoConfirmar: 'OK',
+        onConfirmar: () => setAviso(null),
       });
-    } catch (e) {
-      alert('Erro ao cancelar: ' + (e?.message || e));
     }
   };
 
-  // ✅ NOVO: apaga definitivamente um agendamento cancelado
-  const excluirAgendamentoCancelado = async (ag) => {
-    if (
-      !window.confirm(
-        `Remover este agendamento cancelado (${formatarDataBR(ag.data)} às ${ag.horaInicio}) da lista?`
-      )
-    )
-      return;
-
-    try {
-      await deleteDoc(doc(db, 'agendamentos', ag.id));
-    } catch (e) {
-      alert('Erro ao remover: ' + (e?.message || e));
-    }
-  };
+  const podeRemover = (ag) =>
+    ag.status === 'cancelado' || ag.status === 'concluido';
 
   if (consentimentoRecusado) {
     return (
@@ -1131,11 +1559,11 @@ export default function PainelPaciente({
                               </button>
                             )}
 
-                            {/* Cancelado → botão Remover da lista */}
-                            {ag.status === 'cancelado' && (
+                            {/* Cancelado / Concluído → botão Remover da lista (abre modal) */}
+                            {podeRemover(ag) && (
                               <button
                                 type="button"
-                                onClick={() => excluirAgendamentoCancelado(ag)}
+                                onClick={() => abrirModalRemoverAgendamento(ag)}
                                 style={{
                                   marginTop: 4,
                                   background: '#f5f5f5',
@@ -1241,11 +1669,10 @@ export default function PainelPaciente({
                     </button>
                   )}
 
+                  {/* ✅ AGENDAR NOVO HORÁRIO — abre modal direto (só data + hora) */}
                   <button
                     type="button"
-                    onClick={() => {
-                      window.location.href = '/#agendar';
-                    }}
+                    onClick={() => setMostrarModalAgendar(true)}
                     className="painel-btn-hover"
                     style={{
                       fontFamily: "'Cinzel', serif",
@@ -1421,15 +1848,70 @@ export default function PainelPaciente({
           pacienteData={pacienteData}
           onFechar={() => setMostrarExclusaoConta(false)}
           onExcluido={() => {
-            alert('Sua conta foi excluída com sucesso. Todos os seus dados foram removidos.');
             setMostrarExclusaoConta(false);
-            if (onLogout) onLogout();
+            setAviso({
+              tipo: 'sucesso',
+              titulo: 'Conta excluída',
+              mensagem:
+                'Sua conta foi excluída com sucesso. Todos os seus dados foram removidos.',
+              textoConfirmar: 'Voltar ao login',
+              onConfirmar: () => {
+                setAviso(null);
+                if (onLogout) onLogout();
+              },
+            });
           }}
         />
       )}
 
       {mostrarModalInstalacao && (
         <ModalInstalacao onClose={() => setMostrarModalInstalacao(false)} />
+      )}
+
+      {/* Modal de confirmação para remover agendamento */}
+      {agendamentoParaRemover && (
+        <ModalRemoverAgendamento
+          agendamento={agendamentoParaRemover}
+          onFechar={() => setAgendamentoParaRemover(null)}
+          onConfirmar={confirmarRemocaoAgendamento}
+        />
+      )}
+
+      {/* ✅ Modal de agendar — mesmo do painel da esteticista, só data + hora */}
+      {mostrarModalAgendar && (
+        <ModalAgendarParaPaciente
+          paciente={pacienteData}
+          uidEsteticista={pacienteData.criadoPorUid}
+          origem="paciente"
+          onFechar={() => setMostrarModalAgendar(false)}
+          onSucesso={(ag) => {
+            setMostrarModalAgendar(false);
+            setAviso({
+              tipo: 'sucesso',
+              titulo: 'Solicitação enviada',
+              mensagem:
+                `Sua solicitação para ${formatarDataBR(ag.data)} às ${ag.horaInicio} foi enviada.\n` +
+                `Aguarde a confirmação da profissional.`,
+              textoConfirmar: 'OK',
+              onConfirmar: () => setAviso(null),
+            });
+          }}
+        />
+      )}
+
+      {/* ✅ Modal genérico de avisos/confirmações */}
+      {aviso && (
+        <ModalAviso
+          tipo={aviso.tipo}
+          titulo={aviso.titulo}
+          mensagem={aviso.mensagem}
+          textoConfirmar={aviso.textoConfirmar}
+          textoCancelar={aviso.textoCancelar}
+          mostrarCancelar={aviso.mostrarCancelar}
+          carregando={aviso.carregando}
+          onConfirmar={aviso.onConfirmar}
+          onFechar={() => setAviso(null)}
+        />
       )}
     </div>
   );

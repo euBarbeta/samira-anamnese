@@ -15,9 +15,12 @@ import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 export default function ModalAgendarParaPaciente({
   paciente,           // { id, nome, documento, emailAcesso, consentimentoLGPD, ... }
   uidEsteticista,
+  origem = 'esteticista',   // 'esteticista' | 'paciente'
   onFechar,
   onSucesso,          // callback(agendamentoCriado)
 }) {
+  const isPaciente = origem === 'paciente';
+
   const [slots, setSlots] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [mesRef, setMesRef] = useState(() => new Date());
@@ -36,7 +39,11 @@ export default function ModalAgendarParaPaciente({
           doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal')
         );
         if (!cfgSnap.exists()) {
-          setErro('Você ainda não configurou sua agenda.');
+          setErro(
+            isPaciente
+              ? 'A agenda da profissional ainda não está configurada.'
+              : 'Você ainda não configurou sua agenda.'
+          );
           setCarregando(false);
           return;
         }
@@ -63,12 +70,16 @@ export default function ModalAgendarParaPaciente({
         setSlots(lista);
       } catch (e) {
         console.error('Erro ao carregar agenda:', e);
-        setErro('Não foi possível carregar sua agenda.');
+        setErro(
+          isPaciente
+            ? 'Não foi possível carregar a agenda.'
+            : 'Não foi possível carregar sua agenda.'
+        );
       } finally {
         setCarregando(false);
       }
     })();
-  }, [uidEsteticista]);
+  }, [uidEsteticista, isPaciente]);
 
   // Agrupa slots por dia
   const slotsPorDia = useMemo(() => {
@@ -91,15 +102,25 @@ export default function ModalAgendarParaPaciente({
     try {
       const codigo = gerarCodigoAutenticidade();
 
+      // Consentimento LGPD — usa o do paciente quando existir; senão sintetiza
       const consentimentoPaciente = paciente?.consentimentoLGPD?.aceito
         ? paciente.consentimentoLGPD
         : {
             aceito: true,
             dataAceite: new Date().toISOString(),
             versaoTermo: '1.0',
-            plataforma: 'esteticista-app',
-            userAgent: 'agendamento-feito-pela-profissional',
+            plataforma: isPaciente ? 'paciente-app' : 'esteticista-app',
+            userAgent: isPaciente
+              ? 'agendamento-feito-pelo-paciente'
+              : 'agendamento-feito-pela-profissional',
           };
+
+      // ✅ Regra de status:
+      // - Paciente agendando → SEMPRE 'pendente' (aguarda confirmação da esteticista)
+      // - Esteticista agendando → 'confirmado' (se paciente já aceitou LGPD) ou 'pendente'
+      const novoStatus = isPaciente
+        ? 'pendente'
+        : (paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente');
 
       const docRef = await addDoc(collection(db, 'agendamentos'), {
         uidEsteticista,
@@ -116,10 +137,13 @@ export default function ModalAgendarParaPaciente({
         email: (paciente.email || paciente.emailAcesso || '').toLowerCase(),
         observacoes: observacoes.trim(),
 
-        // ✅ Já nasce confirmado — foi a esteticista que marcou
-        status: paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente',
-criadoPor: 'esteticista',
-aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
+        status: novoStatus,
+        criadoPor: isPaciente ? 'paciente' : 'esteticista',
+        aguardandoConsentimento: isPaciente
+          ? false
+          : !paciente?.consentimentoLGPD?.aceito,
+        aguardandoConfirmacao: isPaciente,   // ✅ esteticista precisa confirmar
+
         canceladoPor: null,
         consentimentoLGPD: consentimentoPaciente,
         codigoAutenticidade: codigo,
@@ -127,20 +151,38 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
         atualizadoEm: new Date().toISOString(),
       });
 
-      // ✅ Notifica o paciente por push (não bloqueia UI se falhar)
-      fetch('/.netlify/functions/notificar-paciente-agendamento', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pacienteId: paciente.id,
-          agendamento: {
-            id: docRef.id,
-            data: slotSelecionado.data,
-            horaInicio: slotSelecionado.horaInicio,
-            nome: paciente.nome,
-          },
-        }),
-      }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+      // ✅ Notificações por push (não bloqueia UI se falhar)
+      if (isPaciente) {
+        // Paciente agendou → avisa a esteticista
+        fetch('/.netlify/functions/notificar-esteticista-novo-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uidEsteticista,
+            agendamento: {
+              id: docRef.id,
+              data: slotSelecionado.data,
+              horaInicio: slotSelecionado.horaInicio,
+              nome: paciente.nome,
+            },
+          }),
+        }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
+      } else {
+        // Esteticista agendou → avisa o paciente
+        fetch('/.netlify/functions/notificar-paciente-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pacienteId: paciente.id,
+            agendamento: {
+              id: docRef.id,
+              data: slotSelecionado.data,
+              horaInicio: slotSelecionado.horaInicio,
+              nome: paciente.nome,
+            },
+          }),
+        }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+      }
 
       onSucesso?.({
         id: docRef.id,
@@ -149,7 +191,11 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
       });
     } catch (e) {
       console.error('Erro ao criar agendamento:', e);
-      setErro('Erro ao agendar. Tente novamente.');
+      setErro(
+        isPaciente
+          ? 'Não foi possível enviar sua solicitação. Tente novamente.'
+          : 'Erro ao agendar. Tente novamente.'
+      );
       setEnviando(false);
     }
   };
@@ -170,7 +216,9 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
               fontSize: 16,
               margin: 0,
             }}>
-              Agendar para {paciente?.nome}
+              {isPaciente
+                ? 'Escolher data e horário'
+                : `Agendar para ${paciente?.nome}`}
             </h3>
           </div>
           <button
@@ -187,7 +235,7 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
         <div style={{ padding: '18px 22px', overflowY: 'auto' }}>
           {carregando ? (
             <div style={{ textAlign: 'center', padding: 30, color: '#666' }}>
-              Carregando sua agenda…
+              {isPaciente ? 'Carregando agenda…' : 'Carregando sua agenda…'}
             </div>
           ) : erro && slots.length === 0 ? (
             <div style={blocoAviso}>
@@ -197,7 +245,11 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
           ) : slots.length === 0 ? (
             <div style={blocoAviso}>
               <MdWarning size={22} color="#92400e" />
-              <span>Sua agenda está vazia. Configure horários primeiro.</span>
+              <span>
+                {isPaciente
+                  ? 'Nenhum horário disponível no momento. Tente novamente mais tarde.'
+                  : 'Sua agenda está vazia. Configure horários primeiro.'}
+              </span>
             </div>
           ) : (
             <>
@@ -298,7 +350,11 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
                     value={observacoes}
                     onChange={(e) => setObservacoes(e.target.value)}
                     rows={2}
-                    placeholder="Ex: retorno, limpeza de pele…"
+                    placeholder={
+                      isPaciente
+                        ? 'Ex: primeira vez, dúvidas, preferência de horário…'
+                        : 'Ex: retorno, limpeza de pele…'
+                    }
                     style={{
                       width: '100%',
                       padding: '8px 10px',
@@ -354,7 +410,9 @@ aguardandoConsentimento: !paciente?.consentimentoLGPD?.aceito,
             }}
           >
             <MdCheckCircle size={16} />
-            {enviando ? 'AGENDANDO…' : 'CONFIRMAR AGENDAMENTO'}
+            {enviando
+              ? (isPaciente ? 'ENVIANDO…' : 'AGENDANDO…')
+              : (isPaciente ? 'SOLICITAR AGENDAMENTO' : 'CONFIRMAR AGENDAMENTO')}
           </button>
         </div>
       </div>
