@@ -31,11 +31,8 @@ function BotaoVoltarProntuario() {
     <button
       type="button"
       onClick={() => {
-        // ✅ Se tem histórico do SPA, usa back() (preserva estado)
         if (window.history.length > 1 && window.history.state) {
           window.history.back();
-
-          // Fallback: se em 400ms a URL não voltou pro #UID, força
           setTimeout(() => {
             const h = window.location.hash;
             if (!h || h === '#agendar' || h.startsWith('#agendar/')) {
@@ -46,7 +43,7 @@ function BotaoVoltarProntuario() {
           window.location.href = `/#${uidSalvo}`;
         }
       }}
-      className="btn-voltar-lista"
+      className="btn-voltar-lista tap-target"
       style={{
         fontFamily: "'Cinzel', serif",
         background:
@@ -66,6 +63,7 @@ function BotaoVoltarProntuario() {
         boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
         transition: 'all 0.25s ease',
         backdropFilter: 'blur(6px)',
+        minHeight: 40,
       }}
     >
       <MdArrowBack size={15} color="#C8A24A" />
@@ -80,11 +78,9 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   const [carregando, setCarregando] = useState(true);
   const [slotSelecionado, setSlotSelecionado] = useState(null);
 
-  // ✅ Estados do calendário
   const [mesRef, setMesRef] = useState(() => new Date());
   const [diaSelecionado, setDiaSelecionado] = useState(null);
 
-  // Formulário
   const [nome, setNome] = useState('');
   const [documento, setDocumento] = useState('');
   const [email, setEmail] = useState('');
@@ -97,7 +93,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   const [sucesso, setSucesso] = useState(null);
   const [erro, setErro] = useState('');
 
-  // ✅ Agrupa slots por dia (YYYY-MM-DD → [slots])
   const slotsPorDia = useMemo(() => {
     const map = {};
     for (const s of slots) {
@@ -110,7 +105,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
     return map;
   }, [slots]);
 
-  // Carrega config + slots
   useEffect(() => {
     if (!uidEsteticista) return;
     (async () => {
@@ -154,9 +148,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
     })();
   }, [uidEsteticista]);
 
-  /* ============================================================
-     Validação do documento
-     ============================================================ */
   const validarDocumento = (docStr) => {
     const trimmed = docStr.trim();
     if (trimmed.length < 5) {
@@ -257,85 +248,72 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   };
 
   /* =================== RENDER =================== */
-  if (carregando) return <div style={tela}><p>Carregando agenda…</p></div>;
+  if (carregando) {
+    return (
+      <div className="tap-tela">
+        <div style={{ width: '100%', maxWidth: 720 }}>
+          <div className="tap-card" style={{ textAlign: 'center', padding: 40 }}>
+            <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+              Carregando agenda…
+            </p>
+          </div>
+        </div>
+        <EstilosTAP />
+      </div>
+    );
+  }
 
   if (erro && !config) {
     return (
-      <div style={tela}>
+      <div className="tap-tela">
         <div style={{ width: '100%', maxWidth: 720 }}>
           <BotaoVoltarProntuario />
-          <div style={card}>
+          <div className="tap-card" style={{ textAlign: 'center' }}>
             <MdWarning size={40} color="#e65100" />
-            <p>{erro}</p>
+            <p style={{ fontSize: 13, color: '#444', lineHeight: 1.6 }}>{erro}</p>
           </div>
         </div>
+        <EstilosTAP />
       </div>
     );
   }
 
   if (sucesso) {
     return (
-      <div style={tela}>
+      <div className="tap-tela">
         <div style={{ width: '100%', maxWidth: 480 }}>
           <BotaoVoltarProntuario />
-          <div style={{ ...card, textAlign: 'center' }}>
+          <div className="tap-card" style={{ textAlign: 'center' }}>
             <MdCheckCircle size={56} color="#16a34a" />
-            <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a' }}>
+            <h2
+              style={{
+                fontFamily: "'Cinzel', serif",
+                color: '#2c163a',
+                fontSize: 20,
+                margin: '12px 0 8px 0',
+              }}
+            >
               Agendamento solicitado!
             </h2>
             <p style={{ fontSize: 14, color: '#444' }}>
-              <strong>{formatarDataLonga(sucesso.data)}</strong> às <strong>{sucesso.hora}</strong>
+              <strong>{formatarDataLonga(sucesso.data)}</strong> às{' '}
+              <strong>{sucesso.hora}</strong>
             </p>
             <p style={{ fontSize: 12, color: '#666', marginTop: 12 }}>
               Guarde seu código para consultar ou cancelar:
             </p>
-            <div
-              style={{
-                background: '#faf5ff',
-                border: '1.5px dashed #a855f7',
-                borderRadius: 12,
-                padding: '12px 16px',
-                fontFamily: 'monospace',
-                fontSize: 18,
-                fontWeight: 700,
-                color: '#7e22ce',
-                letterSpacing: 1,
-              }}
-            >
-              {sucesso.codigo}
-            </div>
+            <div className="tap-codigo-box">{sucesso.codigo}</div>
 
             <p style={{ fontSize: 11, color: '#888', marginTop: 16 }}>
               A profissional vai confirmar em breve. Você receberá um aviso.
             </p>
 
-            {/* ✅ Botão para acompanhar o agendamento pelo código */}
             <button
               type="button"
               onClick={() => {
                 window.location.href = '/#consultar';
               }}
-              style={{
-                marginTop: 18,
-                width: '100%',
-                fontFamily: "'Cinzel', serif",
-                background:
-                  'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-                color: '#7e22ce',
-                border: '1.5px solid #7e22ce',
-                padding: '12px 24px',
-                borderRadius: 22,
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: '0.5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                boxShadow: '0 3px 10px rgba(126, 34, 206, 0.15)',
-                transition: 'all 0.25s ease',
-              }}
+              className="tap-btn-acompanhar tap-target"
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
                 e.currentTarget.style.boxShadow = '0 6px 18px rgba(126, 34, 206, 0.3)';
@@ -350,22 +328,24 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
             </button>
           </div>
         </div>
+        <EstilosTAP />
       </div>
     );
   }
 
   return (
-    <div style={tela}>
+    <div className="tap-tela">
       <div style={{ width: '100%', maxWidth: 720 }}>
         <BotaoVoltarProntuario />
 
-        <div style={card}>
+        <div className="tap-card">
           <h2
             style={{
               fontFamily: "'Cinzel', serif",
               color: '#2c163a',
               margin: '0 0 8px 0',
               textAlign: 'center',
+              fontSize: 22,
             }}
           >
             Agendar horário
@@ -381,7 +361,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
             Samira Ferreira Estética & Cosmetologia
           </p>
 
-          {/* Calendário ou aviso de agenda vazia */}
           {slots.length === 0 ? (
             <div
               style={{
@@ -392,84 +371,68 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 textAlign: 'center',
                 fontSize: 13,
                 color: '#92400e',
+                lineHeight: 1.5,
               }}
             >
-              <MdWarning size={22} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              <MdWarning
+                size={22}
+                color="#92400e"
+                style={{ verticalAlign: 'middle', marginRight: 6 }}
+              />
               Agenda ainda não disponível. Tente novamente em alguns dias.
             </div>
           ) : (
             <>
-              <h3
-                style={{
-                  fontFamily: "'Cinzel', serif",
-                  fontSize: 13,
-                  color: '#2c163a',
-                  marginBottom: 10,
-                }}
-              >
-                1. Escolha a data
-              </h3>
+              <h3 className="tap-secao">1. Escolha a data</h3>
 
-              <CalendarioAgenda
-                mesRef={mesRef}
-                onMudarMes={(delta) => {
-                  const nova = new Date(mesRef);
-                  nova.setMonth(nova.getMonth() + delta);
-                  setMesRef(nova);
-                  setDiaSelecionado(null);
-                }}
-                irHoje={() => {
-                  setMesRef(new Date());
-                  setDiaSelecionado(null);
-                }}
-                diaSelecionado={diaSelecionado}
-                compacto
-                renderDia={(data) => {
-                  const iso = toISODateLocal(data);
-                  const qtd = slotsPorDia[iso]?.length || 0;
-                  const temSlot = qtd > 0;
-                  return {
-                    status: temSlot ? 'aberto' : 'vazio',
-                    badge: temSlot ? `${qtd}×` : null,
-                    disabled: !temSlot,
-                    title: temSlot
-                      ? `${qtd} horário${qtd > 1 ? 's' : ''} disponível${qtd > 1 ? 'is' : ''}`
-                      : 'Sem vagas',
-                    onClick: (d) => setDiaSelecionado(toISODateLocal(d)),
-                  };
-                }}
-              />
+              <div className="tap-calendario-wrap">
+                <CalendarioAgenda
+                  mesRef={mesRef}
+                  onMudarMes={(delta) => {
+                    const nova = new Date(mesRef);
+                    nova.setMonth(nova.getMonth() + delta);
+                    setMesRef(nova);
+                    setDiaSelecionado(null);
+                  }}
+                  irHoje={() => {
+                    setMesRef(new Date());
+                    setDiaSelecionado(null);
+                  }}
+                  diaSelecionado={diaSelecionado}
+                  compacto
+                  renderDia={(data) => {
+                    const iso = toISODateLocal(data);
+                    const qtd = slotsPorDia[iso]?.length || 0;
+                    const temSlot = qtd > 0;
+                    return {
+                      status: temSlot ? 'aberto' : 'vazio',
+                      badge: temSlot ? `${qtd}×` : null,
+                      disabled: !temSlot,
+                      title: temSlot
+                        ? `${qtd} horário${qtd > 1 ? 's' : ''} disponível${qtd > 1 ? 'is' : ''}`
+                        : 'Sem vagas',
+                      onClick: (d) => setDiaSelecionado(toISODateLocal(d)),
+                    };
+                  }}
+                />
+              </div>
               <LegendaCalendario />
 
               {!diaSelecionado ? (
-                <div style={{
-                  marginTop: 16,
-                  padding: 16,
-                  background: '#faf5ff',
-                  border: '1.5px dashed #d8b4fe',
-                  borderRadius: 12,
-                  textAlign: 'center',
-                  fontSize: 12,
-                  color: '#666',
-                }}>
+                <div className="tap-hint-dia">
                   Toque em um dia com vagas no calendário para ver os horários.
                 </div>
               ) : (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 10,
-                    gap: 8,
-                    flexWrap: 'wrap',
-                  }}>
-                    <h4 style={{
-                      fontFamily: "'Cinzel', serif",
-                      fontSize: 12,
-                      color: '#2c163a',
-                      margin: 0,
-                    }}>
+                  <div className="tap-horarios-header">
+                    <h4
+                      style={{
+                        fontFamily: "'Cinzel', serif",
+                        fontSize: 12,
+                        color: '#2c163a',
+                        margin: 0,
+                      }}
+                    >
                       Horários de {formatarDataLonga(diaSelecionado)}
                     </h4>
                     <button
@@ -478,26 +441,13 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                         setDiaSelecionado(null);
                         setSlotSelecionado(null);
                       }}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid #ddd',
-                        borderRadius: 12,
-                        padding: '4px 10px',
-                        fontSize: 10,
-                        color: '#666',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
+                      className="tap-btn-trocar-dia tap-target"
                     >
                       Trocar dia
                     </button>
                   </div>
 
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
-                    gap: 8,
-                  }}>
+                  <div className="tap-slots-grid">
                     {slotsPorDia[diaSelecionado]?.map((s, i) => {
                       const ativo =
                         slotSelecionado?.data === s.data &&
@@ -507,20 +457,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                           key={i}
                           type="button"
                           onClick={() => setSlotSelecionado(s)}
-                          style={{
-                            padding: '10px 8px',
-                            borderRadius: 10,
-                            border: ativo
-                              ? '2px solid #7e22ce'
-                              : '1.5px solid #d8b4fe',
-                            background: ativo ? '#faf5ff' : '#fff',
-                            cursor: 'pointer',
-                            textAlign: 'center',
-                            fontSize: 13,
-                            fontWeight: ativo ? 700 : 600,
-                            color: ativo ? '#7e22ce' : '#2c163a',
-                            transition: 'all 0.15s',
-                          }}
+                          className={`tap-slot-btn${ativo ? ' ativo' : ''}`}
                         >
                           {s.horaInicio}
                         </button>
@@ -532,7 +469,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
             </>
           )}
 
-          {/* Formulário */}
           {slotSelecionado && (
             <div
               style={{
@@ -541,22 +477,13 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 borderTop: '1px dashed #e2d2f5',
               }}
             >
-              <h3
-                style={{
-                  fontFamily: "'Cinzel', serif",
-                  fontSize: 13,
-                  color: '#2c163a',
-                  marginBottom: 12,
-                }}
-              >
-                2. Seus dados
-              </h3>
+              <h3 className="tap-secao">2. Seus dados</h3>
 
               <Campo label="Nome completo *">
                 <input
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
-                  style={input}
+                  className="tap-input"
                   placeholder="Como no documento"
                   autoComplete="name"
                 />
@@ -566,23 +493,32 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 <input
                   value={documento}
                   onChange={(e) => setDocumento(e.target.value)}
-                  style={input}
+                  className="tap-input"
                   placeholder="Ex: 123.456.789-00 / AB123456 / 12345678Z"
                   autoComplete="off"
                 />
               </Campo>
 
               <Campo label="Telefone / WhatsApp *">
-                <PhoneInput
-                  international
-                  defaultCountry="BR"
-                  value={telefone}
-                  onChange={setTelefone}
-                  placeholder="Digite seu número"
-                  style={input}
-                />
-                <span style={{ fontSize: 10, color: '#888', marginTop: 4, display: 'block' }}>
-                  Será salvo como <code style={{ color: '#7e22ce' }}>{telefone || '…'}</code>
+                <div className="tap-phone-wrap">
+                  <PhoneInput
+                    international
+                    defaultCountry="BR"
+                    value={telefone}
+                    onChange={setTelefone}
+                    placeholder="Digite seu número"
+                  />
+                </div>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#888',
+                    marginTop: 4,
+                    display: 'block',
+                  }}
+                >
+                  Será salvo como{' '}
+                  <code style={{ color: '#7e22ce' }}>{telefone || '…'}</code>
                 </span>
               </Campo>
 
@@ -591,7 +527,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
-                  style={input}
+                  className="tap-input"
                   placeholder="voce@email.com"
                   autoComplete="email"
                 />
@@ -601,31 +537,23 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 <textarea
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
-                  rows={2}
-                  style={{ ...input, resize: 'vertical' }}
+                  rows={3}
+                  className="tap-input"
+                  style={{ resize: 'vertical', minHeight: 70 }}
                   placeholder="Alguma informação que a profissional precise saber?"
                 />
               </Campo>
 
               {/* LGPD */}
               <label
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  background: lgpdAceito ? '#f0fdf4' : '#faf5ff',
-                  border: `1.5px solid ${lgpdAceito ? '#86efac' : '#d8b4fe'}`,
-                  borderRadius: 10,
-                  padding: 12,
-                  cursor: 'pointer',
-                  marginTop: 10,
-                }}
+                className={`tap-lgpd${lgpdAceito ? ' aceito' : ''}`}
+                style={{ cursor: 'pointer', marginTop: 10 }}
               >
                 <input
                   type="checkbox"
                   checked={lgpdAceito}
                   onChange={(e) => setLgpdAceito(e.target.checked)}
-                  style={{ marginTop: 3, width: 18, height: 18 }}
+                  style={{ marginTop: 3, width: 20, height: 20, flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 11.5, color: '#333', lineHeight: 1.6 }}>
                   Autorizo o tratamento dos meus dados pessoais e de saúde para
@@ -654,41 +582,14 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
               </label>
 
               {erro && (
-                <div
-                  style={{
-                    background: '#fde8e8',
-                    border: '1px solid #f98080',
-                    color: '#c81e1e',
-                    padding: 10,
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    marginTop: 12,
-                  }}
-                >
-                  {erro}
-                </div>
+                <div className="tap-erro">{erro}</div>
               )}
 
               <button
                 type="button"
                 onClick={agendar}
                 disabled={enviando}
-                style={{
-                  marginTop: 18,
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #C8A24A, #e2be64)',
-                  color: '#fff',
-                  border: '1.5px solid #9c7826',
-                  padding: 14,
-                  borderRadius: 22,
-                  fontFamily: "'Cinzel', serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                  cursor: enviando ? 'wait' : 'pointer',
-                  opacity: enviando ? 0.7 : 1,
-                }}
+                className="tap-btn-confirmar tap-target"
               >
                 {enviando ? 'ENVIANDO…' : 'CONFIRMAR AGENDAMENTO'}
               </button>
@@ -703,21 +604,367 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
         />
       )}
 
-      <style>{`
-        .btn-voltar-lista {
-          transition: all 0.25s ease-in-out !important;
-        }
-        .btn-voltar-lista:hover {
-          transform: translateX(-3px);
-          background: linear-gradient(135deg, rgba(200, 162, 74, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%) !important;
-          box-shadow: 0 6px 18px rgba(200, 162, 74, 0.35) !important;
-          border-color: #a8852f !important;
-        }
-        .btn-voltar-lista:active {
-          transform: translateX(-1px) scale(0.98);
-        }
-      `}</style>
+      <EstilosTAP />
     </div>
+  );
+}
+
+/* ============================================================
+   Estilos injetados — responsivo
+   ============================================================ */
+function EstilosTAP() {
+  return (
+    <style>{`
+      .tap-tela {
+        min-height: 100vh;
+        background: #f3eef8;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 30px 16px;
+        padding-top: max(30px, env(safe-area-inset-top));
+        font-family: 'Montserrat', sans-serif;
+        box-sizing: border-box;
+      }
+
+      .tap-card {
+        background: #fff;
+        border-radius: 20px;
+        border: 1.5px solid #C8A24A;
+        padding: 28px;
+        width: 100%;
+        box-shadow: 0 15px 40px rgba(44, 22, 58, 0.15);
+        box-sizing: border-box;
+      }
+
+      .tap-secao {
+        font-family: 'Cinzel', serif;
+        font-size: 13px;
+        color: #2c163a;
+        margin-bottom: 10px;
+        letter-spacing: 0.3px;
+      }
+
+      .tap-input {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1.5px solid #ccc;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+        box-sizing: border-box;
+        font-family: inherit;
+        color: #2c163a;
+        background: #fff;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        min-height: 44px;
+      }
+      .tap-input:focus {
+        border-color: #a855f7;
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+      }
+
+      .tap-calendario-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .tap-hint-dia {
+        margin-top: 16px;
+        padding: 16px;
+        background: #faf5ff;
+        border: 1.5px dashed #d8b4fe;
+        border-radius: 12px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      .tap-horarios-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .tap-btn-trocar-dia {
+        background: transparent;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 6px 12px;
+        font-size: 10px;
+        color: #666;
+        cursor: pointer;
+        font-family: inherit;
+        min-height: 32px;
+      }
+
+      .tap-slots-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 8px;
+      }
+
+      .tap-slot-btn {
+        padding: 12px 8px;
+        border-radius: 10px;
+        border: 1.5px solid #d8b4fe;
+        background: #fff;
+        cursor: pointer;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: #2c163a;
+        transition: all 0.15s ease;
+        font-family: inherit;
+        min-height: 44px;
+      }
+      .tap-slot-btn:hover {
+        border-color: #a855f7;
+        background: #faf5ff;
+      }
+      .tap-slot-btn.ativo {
+        border: 2px solid #7e22ce;
+        background: #faf5ff;
+        color: #7e22ce;
+        font-weight: 700;
+      }
+
+      .tap-phone-wrap .PhoneInput {
+        width: 100%;
+        border: 1.5px solid #ccc;
+        border-radius: 8px;
+        padding: 6px 10px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        box-sizing: border-box;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .tap-phone-wrap .PhoneInput:focus-within {
+        border-color: #a855f7;
+        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+      }
+      .tap-phone-wrap .PhoneInputInput {
+        border: none;
+        outline: none;
+        font-size: 14px;
+        font-family: inherit;
+        color: #2c163a;
+        background: transparent;
+        width: 100%;
+        min-width: 0;
+      }
+      .tap-phone-wrap .PhoneInputCountry {
+        flex-shrink: 0;
+      }
+
+      .tap-lgpd {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        background: #faf5ff;
+        border: 1.5px solid #d8b4fe;
+        border-radius: 10px;
+        padding: 12px;
+        transition: background 0.2s ease, border-color 0.2s ease;
+      }
+      .tap-lgpd.aceito {
+        background: #f0fdf4;
+        border-color: #86efac;
+      }
+
+      .tap-erro {
+        background: #fde8e8;
+        border: 1px solid #f98080;
+        color: #c81e1e;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 12px;
+        line-height: 1.5;
+      }
+
+      .tap-btn-confirmar {
+        margin-top: 18px;
+        width: 100%;
+        background: linear-gradient(135deg, #C8A24A, #e2be64);
+        color: #fff;
+        border: 1.5px solid #9c7826;
+        padding: 14px;
+        border-radius: 22px;
+        font-family: 'Cinzel', serif;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        cursor: pointer;
+        min-height: 48px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        box-shadow: 0 4px 14px rgba(200, 162, 74, 0.3);
+      }
+      .tap-btn-confirmar:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(200, 162, 74, 0.4);
+      }
+      .tap-btn-confirmar:disabled {
+        opacity: 0.7;
+        cursor: wait;
+      }
+
+      .tap-codigo-box {
+        background: #faf5ff;
+        border: 1.5px dashed #a855f7;
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-family: 'Courier New', monospace;
+        font-size: 20px;
+        font-weight: 700;
+        color: #7e22ce;
+        letter-spacing: 2px;
+        word-break: break-all;
+        text-align: center;
+      }
+
+      .tap-btn-acompanhar {
+        margin-top: 18px;
+        width: 100%;
+        font-family: 'Cinzel', serif;
+        background: linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%);
+        color: #7e22ce;
+        border: 1.5px solid #7e22ce;
+        padding: 12px 24px;
+        border-radius: 22px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 3px 10px rgba(126, 34, 206, 0.15);
+        transition: all 0.25s ease;
+        min-height: 48px;
+      }
+
+      .btn-voltar-lista {
+        transition: all 0.25s ease-in-out !important;
+      }
+      .btn-voltar-lista:hover {
+        transform: translateX(-3px);
+        background: linear-gradient(135deg, rgba(200, 162, 74, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%) !important;
+        box-shadow: 0 6px 18px rgba(200, 162, 74, 0.35) !important;
+        border-color: #a8852f !important;
+      }
+      .btn-voltar-lista:active {
+        transform: translateX(-1px) scale(0.98);
+      }
+
+      /* ====== RESPONSIVO ====== */
+
+      /* Tablets e acima — respiro maior */
+      @media (min-width: 768px) {
+        .tap-tela { padding: 40px 24px; }
+        .tap-card { padding: 32px; }
+        .tap-slots-grid {
+          grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+          gap: 10px;
+        }
+      }
+
+      /* Mobile padrão (até 640px) */
+      @media (max-width: 640px) {
+        .tap-tela { padding: 18px 12px; }
+        .tap-card {
+          padding: 20px 16px;
+          border-radius: 18px;
+        }
+        .tap-card h2 { font-size: 19px !important; }
+        .tap-secao { font-size: 12px; }
+
+        /* Evita zoom no iOS ao focar input */
+        .tap-input,
+        .tap-phone-wrap .PhoneInputInput {
+          font-size: 16px;
+        }
+
+        .tap-slots-grid {
+          grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+          gap: 6px;
+        }
+        .tap-slot-btn {
+          padding: 10px 6px;
+          font-size: 13px;
+        }
+
+        .tap-codigo-box {
+          font-size: 16px;
+          letter-spacing: 1.5px;
+          padding: 12px 14px;
+        }
+
+        .tap-btn-confirmar {
+          font-size: 12px;
+          letter-spacing: 0.6px;
+          padding: 14px 12px;
+        }
+
+        .tap-btn-acompanhar {
+          font-size: 11px;
+          padding: 12px 16px;
+        }
+
+        .tap-hint-dia {
+          padding: 14px 12px;
+          font-size: 11.5px;
+        }
+      }
+
+      /* Telas muito estreitas (até 380px) */
+      @media (max-width: 380px) {
+        .tap-tela { padding: 12px 8px; }
+        .tap-card {
+          padding: 16px 12px;
+          border-radius: 14px;
+        }
+        .tap-slots-grid {
+          grid-template-columns: repeat(4, 1fr);
+          gap: 5px;
+        }
+        .tap-slot-btn {
+          font-size: 12px;
+          padding: 10px 2px;
+          min-height: 42px;
+        }
+        .tap-codigo-box {
+          font-size: 14px;
+          letter-spacing: 1px;
+          padding: 10px 10px;
+        }
+        .btn-voltar-lista {
+          font-size: 11px !important;
+          padding: 9px 14px !important;
+        }
+      }
+
+      /* Acessibilidade — alvo de toque mínimo */
+      .tap-target {
+        min-height: 40px;
+      }
+
+      /* Modo paisagem em celulares baixos — reduz padding vertical */
+      @media (max-height: 500px) and (orientation: landscape) {
+        .tap-tela { padding: 12px; }
+        .tap-card { padding: 16px; }
+      }
+    `}</style>
   );
 }
 
@@ -734,6 +981,7 @@ function Campo({ label, children }) {
           fontWeight: 700,
           color: '#2c163a',
           marginBottom: 4,
+          letterSpacing: '0.2px',
         }}
       >
         {label}
@@ -762,36 +1010,3 @@ function detectarPlataforma() {
   if (/iPhone|iPad/i.test(ua)) return 'ios';
   return 'web';
 }
-
-/* ============================================================
-   Estilos
-   ============================================================ */
-const tela = {
-  minHeight: '100vh',
-  background: '#f3eef8',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'flex-start',
-  padding: '30px 16px',
-  fontFamily: "'Montserrat', sans-serif",
-};
-
-const card = {
-  background: '#fff',
-  borderRadius: 20,
-  border: '1.5px solid #C8A24A',
-  padding: 28,
-  width: '100%',
-  boxShadow: '0 15px 40px rgba(44,22,58,0.15)',
-};
-
-const input = {
-  width: '100%',
-  padding: '10px 12px',
-  border: '1.5px solid #ccc',
-  borderRadius: 8,
-  fontSize: 13,
-  outline: 'none',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};
