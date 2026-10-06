@@ -96,6 +96,32 @@ export function AbasPublicas({ abaAtiva }) {
 }
 
 /* ============================================================
+   Loading elegante — spinner duplo + logo + shimmer
+   ============================================================ */
+function LoadingElegante({ texto = 'Carregando agenda' }) {
+  return (
+    <div className="tap-loading">
+      <div className="tap-loading-orbe">
+        <div className="tap-loading-anel tap-loading-anel-1" />
+        <div className="tap-loading-anel tap-loading-anel-2" />
+        <div className="tap-loading-anel tap-loading-anel-3" />
+        <img
+          src="/imagens/logo-telainicial.jpeg"
+          alt=""
+          className="tap-loading-logo"
+        />
+      </div>
+      <div className="tap-loading-texto">{texto}</div>
+      <div className="tap-loading-pontos">
+        <span />
+        <span />
+        <span />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    Botão "Voltar pro prontuário"
    ============================================================ */
 function BotaoVoltarProntuario() {
@@ -341,10 +367,8 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
           <div className="tap-conteudo">
             <BotaoVoltarProntuario />
             <AbasPublicas abaAtiva="agendar" />
-            <div className="tap-card" style={{ textAlign: 'center', padding: 40 }}>
-              <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
-                Carregando agenda…
-              </p>
+            <div className="tap-card" style={{ padding: 0 }}>
+              <LoadingElegante texto="Carregando agenda" />
             </div>
             <Rodape />
           </div>
@@ -757,22 +781,24 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
 }
 
 /* ============================================================
-   Estilos injetados — responsivo (aurora viva + brilho varrendo)
+   Estilos injetados — vivo, brilhante, responsivo
    ============================================================ */
 export function EstilosTAP() {
   return (
     <style>{`
-      /* ====== TELA — fundo vivo, chamativo, paleta do sistema ====== */
+      /* ====== TELA — fundo vivo em 3 camadas ====== */
       .tap-tela {
         position: relative;
         min-height: 100vh;
-        background: linear-gradient(
-          135deg,
-          #ece1f5 0%,
-          #f3eef8 30%,
-          #ede4f5 60%,
-          #f3eef8 100%
-        );
+        background:
+          radial-gradient(ellipse 80% 60% at 50% 0%,
+            #f8f2ff 0%, transparent 70%),
+          linear-gradient(155deg,
+            #e6d8f5 0%,
+            #f3eef8 25%,
+            #efe6f7 50%,
+            #f3eef8 75%,
+            #e9dcf3 100%);
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
@@ -785,54 +811,60 @@ export function EstilosTAP() {
         isolation: isolate;
       }
 
-      /* Camada 1 — Aurora de blobs (roxo + dourado) com blur */
+      /* ── Camada 1 — Aurora de blobs (movimento orbital) ── */
       .tap-tela::before {
         content: '';
         position: fixed;
-        inset: -25%;
+        inset: -30%;
         background-image:
-          radial-gradient(ellipse 55% 50% at 15% 20%,
-            rgba(168, 85, 247, 0.50) 0%,
-            transparent 60%),
-          radial-gradient(ellipse 50% 60% at 85% 22%,
-            rgba(226, 190, 100, 0.45) 0%,
-            transparent 60%),
-          radial-gradient(ellipse 55% 55% at 22% 85%,
-            rgba(126, 34, 206, 0.40) 0%,
+          radial-gradient(circle 45% at 18% 22%,
+            rgba(199, 125, 255, 0.55) 0%,
+            rgba(168, 85, 247, 0.25) 35%,
+            transparent 62%),
+          radial-gradient(circle 50% at 82% 18%,
+            rgba(255, 215, 128, 0.55) 0%,
+            rgba(226, 190, 100, 0.25) 35%,
+            transparent 62%),
+          radial-gradient(circle 55% at 25% 82%,
+            rgba(147, 51, 234, 0.45) 0%,
+            rgba(126, 34, 206, 0.20) 35%,
             transparent 65%),
-          radial-gradient(ellipse 45% 45% at 90% 82%,
-            rgba(200, 162, 74, 0.42) 0%,
+          radial-gradient(circle 45% at 88% 78%,
+            rgba(250, 204, 100, 0.50) 0%,
+            rgba(200, 162, 74, 0.20) 35%,
             transparent 60%),
-          radial-gradient(ellipse 40% 40% at 50% 50%,
-            rgba(85, 40, 111, 0.25) 0%,
+          radial-gradient(circle 40% at 55% 55%,
+            rgba(180, 100, 240, 0.30) 0%,
             transparent 70%);
         z-index: 0;
         pointer-events: none;
-        filter: blur(55px) saturate(115%);
-        -webkit-filter: blur(55px) saturate(115%);
-        animation: tapAurora 28s ease-in-out infinite alternate;
+        filter: blur(60px) saturate(140%);
+        -webkit-filter: blur(60px) saturate(140%);
+        animation: tapAurora 24s ease-in-out infinite alternate;
         will-change: transform;
         transform: translateZ(0);
       }
 
-      /* Camada 2 — Brilho dourado/roxo varrendo na diagonal */
+      /* ── Camada 2 — Brilho varrendo diagonal ── */
       .tap-tela::after {
         content: '';
         position: fixed;
         inset: 0;
         background: linear-gradient(
           115deg,
-          transparent 25%,
-          rgba(226, 190, 100, 0.14) 42%,
-          rgba(168, 85, 247, 0.16) 55%,
-          rgba(255, 255, 255, 0.10) 62%,
-          transparent 75%
+          transparent 20%,
+          rgba(255, 240, 200, 0.20) 35%,
+          rgba(226, 190, 100, 0.28) 45%,
+          rgba(255, 255, 255, 0.22) 52%,
+          rgba(199, 125, 255, 0.24) 60%,
+          rgba(168, 85, 247, 0.18) 68%,
+          transparent 82%
         );
-        background-size: 260% 100%;
+        background-size: 300% 100%;
         background-repeat: no-repeat;
         z-index: 0;
         pointer-events: none;
-        animation: tapShine 16s linear infinite;
+        animation: tapShine 14s linear infinite;
         will-change: background-position;
       }
 
@@ -840,31 +872,42 @@ export function EstilosTAP() {
         0% {
           transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
         }
-        33% {
-          transform: translate3d(-4%, 3%, 0) scale(1.08) rotate(3deg);
+        25% {
+          transform: translate3d(-6%, 4%, 0) scale(1.10) rotate(4deg);
         }
-        66% {
-          transform: translate3d(3%, -4%, 0) scale(1.05) rotate(-2deg);
+        50% {
+          transform: translate3d(4%, -3%, 0) scale(1.04) rotate(-3deg);
+        }
+        75% {
+          transform: translate3d(-3%, 5%, 0) scale(1.12) rotate(2deg);
         }
         100% {
-          transform: translate3d(-2%, 2%, 0) scale(1.10) rotate(1deg);
+          transform: translate3d(5%, -2%, 0) scale(1.06) rotate(-1deg);
         }
       }
 
       @keyframes tapShine {
-        0%   { background-position: 160% 0; }
-        100% { background-position: -160% 0; }
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
       }
 
-      /* Acessibilidade: quem pediu "reduzir movimento" não vê as animações */
+      /* Acessibilidade: reduz movimento */
       @media (prefers-reduced-motion: reduce) {
         .tap-tela::before,
-        .tap-tela::after {
+        .tap-tela::after,
+        .tap-loading-anel,
+        .tap-loading-logo,
+        .tap-loading-texto,
+        .tap-loading-pontos span,
+        .tap-card,
+        .tap-btn-confirmar::after,
+        .tap-tab.ativo {
           animation: none !important;
+          transition: none !important;
         }
       }
 
-      /* Coluna de conteúdo — mantém o rodapé sempre embaixo */
+      /* ── Coluna de conteúdo ── */
       .tap-conteudo {
         position: relative;
         z-index: 2;
@@ -876,7 +919,7 @@ export function EstilosTAP() {
         min-height: 0;
       }
 
-      /* WhatsApp FAB */
+      /* ── WhatsApp FAB ── */
       .tap-tela > .tap-whatsapp {
         position: fixed;
         right: 20px;
@@ -890,8 +933,9 @@ export function EstilosTAP() {
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 8px 24px rgba(37, 211, 102, 0.55),
-                    0 0 0 0 rgba(37, 211, 102, 0.5);
+        box-shadow:
+          0 8px 24px rgba(37, 211, 102, 0.55),
+          0 0 0 0 rgba(37, 211, 102, 0.5);
         cursor: pointer;
         z-index: 100;
         text-decoration: none;
@@ -916,7 +960,7 @@ export function EstilosTAP() {
         100% { transform: scale(1.6); opacity: 0;   }
       }
 
-      /* ====== RODAPÉ — grande e fixado no fim ====== */
+      /* ── RODAPÉ ── */
       .tap-rodape {
         margin-top: auto;
         padding: 44px 12px 10px 12px;
@@ -948,19 +992,132 @@ export function EstilosTAP() {
         border-bottom-color: #C8A24A;
       }
 
-      /* ====== ABAS ====== */
+      /* ═══════════════════════════════════════════════
+         LOADING ELEGANTE — órbitas + logo pulsando
+         ═══════════════════════════════════════════════ */
+      .tap-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 24px 50px 24px;
+        gap: 22px;
+      }
+      .tap-loading-orbe {
+        position: relative;
+        width: 110px;
+        height: 110px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .tap-loading-anel {
+        position: absolute;
+        border-radius: 50%;
+        border-style: solid;
+        border-color: transparent;
+        will-change: transform;
+      }
+      .tap-loading-anel-1 {
+        inset: 0;
+        border-width: 3px;
+        border-top-color: #a855f7;
+        border-right-color: #a855f7;
+        animation: tapSpin 1.4s linear infinite;
+        filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.6));
+      }
+      .tap-loading-anel-2 {
+        inset: 12px;
+        border-width: 2.5px;
+        border-bottom-color: #C8A24A;
+        border-left-color: #C8A24A;
+        animation: tapSpinReverse 2s linear infinite;
+        filter: drop-shadow(0 0 6px rgba(200, 162, 74, 0.6));
+      }
+      .tap-loading-anel-3 {
+        inset: 24px;
+        border-width: 2px;
+        border-top-color: rgba(126, 34, 206, 0.7);
+        border-left-color: rgba(126, 34, 206, 0.7);
+        animation: tapSpin 2.6s linear infinite;
+      }
+      .tap-loading-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        object-fit: cover;
+        opacity: 0.9;
+        animation: tapPulseLogo 1.8s ease-in-out infinite;
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.35);
+      }
+      .tap-loading-texto {
+        font-family: 'Cinzel', serif;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: #55286f;
+        background: linear-gradient(90deg,
+          #55286f 0%,
+          #a855f7 30%,
+          #C8A24A 50%,
+          #a855f7 70%,
+          #55286f 100%);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: tapShimmerText 3s linear infinite;
+      }
+      .tap-loading-pontos {
+        display: flex;
+        gap: 8px;
+        margin-top: -6px;
+      }
+      .tap-loading-pontos span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #a855f7, #C8A24A);
+        animation: tapBounce 1.2s ease-in-out infinite;
+        box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+      }
+      .tap-loading-pontos span:nth-child(2) { animation-delay: 0.15s; }
+      .tap-loading-pontos span:nth-child(3) { animation-delay: 0.30s; }
+
+      @keyframes tapSpin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes tapSpinReverse {
+        to { transform: rotate(-360deg); }
+      }
+      @keyframes tapPulseLogo {
+        0%, 100% { transform: scale(1);    opacity: 0.9; }
+        50%      { transform: scale(1.12); opacity: 1;   }
+      }
+      @keyframes tapShimmerText {
+        0%   { background-position: 200% center; }
+        100% { background-position: -200% center; }
+      }
+      @keyframes tapBounce {
+        0%, 80%, 100% { transform: scale(1)   translateY(0);    opacity: 0.55; }
+        40%           { transform: scale(1.4) translateY(-4px); opacity: 1;    }
+      }
+
+      /* ── ABAS ── */
       .tap-tabs {
         display: flex;
         gap: 6px;
         margin-bottom: 14px;
-        background: rgba(255, 255, 255, 0.80);
-        backdrop-filter: blur(12px) saturate(140%);
-        -webkit-backdrop-filter: blur(12px) saturate(140%);
-        border: 1px solid rgba(200, 162, 74, 0.5);
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(14px) saturate(150%);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        border: 1px solid rgba(200, 162, 74, 0.55);
         border-radius: 14px;
         padding: 5px;
-        box-shadow: 0 3px 14px rgba(44, 22, 58, 0.12),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        box-shadow:
+          0 4px 16px rgba(44, 22, 58, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.7);
       }
       .tap-tab {
         flex: 1;
@@ -982,30 +1139,83 @@ export function EstilosTAP() {
         transition: all 0.2s ease;
         min-height: 44px;
         box-sizing: border-box;
+        position: relative;
+        overflow: hidden;
       }
       .tap-tab:hover {
-        background: rgba(168, 85, 247, 0.10);
+        background: rgba(168, 85, 247, 0.12);
       }
       .tap-tab.ativo {
         background: linear-gradient(135deg, #C8A24A 0%, #e2be64 100%);
         color: #fff;
-        box-shadow: 0 3px 10px rgba(200, 162, 74, 0.45),
-                    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        box-shadow:
+          0 3px 12px rgba(200, 162, 74, 0.5),
+          inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+      /* Brilho periódico na aba ativa */
+      .tap-tab.ativo::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 60%;
+        height: 100%;
+        background: linear-gradient(
+          100deg,
+          transparent,
+          rgba(255, 255, 255, 0.5) 50%,
+          transparent
+        );
+        animation: tapTabShine 3.5s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes tapTabShine {
+        0%   { left: -100%; }
+        55%  { left: 200%;  }
+        100% { left: 200%;  }
       }
 
-      /* ====== CARD — ligeiramente translúcido para o fundo respirar ====== */
+      /* ── CARD — com brilho passando no topo ── */
       .tap-card {
+        position: relative;
         background: rgba(255, 255, 255, 0.94);
         border-radius: 20px;
         border: 1.5px solid #C8A24A;
         padding: 28px;
         width: 100%;
         box-shadow:
-          0 20px 50px rgba(44, 22, 58, 0.20),
-          0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+          0 20px 55px rgba(44, 22, 58, 0.22),
+          0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+          0 0 40px rgba(168, 85, 247, 0.10);
         box-sizing: border-box;
-        backdrop-filter: blur(10px) saturate(120%);
-        -webkit-backdrop-filter: blur(10px) saturate(120%);
+        backdrop-filter: blur(12px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(130%);
+        overflow: hidden;
+      }
+      /* Linha brilhante varrendo o card de tempos em tempos */
+      .tap-card::before {
+        content: '';
+        position: absolute;
+        top: -2px;
+        left: -120%;
+        width: 70%;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          #C8A24A 30%,
+          #fff4c8 50%,
+          #a855f7 70%,
+          transparent
+        );
+        filter: blur(0.5px);
+        animation: tapCardShine 5s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes tapCardShine {
+        0%   { left: -120%; }
+        40%  { left: 130%;  }
+        100% { left: 130%;  }
       }
 
       .tap-secao {
@@ -1090,22 +1300,25 @@ export function EstilosTAP() {
         font-size: 13px;
         font-weight: 600;
         color: #2c163a;
-        transition: all 0.15s ease;
+        transition: all 0.18s ease;
         font-family: inherit;
         min-height: 44px;
       }
       .tap-slot-btn:hover {
         border-color: #a855f7;
         background: #faf5ff;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(168, 85, 247, 0.18);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(168, 85, 247, 0.22);
       }
       .tap-slot-btn.ativo {
         border: 2px solid #7e22ce;
-        background: #faf5ff;
+        background: linear-gradient(135deg, #faf5ff, #f5edff);
         color: #7e22ce;
         font-weight: 700;
-        box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+        box-shadow:
+          0 0 0 3px rgba(168, 85, 247, 0.18),
+          0 6px 14px rgba(168, 85, 247, 0.20);
+        transform: scale(1.03);
       }
 
       .tap-phone-wrap .PhoneInput {
@@ -1167,6 +1380,7 @@ export function EstilosTAP() {
       }
 
       .tap-btn-confirmar {
+        position: relative;
         margin-top: 18px;
         width: 100%;
         background: linear-gradient(135deg, #C8A24A, #e2be64);
@@ -1180,12 +1394,33 @@ export function EstilosTAP() {
         letter-spacing: 1px;
         cursor: pointer;
         min-height: 48px;
+        overflow: hidden;
         transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-        box-shadow: 0 6px 18px rgba(200, 162, 74, 0.4);
+        box-shadow:
+          0 6px 20px rgba(200, 162, 74, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+      .tap-btn-confirmar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 60%;
+        height: 100%;
+        background: linear-gradient(
+          100deg,
+          transparent,
+          rgba(255, 255, 255, 0.45) 50%,
+          transparent
+        );
+        animation: tapTabShine 3s ease-in-out infinite;
+        pointer-events: none;
       }
       .tap-btn-confirmar:hover:not(:disabled) {
         transform: translateY(-2px);
-        box-shadow: 0 10px 24px rgba(200, 162, 74, 0.55);
+        box-shadow:
+          0 12px 28px rgba(200, 162, 74, 0.6),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
       }
       .tap-btn-confirmar:disabled {
         opacity: 0.7;
@@ -1299,6 +1534,10 @@ export function EstilosTAP() {
           font-size: 15px;
           padding-top: 56px;
         }
+        .tap-loading { padding: 80px 32px 70px 32px; }
+        .tap-loading-orbe { width: 130px; height: 130px; }
+        .tap-loading-logo { width: 52px; height: 52px; }
+        .tap-loading-texto { font-size: 14px; }
       }
 
       @media (max-width: 640px) {
@@ -1366,11 +1605,17 @@ export function EstilosTAP() {
           padding: 36px 10px 8px 10px;
         }
 
-        /* Em mobile, blur menor = menos trabalho pra GPU */
+        /* Mobile: blur reduzido = GPU mais leve, mais FPS */
         .tap-tela::before {
-          filter: blur(40px) saturate(115%);
-          -webkit-filter: blur(40px) saturate(115%);
+          filter: blur(45px) saturate(135%);
+          -webkit-filter: blur(45px) saturate(135%);
         }
+
+        /* Loading mais compacto */
+        .tap-loading { padding: 50px 18px 40px 18px; gap: 18px; }
+        .tap-loading-orbe { width: 92px; height: 92px; }
+        .tap-loading-logo { width: 38px; height: 38px; }
+        .tap-loading-texto { font-size: 12px; letter-spacing: 1px; }
       }
 
       @media (max-width: 380px) {
@@ -1412,6 +1657,9 @@ export function EstilosTAP() {
       @media (max-height: 500px) and (orientation: landscape) {
         .tap-tela { padding: 12px 12px 90px 12px; }
         .tap-card { padding: 16px; }
+        .tap-loading { padding: 30px 20px 30px 20px; gap: 14px; }
+        .tap-loading-orbe { width: 80px; height: 80px; }
+        .tap-loading-logo { width: 32px; height: 32px; }
       }
     `}</style>
   );
