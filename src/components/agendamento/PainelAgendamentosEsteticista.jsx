@@ -10,7 +10,7 @@ import {
   MdCheckCircle, MdCancel, MdWarning, MdSearch,
   MdCalendarMonth, MdSettings, MdPhone, MdBadge,
   MdEmail, MdChatBubbleOutline, MdClear, MdHourglassEmpty,
-  MdContentCopy, MdCheck,
+  MdContentCopy, MdCheck, MdDelete,
 } from 'react-icons/md';
 import ConfiguradorAgenda from './ConfiguradorAgenda';
 
@@ -21,15 +21,15 @@ const DIAS_HISTORICO = 30;
 
 /* ============================================================
    Formatação de telefone por país (libphonenumber-js)
-   - Guarda E.164 no Firestore (+5511959999999) → formata conforme país
+   - Se não for E.164 válido, mostra como está
    ============================================================ */
-function formatarTelefoneInternacional(e164) {
-  if (!e164) return '—';
+function formatarTelefoneInternacional(tel) {
+  if (!tel) return '—';
   try {
-    const f = formatPhoneNumberIntl(String(e164));
-    return f || String(e164);
+    const f = formatPhoneNumberIntl(String(tel));
+    return f || String(tel);
   } catch {
-    return String(e164);
+    return String(tel);
   }
 }
 
@@ -48,7 +48,6 @@ function BotaoCopiar({ valor, rotulo, title }) {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(texto);
       } else {
-        // Fallback para contextos não-secure (http)
         const ta = document.createElement('textarea');
         ta.value = texto;
         ta.style.position = 'fixed';
@@ -95,12 +94,201 @@ function BotaoCopiar({ valor, rotulo, title }) {
   );
 }
 
+/* ============================================================
+   MODAL DE CONFIRMAÇÃO DE CANCELAMENTO
+   Estética do sistema — sem alerts nativos
+   ============================================================ */
+function ModalConfirmarCancelamento({
+  agendamento,
+  carregando,
+  onConfirmar,
+  onFechar,
+}) {
+  return (
+    <div
+      onClick={carregando ? undefined : onFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(44, 22, 58, 0.65)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 2147483647,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '28px 24px 24px 24px',
+          maxWidth: 420,
+          width: '100%',
+          boxShadow: '0 25px 70px rgba(44, 22, 58, 0.4)',
+          border: '1.5px solid #e2d2f5',
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        {/* Ícone circular vermelho */}
+        <div
+          style={{
+            width: 68,
+            height: 68,
+            margin: '0 auto 16px auto',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ffebee 0%, #fde8e8 100%)',
+            border: '2px solid #ef9a9a',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 6px 18px rgba(198, 40, 40, 0.18)',
+          }}
+        >
+          <MdCancel size={32} color="#c62828" />
+        </div>
+
+        <h3
+          style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#c62828',
+            fontSize: 17,
+            fontWeight: 700,
+            margin: '0 0 10px 0',
+            letterSpacing: '0.4px',
+          }}
+        >
+          Cancelar agendamento?
+        </h3>
+
+        <p
+          style={{
+            fontSize: 13,
+            color: '#2c163a',
+            margin: '0 0 6px 0',
+            fontWeight: 600,
+            lineHeight: 1.5,
+          }}
+        >
+          {agendamento?.nome || 'Paciente'}
+        </p>
+
+        <p
+          style={{
+            fontSize: 12,
+            color: '#555',
+            margin: '0 0 18px 0',
+            lineHeight: 1.6,
+          }}
+        >
+          {formatarDataBR(agendamento?.data)} às {agendamento?.horaInicio}
+          <br />
+          <span
+            style={{
+              fontSize: 11,
+              color: '#888',
+              display: 'block',
+              marginTop: 6,
+            }}
+          >
+            O paciente será notificado. Esta ação não pode ser desfeita.
+          </span>
+        </p>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+          <button
+            type="button"
+            onClick={onFechar}
+            disabled={carregando}
+            style={{
+              flex: 1,
+              background: '#f0f0f0',
+              color: '#333',
+              border: 'none',
+              padding: '12px 16px',
+              borderRadius: 22,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: carregando ? 'not-allowed' : 'pointer',
+              fontFamily: "'Cinzel', serif",
+              opacity: carregando ? 0.6 : 1,
+              minHeight: 44,
+            }}
+          >
+            VOLTAR
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirmar}
+            disabled={carregando}
+            style={{
+              flex: 1,
+              background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 16px',
+              borderRadius: 22,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: carregando ? 'wait' : 'pointer',
+              fontFamily: "'Cinzel', serif",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              boxShadow: '0 4px 14px rgba(198, 40, 40, 0.35)',
+              opacity: carregando ? 0.7 : 1,
+              minHeight: 44,
+            }}
+          >
+            {carregando ? (
+              <>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 13,
+                    height: 13,
+                    border: '2px solid #fff',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spinCancel 0.8s linear infinite',
+                  }}
+                />
+                CANCELANDO…
+              </>
+            ) : (
+              <>
+                <MdDelete size={14} />
+                CANCELAR
+              </>
+            )}
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes spinCancel { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
 export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   const [aba, setAba] = useState('agenda'); // 'agenda' | 'config'
   const [agendamentos, setAgendamentos] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('pendente');
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
+
+  // ✅ Estado do modal de cancelamento
+  const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
+  const [cancelando, setCancelando] = useState(false);
 
   // ============================================================
   // Listener em tempo real + auto-conclusão
@@ -135,7 +323,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             atualizadoEm: new Date().toISOString(),
           });
         } catch (e) {
-          /* silencioso — se falhar, tenta no próximo tick */
+          /* silencioso */
         }
       }
     }, (err) => {
@@ -147,8 +335,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [uidEsteticista]);
 
   // ============================================================
-  // Confirmar manualmente (só faz sentido se status='pendente')
-  // ✅ Notifica o PACIENTE (não a esteticista)
+  // Confirmar agendamento (status pendente → confirmado)
   // ============================================================
   const confirmar = async (ag) => {
     try {
@@ -173,10 +360,19 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   };
 
   // ============================================================
-  // ✅ Notifica o PACIENTE (não a esteticista)
+  // ✅ Abre o modal (substitui o window.confirm)
   // ============================================================
-  const cancelar = async (ag) => {
-    if (!window.confirm(`Cancelar o agendamento de ${ag.nome} em ${formatarDataBR(ag.data)} às ${ag.horaInicio}?`)) return;
+  const solicitarCancelamento = (ag) => {
+    setAgendamentoParaCancelar(ag);
+  };
+
+  // ============================================================
+  // Executa o cancelamento quando o usuário confirma no modal
+  // ============================================================
+  const confirmarCancelamento = async () => {
+    if (!agendamentoParaCancelar) return;
+    const ag = agendamentoParaCancelar;
+    setCancelando(true);
     try {
       await updateDoc(doc(db, 'agendamentos', ag.id), {
         status: 'cancelado',
@@ -193,8 +389,12 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           tipoEvento: 'cancelado',
         }),
       }).catch((e) => console.warn('Falha ao notificar paciente (cancelado):', e));
+
+      setAgendamentoParaCancelar(null);
     } catch (e) {
       alert('Erro ao cancelar: ' + e.message);
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -220,7 +420,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [agendamentos]);
 
   // ============================================================
-  // Lista filtrada: status + busca + corte de histórico
+  // Lista filtrada
   // ============================================================
   const filtrados = useMemo(() => {
     const hoje = new Date();
@@ -492,13 +692,21 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                           <button type="button" onClick={() => confirmar(ag)} style={btnOk}>
                             <MdCheckCircle size={14} /> Confirmar
                           </button>
-                          <button type="button" onClick={() => cancelar(ag)} style={btnDanger}>
+                          <button
+                            type="button"
+                            onClick={() => solicitarCancelamento(ag)}
+                            style={btnDanger}
+                          >
                             <MdCancel size={14} /> Cancelar
                           </button>
                         </>
                       )}
                       {ag.status === 'confirmado' && (
-                        <button type="button" onClick={() => cancelar(ag)} style={btnDanger}>
+                        <button
+                          type="button"
+                          onClick={() => solicitarCancelamento(ag)}
+                          style={btnDanger}
+                        >
                           <MdCancel size={14} /> Cancelar
                         </button>
                       )}
@@ -509,6 +717,18 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             </div>
           )}
         </>
+      )}
+
+      {/* ✅ Modal de confirmação de cancelamento */}
+      {agendamentoParaCancelar && (
+        <ModalConfirmarCancelamento
+          agendamento={agendamentoParaCancelar}
+          carregando={cancelando}
+          onConfirmar={confirmarCancelamento}
+          onFechar={() => {
+            if (!cancelando) setAgendamentoParaCancelar(null);
+          }}
+        />
       )}
     </div>
   );
