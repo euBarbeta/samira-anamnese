@@ -5,10 +5,12 @@ import {
   updateDoc, orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { formatPhoneNumberIntl } from 'react-phone-number-input';
 import {
   MdCheckCircle, MdCancel, MdWarning, MdSearch,
   MdCalendarMonth, MdSettings, MdPhone, MdBadge,
   MdEmail, MdChatBubbleOutline, MdClear, MdHourglassEmpty,
+  MdContentCopy, MdCheck,
 } from 'react-icons/md';
 import ConfiguradorAgenda from './ConfiguradorAgenda';
 
@@ -16,6 +18,82 @@ import ConfiguradorAgenda from './ConfiguradorAgenda';
 // Quantos dias manter na lista de cancelados/concluídos
 // ============================================================
 const DIAS_HISTORICO = 30;
+
+/* ============================================================
+   Formatação de telefone por país (libphonenumber-js)
+   - Guarda E.164 no Firestore (+5511959999999) → formata conforme país
+   ============================================================ */
+function formatarTelefoneInternacional(e164) {
+  if (!e164) return '—';
+  try {
+    const f = formatPhoneNumberIntl(String(e164));
+    return f || String(e164);
+  } catch {
+    return String(e164);
+  }
+}
+
+/* ============================================================
+   Botão "copiar" — pequeno, reutilizável
+   ============================================================ */
+function BotaoCopiar({ valor, rotulo, title }) {
+  const [copiado, setCopiado] = useState(false);
+
+  const copiar = async (e) => {
+    e?.stopPropagation?.();
+    const texto = String(valor || '');
+    if (!texto) return;
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(texto);
+      } else {
+        // Fallback para contextos não-secure (http)
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1800);
+    } catch (err) {
+      console.warn('Falha ao copiar:', err);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copiar}
+      title={copiado ? 'Copiado!' : (title || `Copiar ${rotulo || ''}`)}
+      aria-label={copiado ? 'Copiado' : `Copiar ${rotulo || ''}`}
+      style={{
+        background: copiado ? '#f0fdf4' : '#faf5ff',
+        border: copiado ? '1px solid #86efac' : '1px solid #d8b4fe',
+        color: copiado ? '#166534' : '#7e22ce',
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 0,
+        flexShrink: 0,
+        transition: 'all 0.18s ease',
+        marginLeft: 4,
+        verticalAlign: 'middle',
+      }}
+    >
+      {copiado ? <MdCheck size={12} /> : <MdContentCopy size={11} />}
+    </button>
+  );
+}
 
 export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   const [aba, setAba] = useState('agenda'); // 'agenda' | 'config'
@@ -80,7 +158,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         atualizadoEm: new Date().toISOString(),
       });
 
-      // Notifica o paciente dono do agendamento
       fetch('/.netlify/functions/notificar-paciente-agendamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -107,7 +184,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         atualizadoEm: new Date().toISOString(),
       });
 
-      // Notifica o paciente dono do agendamento
       fetch('/.netlify/functions/notificar-paciente-agendamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,16 +231,13 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     const termo = busca.toLowerCase().trim();
 
     return agendamentos.filter((a) => {
-      // 1) Filtro por status
       if (a.status !== filtroStatus) return false;
 
-      // 2) Corte de histórico para cancelado/concluído
       if (filtroStatus === 'cancelado' || filtroStatus === 'concluido') {
         const d = new Date((a.data || '') + 'T12:00:00');
         if (d < limite) return false;
       }
 
-      // 3) Busca textual (nome, documento, data BR)
       if (!termo) return true;
       const nome = (a.nome || '').toLowerCase();
       const doc = (a.documento || a.cpf || '').toLowerCase();
@@ -200,9 +273,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
       {aba === 'agenda' && (
         <>
-          {/* ============================================================
-              LUPA — busca em todas as abas
-             ============================================================ */}
+          {/* Busca */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -253,9 +324,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             )}
           </div>
 
-          {/* ============================================================
-              Filtros por status
-             ============================================================ */}
+          {/* Filtros por status */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             {[
               { key: 'pendente',   label: 'Pendente'   },
@@ -284,7 +353,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             ))}
           </div>
 
-          {/* Aviso de corte de histórico */}
           {(filtroStatus === 'cancelado' || filtroStatus === 'concluido') && (
             <div style={{
               fontSize: 10.5,
@@ -296,9 +364,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             </div>
           )}
 
-          {/* ============================================================
-              Lista
-             ============================================================ */}
+          {/* Lista */}
           {carregando ? (
             <p style={{ color: '#666' }}>Carregando…</p>
           ) : filtrados.length === 0 ? (
@@ -328,25 +394,53 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                         {ag.nome}
                       </h4>
 
-                      <div style={{ fontSize: 12, color: '#555', lineHeight: 1.7 }}>
+                      <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
+                        {/* Data e hora */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <MdCalendarMonth size={13} color="#C8A24A" />
+                          <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
                           {formatarDataBR(ag.data)} às {ag.horaInicio} ({ag.duracaoMin}min)
                         </div>
+
+                        {/* Telefone + copiar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <MdPhone size={13} color="#C8A24A" />
-                          {formatarTelefoneInternacional(ag.telefone)}
+                          <MdPhone size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                          <span>{formatarTelefoneInternacional(ag.telefone)}</span>
+                          {ag.telefone && (
+                            <BotaoCopiar
+                              valor={ag.telefone}
+                              rotulo="telefone"
+                              title="Copiar telefone"
+                            />
+                          )}
                         </div>
+
+                        {/* Documento + copiar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <MdBadge size={13} color="#C8A24A" />
-                          {ag.documento || ag.cpf || '—'}
+                          <MdBadge size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                          <span>{ag.documento || ag.cpf || '—'}</span>
+                          {(ag.documento || ag.cpf) && (
+                            <BotaoCopiar
+                              valor={ag.documento || ag.cpf}
+                              rotulo="documento"
+                              title="Copiar documento"
+                            />
+                          )}
                         </div>
+
+                        {/* E-mail + copiar */}
                         {ag.email && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <MdEmail size={13} color="#C8A24A" />
-                            {ag.email}
+                            <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                            <span style={{ wordBreak: 'break-all' }}>{ag.email}</span>
+                            <BotaoCopiar
+                              valor={ag.email}
+                              rotulo="e-mail"
+                              title="Copiar e-mail"
+                            />
                           </div>
                         )}
+
+                        {/* Observações */}
                         {ag.observacoes && (
                           <div style={{
                             marginTop: 6,
@@ -436,22 +530,6 @@ function labelDe(status) {
     cancelado: 'cancelado',
     concluido: 'concluído',
   }[status] || status;
-}
-
-function formatarTelefoneInternacional(e164) {
-  if (!e164) return '—';
-  const match = e164.match(/^\+(\d{1,3})(\d+)$/);
-  if (!match) return e164;
-  const [, ddi, resto] = match;
-
-  if (ddi === '55' && resto.length === 11) {
-    return `+55 (${resto.slice(0, 2)}) ${resto.slice(2, 7)}-${resto.slice(7)}`;
-  }
-  if (ddi === '55' && resto.length === 10) {
-    return `+55 (${resto.slice(0, 2)}) ${resto.slice(2, 6)}-${resto.slice(6)}`;
-  }
-  const grupos = resto.match(/.{1,3}/g) || [resto];
-  return `+${ddi} ${grupos.join(' ')}`;
 }
 
 /* ============================================================

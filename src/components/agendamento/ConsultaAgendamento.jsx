@@ -8,7 +8,7 @@ import { formatPhoneNumberIntl } from 'react-phone-number-input';
 import {
   MdSearch, MdWarning, MdCheckCircle, MdCancel, MdHourglassEmpty,
   MdCalendarMonth, MdPhone, MdBadge, MdPerson, MdInfoOutline, MdRefresh,
-  MdDelete, MdEmail, MdContentCopy, MdCheck, MdClose,
+  MdDelete, MdEmail,
 } from 'react-icons/md';
 import { AbasPublicas, EstilosTAP, BotaoWhatsApp, Rodape } from './TelaAgendamentoPublico';
 import TelaSemInternet from '../TelaSemInternet';
@@ -58,134 +58,6 @@ function formatarTelefoneBonito(tel) {
   } catch {
     return String(tel);
   }
-}
-
-/* ============================================================
-   Botão copiar (reutilizável) + Toast
-   ============================================================ */
-function BotaoCopiar({ valor, rotulo, onCopiado }) {
-  const [copiado, setCopiado] = useState(false);
-
-  const handleCopiar = async () => {
-    const texto = String(valor || '');
-    if (!texto) return;
-
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(texto);
-      } else {
-        // Fallback pra navegadores antigos / http
-        const ta = document.createElement('textarea');
-        ta.value = texto;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      setCopiado(true);
-      onCopiado?.(rotulo);
-      setTimeout(() => setCopiado(false), 1800);
-    } catch (e) {
-      console.warn('Falha ao copiar:', e);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopiar}
-      title={copiado ? 'Copiado!' : `Copiar ${rotulo}`}
-      aria-label={copiado ? 'Copiado' : `Copiar ${rotulo}`}
-      style={{
-        background: copiado ? '#f0fdf4' : '#faf5ff',
-        border: copiado
-          ? '1.5px solid #86efac'
-          : '1.5px solid #d8b4fe',
-        color: copiado ? '#166534' : '#7e22ce',
-        width: 30,
-        height: 30,
-        borderRadius: 8,
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 0,
-        flexShrink: 0,
-        transition: 'all 0.18s ease',
-        marginLeft: 6,
-      }}
-      onMouseEnter={(e) => {
-        if (!copiado) {
-          e.currentTarget.style.background = '#f3e8ff';
-          e.currentTarget.style.transform = 'translateY(-1px)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!copiado) {
-          e.currentTarget.style.background = '#faf5ff';
-          e.currentTarget.style.transform = 'translateY(0)';
-        }
-      }}
-    >
-      {copiado ? <MdCheck size={15} /> : <MdContentCopy size={14} />}
-    </button>
-  );
-}
-
-function Toast({ mensagem, onFechar }) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 90,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-        color: '#fff',
-        padding: '10px 18px',
-        borderRadius: 22,
-        boxShadow: '0 8px 22px rgba(126, 34, 206, 0.45)',
-        fontFamily: "'Cinzel', serif",
-        fontSize: 11.5,
-        fontWeight: 700,
-        letterSpacing: '0.4px',
-        zIndex: 999999,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        animation: 'toastIn 0.22s ease',
-        maxWidth: '90vw',
-      }}
-    >
-      <MdCheck size={16} />
-      <span style={{ flex: 1 }}>{mensagem}</span>
-      <button
-        type="button"
-        onClick={onFechar}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: '#fff',
-          cursor: 'pointer',
-          padding: 0,
-          opacity: 0.75,
-          display: 'flex',
-        }}
-        aria-label="Fechar aviso"
-      >
-        <MdClose size={14} />
-      </button>
-      <style>{`
-        @keyframes toastIn {
-          from { opacity: 0; transform: translate(-50%, 12px); }
-          to   { opacity: 1; transform: translate(-50%, 0);    }
-        }
-      `}</style>
-    </div>
-  );
 }
 
 /* ============================================================
@@ -347,7 +219,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
   const [erro, setErro] = useState('');
   const [confirmacao, setConfirmacao] = useState(null);
   const [processando, setProcessando] = useState(false);
-  const [toast, setToast] = useState('');
 
   const buscar = async () => {
     setErro('');
@@ -411,8 +282,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
         )
       );
       setConfirmacao(null);
-      setToast('Agendamento cancelado com sucesso');
-      setTimeout(() => setToast(''), 2600);
     } catch (e) {
       console.error('Erro ao cancelar:', e);
       setErro('Não foi possível cancelar. Tente novamente.');
@@ -429,8 +298,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
       await deleteDoc(doc(db, 'agendamentos', ag.id));
       setResultados((prev) => prev.filter((a) => a.id !== ag.id));
       setConfirmacao(null);
-      setToast('Removido da lista');
-      setTimeout(() => setToast(''), 2200);
     } catch (e) {
       console.error('Erro ao remover:', e);
       setErro('Não foi possível remover. Tente novamente.');
@@ -746,14 +613,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
                                 <div style={labelMini}>Documento</div>
                                 <div style={valorMini}>{ag.documento}</div>
                               </div>
-                              <BotaoCopiar
-                                valor={ag.documento}
-                                rotulo="documento"
-                                onCopiado={() => {
-                                  setToast('Documento copiado');
-                                  setTimeout(() => setToast(''), 2000);
-                                }}
-                              />
                             </div>
                           )}
 
@@ -774,14 +633,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
                                   {formatarTelefoneBonito(ag.telefone)}
                                 </div>
                               </div>
-                              <BotaoCopiar
-                                valor={ag.telefone}
-                                rotulo="telefone"
-                                onCopiado={() => {
-                                  setToast('Telefone copiado');
-                                  setTimeout(() => setToast(''), 2000);
-                                }}
-                              />
                             </div>
                           )}
 
@@ -807,14 +658,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
                                   {ag.email}
                                 </div>
                               </div>
-                              <BotaoCopiar
-                                valor={ag.email}
-                                rotulo="e-mail"
-                                onCopiado={() => {
-                                  setToast('E-mail copiado');
-                                  setTimeout(() => setToast(''), 2000);
-                                }}
-                              />
                             </div>
                           )}
 
@@ -963,9 +806,6 @@ export default function ConsultaAgendamento({ onVoltar }) {
           onFechar={() => setConfirmacao(null)}
         />
       )}
-
-      {/* Toast global */}
-      {toast && <Toast mensagem={toast} onFechar={() => setToast('')} />}
     </>
   );
 }
