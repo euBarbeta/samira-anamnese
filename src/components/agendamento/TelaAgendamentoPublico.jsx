@@ -1,7 +1,7 @@
 // src/components/agendamento/TelaAgendamentoPublico.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  collection, query, where, getDocs, addDoc, doc, getDoc,
+  collection, query, where, getDocs, addDoc, doc, getDoc,onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -213,47 +213,74 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   }, [slots]);
 
   useEffect(() => {
-    if (!uidEsteticista) return;
-    (async () => {
-      try {
-        const cfgSnap = await getDoc(
-          doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal')
-        );
-        if (!cfgSnap.exists()) {
-          setErro('Agenda ainda não configurada pela profissional.');
-          setCarregando(false);
-          return;
-        }
-        const cfg = cfgSnap.data();
-        setConfig(cfg);
+  if (!uidEsteticista) return;
 
-        const hoje = toISODateLocal(new Date());
-        const max = new Date();
-        max.setDate(max.getDate() + (cfg.diasFuturosMaximo || 60));
-        const dataFim = toISODateLocal(max);
+  let unsubAgendamentos = null;
+  let cancelado = false;
+  let cfgCache = null;
 
-        const ocupSnap = await getDocs(
-          query(
-            collection(db, 'agendamentos'),
-            where('uidEsteticista', '==', uidEsteticista),
-            where('data', '>=', hoje),
-            where('data', '<=', dataFim)
-          )
-        );
-        const ocupados = ocupSnap.docs
-          .map((d) => d.data())
-          .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
-
-        const lista = gerarSlotsDisponiveis(cfg, ocupados, hoje, dataFim);
-        setSlots(lista);
-      } catch (e) {
-        console.error('Erro ao carregar agenda:', e);
-        setErro('Não foi possível carregar a agenda. Tente novamente.');
-      } finally {
+  (async () => {
+    try {
+      const cfgSnap = await getDoc(
+        doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal')
+      );
+      if (!cfgSnap.exists()) {
+        setErro('Agenda ainda não configurada pela profissional.');
         setCarregando(false);
+        return;
       }
-    })();
-  }, [uidEsteticista]);
+
+      cfgCache = cfgSnap.data();
+      if (cancelado) return;
+      setConfig(cfgCache);
+
+      const hoje = toISODateLocal(new Date());
+      const max = new Date();
+      max.setDate(max.getDate() + (cfgCache.diasFuturosMaximo || 60));
+      const dataFim = toISODateLocal(max);
+
+      // ✅ Escuta em TEMPO REAL as mudanças nos agendamentos
+      const q = query(
+        collection(db, 'agendamentos'),
+        where('uidEsteticista', '==', uidEsteticista),
+        where('data', '>=', hoje),
+        where('data', '<=', dataFim)
+      );
+
+      unsubAgendamentos = onSnapshot(
+        q,
+        (snap) => {
+          if (cancelado) return;
+          const ocupados = snap.docs
+            .map((d) => d.data())
+            .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
+
+          const lista = gerarSlotsDisponiveis(
+            cfgCache,
+            ocupados,
+            hoje,
+            dataFim
+          );
+          setSlots(lista);
+          setCarregando(false);
+        },
+        (err) => {
+          console.error('Erro no listener da agenda:', err);
+          setCarregando(false);
+        }
+      );
+    } catch (e) {
+      console.error('Erro ao carregar agenda:', e);
+      setErro('Não foi possível carregar a agenda. Tente novamente.');
+      setCarregando(false);
+    }
+  })();
+
+  return () => {
+    cancelado = true;
+    if (unsubAgendamentos) unsubAgendamentos();
+  };
+}, [uidEsteticista]);
 
   const validarDocumento = (docStr) => {
     const trimmed = docStr.trim();
