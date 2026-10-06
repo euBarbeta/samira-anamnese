@@ -778,17 +778,18 @@ export function EstilosTAP() {
         overflow-x: hidden;
       }
 
-      /* Background fixo cobrindo todo o navegador */
+      /* Background fixo cobrindo todo o navegador — logo pequena e centralizada */
       .tap-tela::before {
         content: '';
         position: fixed;
         inset: 0;
         background-image: url('/imagens/logo-telainicial.jpeg');
-        background-size: cover;
+        background-size: min(55%, 420px) auto;
         background-position: center center;
         background-repeat: no-repeat;
         z-index: 0;
         pointer-events: none;
+        opacity: 0.35;
       }
 
       /* Coluna de conteúdo — mantém o rodapé sempre embaixo */
@@ -842,29 +843,30 @@ export function EstilosTAP() {
         100% { transform: scale(1.6); opacity: 0;   }
       }
 
-      /* ====== RODAPÉ ====== */
+      /* ====== RODAPÉ — grande e fixado no fim ====== */
       .tap-rodape {
-        margin-top: 28px;
-        padding: 14px 12px 4px 12px;
+        margin-top: auto;                 /* empurra pro fim da tela */
+        padding: 44px 12px 10px 12px;     /* espaço mínimo acima + respiro embaixo */
         text-align: center;
         font-family: 'Montserrat', sans-serif;
-        font-size: 11px;
-        color: #4b3b63;
-        letter-spacing: 0.3px;
-        border-top: 1px solid rgba(200, 162, 74, 0.25);
+        font-size: 14px;
+        font-weight: 500;
+        color: #3b2a52;
+        letter-spacing: 0.4px;
         width: 100%;
         box-sizing: border-box;
+        flex-shrink: 0;
       }
       .tap-rodape-texto {
         display: inline-block;
-        line-height: 1.5;
+        line-height: 1.6;
       }
       .tap-rodape-link {
         color: #7e22ce;
-        font-weight: 700;
+        font-weight: 800;
         text-decoration: none;
-        border-bottom: 1px dashed rgba(126, 34, 206, 0.45);
-        padding-bottom: 1px;
+        border-bottom: 1.5px dashed rgba(126, 34, 206, 0.5);
+        padding-bottom: 2px;
         transition: color 0.2s ease, border-color 0.2s ease;
       }
       .tap-rodape-link:hover {
@@ -1212,6 +1214,10 @@ export function EstilosTAP() {
           right: 28px;
           bottom: 28px;
         }
+        .tap-rodape {
+          font-size: 15px;
+          padding-top: 56px;
+        }
       }
 
       @media (max-width: 640px) {
@@ -1275,9 +1281,8 @@ export function EstilosTAP() {
         }
 
         .tap-rodape {
-          font-size: 10.5px;
-          margin-top: 22px;
-          padding: 12px 10px 4px 10px;
+          font-size: 13px;
+          padding: 36px 10px 8px 10px;
         }
       }
 
@@ -1309,7 +1314,7 @@ export function EstilosTAP() {
           padding: 9px 6px;
         }
         .tap-rodape {
-          font-size: 10px;
+          font-size: 12.5px;
         }
       }
 
