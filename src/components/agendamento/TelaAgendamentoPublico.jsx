@@ -8,11 +8,41 @@ import {
   gerarSlotsDisponiveis, gerarCodigoAutenticidade, validarCPF, toISODateLocal,
 } from '../../utils/agenda';
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
-import { MdCheckCircle, MdWarning, MdArrowBack, MdSearch } from 'react-icons/md';
+import {
+  MdCheckCircle, MdWarning, MdArrowBack, MdSearch, MdCalendarMonth,
+} from 'react-icons/md';
 import ModalConsentimentoAgendamento from './ModalConsentimentoAgendamento';
 import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+
+/* ============================================================
+   Aba de navegação pública — Agendar | Consultar
+   ============================================================ */
+export function AbasPublicas({ abaAtiva }) {
+  return (
+    <div className="tap-tabs" role="tablist">
+      <a
+        href="/#agendar"
+        role="tab"
+        aria-selected={abaAtiva === 'agendar'}
+        className={`tap-tab${abaAtiva === 'agendar' ? ' ativo' : ''}`}
+      >
+        <MdCalendarMonth size={16} />
+        Agendar
+      </a>
+      <a
+        href="/#consultar"
+        role="tab"
+        aria-selected={abaAtiva === 'consultar'}
+        className={`tap-tab${abaAtiva === 'consultar' ? ' ativo' : ''}`}
+      >
+        <MdSearch size={16} />
+        Consultar
+      </a>
+    </div>
+  );
+}
 
 /* ============================================================
    Botão "Voltar pro prontuário"
@@ -214,9 +244,10 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
         email: email.trim().toLowerCase(),
         observacoes: observacoes.trim(),
         status: 'pendente',
+        criadoPor: 'publico',
         canceladoPor: null,
         consentimentoLGPD: consentimento,
-        codigoAutenticidade: codigo,
+        codigoAutenticidade: codigo, // mantido no doc (uso interno), mas não exibido
         criadoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
       });
@@ -235,9 +266,10 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
       });
 
       setSucesso({
-        codigo,
         data: slotSelecionado.data,
         hora: slotSelecionado.horaInicio,
+        nome: nome.trim(),
+        documento: documento.trim(),
       });
     } catch (e) {
       console.error('Erro ao agendar:', e);
@@ -252,6 +284,8 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
     return (
       <div className="tap-tela">
         <div style={{ width: '100%', maxWidth: 720 }}>
+          <BotaoVoltarProntuario />
+          <AbasPublicas abaAtiva="agendar" />
           <div className="tap-card" style={{ textAlign: 'center', padding: 40 }}>
             <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
               Carregando agenda…
@@ -268,6 +302,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
       <div className="tap-tela">
         <div style={{ width: '100%', maxWidth: 720 }}>
           <BotaoVoltarProntuario />
+          <AbasPublicas abaAtiva="agendar" />
           <div className="tap-card" style={{ textAlign: 'center' }}>
             <MdWarning size={40} color="#e65100" />
             <p style={{ fontSize: 13, color: '#444', lineHeight: 1.6 }}>{erro}</p>
@@ -281,8 +316,9 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   if (sucesso) {
     return (
       <div className="tap-tela">
-        <div style={{ width: '100%', maxWidth: 480 }}>
+        <div style={{ width: '100%', maxWidth: 520 }}>
           <BotaoVoltarProntuario />
+          <AbasPublicas abaAtiva="agendar" />
           <div className="tap-card" style={{ textAlign: 'center' }}>
             <MdCheckCircle size={56} color="#16a34a" />
             <h2
@@ -299,33 +335,57 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
               <strong>{formatarDataLonga(sucesso.data)}</strong> às{' '}
               <strong>{sucesso.hora}</strong>
             </p>
-            <p style={{ fontSize: 12, color: '#666', marginTop: 12 }}>
-              Guarde seu código para consultar ou cancelar:
-            </p>
-            <div className="tap-codigo-box">{sucesso.codigo}</div>
 
-            <p style={{ fontSize: 11, color: '#888', marginTop: 16 }}>
-              A profissional vai confirmar em breve. Você receberá um aviso.
-            </p>
+            <div className="tap-instrucao">
+              <p className="tap-instrucao-titulo">
+                Como acompanhar sua solicitação
+              </p>
+              <p className="tap-instrucao-texto">
+                Vá até a aba <strong>Consultar</strong> e informe seu{' '}
+                <strong>nome completo</strong> e o mesmo <strong>documento</strong>{' '}
+                que você usou agora. Você verá se a profissional{' '}
+                <strong>confirmou</strong> o horário.
+              </p>
+              <p className="tap-instrucao-hint">
+                Tire um print desta tela para não esquecer os dados usados.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = '/#consultar';
-              }}
-              className="tap-btn-acompanhar tap-target"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 18px rgba(126, 34, 206, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 3px 10px rgba(126, 34, 206, 0.15)';
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                marginTop: 18,
               }}
             >
-              <MdSearch size={16} />
-              Acompanhar este agendamento
-            </button>
+              <a
+                href="/#consultar"
+                className="tap-btn-acompanhar tap-target"
+                style={{ textDecoration: 'none' }}
+              >
+                <MdSearch size={16} />
+                Ir para Consultar
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSucesso(null);
+                  setSlotSelecionado(null);
+                  setDiaSelecionado(null);
+                  setNome('');
+                  setDocumento('');
+                  setEmail('');
+                  setObservacoes('');
+                  setTelefone('');
+                  setLgpdAceito(false);
+                }}
+                className="tap-btn-secundario tap-target"
+              >
+                Fazer outro agendamento
+              </button>
+            </div>
           </div>
         </div>
         <EstilosTAP />
@@ -337,6 +397,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
     <div className="tap-tela">
       <div style={{ width: '100%', maxWidth: 720 }}>
         <BotaoVoltarProntuario />
+        <AbasPublicas abaAtiva="agendar" />
 
         <div className="tap-card">
           <h2
@@ -497,6 +558,18 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                   placeholder="Ex: 123.456.789-00 / AB123456 / 12345678Z"
                   autoComplete="off"
                 />
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 10.5,
+                    color: '#7e22ce',
+                    marginTop: 4,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Guarde exatamente este nome e documento — você vai usá-los para
+                  consultar depois.
+                </span>
               </Campo>
 
               <Campo label="Telefone / WhatsApp *">
@@ -544,7 +617,6 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 />
               </Campo>
 
-              {/* LGPD */}
               <label
                 className={`tap-lgpd${lgpdAceito ? ' aceito' : ''}`}
                 style={{ cursor: 'pointer', marginTop: 10 }}
@@ -581,9 +653,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                 </span>
               </label>
 
-              {erro && (
-                <div className="tap-erro">{erro}</div>
-              )}
+              {erro && <div className="tap-erro">{erro}</div>}
 
               <button
                 type="button"
@@ -610,9 +680,9 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
 }
 
 /* ============================================================
-   Estilos injetados — responsivo
+   Estilos injetados — responsivo (com abas)
    ============================================================ */
-function EstilosTAP() {
+export function EstilosTAP() {
   return (
     <style>{`
       .tap-tela {
@@ -625,6 +695,49 @@ function EstilosTAP() {
         padding-top: max(30px, env(safe-area-inset-top));
         font-family: 'Montserrat', sans-serif;
         box-sizing: border-box;
+      }
+
+      /* ====== ABAS ====== */
+      .tap-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+        background: rgba(255, 255, 255, 0.55);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(200, 162, 74, 0.35);
+        border-radius: 14px;
+        padding: 5px;
+        box-shadow: 0 3px 10px rgba(44, 22, 58, 0.05);
+      }
+      .tap-tab {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 11px 12px;
+        border-radius: 10px;
+        font-family: 'Cinzel', serif;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        color: #55286f;
+        text-decoration: none;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        min-height: 44px;
+        box-sizing: border-box;
+      }
+      .tap-tab:hover {
+        background: rgba(168, 85, 247, 0.08);
+      }
+      .tap-tab.ativo {
+        background: linear-gradient(135deg, #C8A24A 0%, #e2be64 100%);
+        color: #fff;
+        box-shadow: 0 3px 10px rgba(200, 162, 74, 0.35);
       }
 
       .tap-card {
@@ -818,22 +931,7 @@ function EstilosTAP() {
         cursor: wait;
       }
 
-      .tap-codigo-box {
-        background: #faf5ff;
-        border: 1.5px dashed #a855f7;
-        border-radius: 12px;
-        padding: 14px 16px;
-        font-family: 'Courier New', monospace;
-        font-size: 20px;
-        font-weight: 700;
-        color: #7e22ce;
-        letter-spacing: 2px;
-        word-break: break-all;
-        text-align: center;
-      }
-
       .tap-btn-acompanhar {
-        margin-top: 18px;
         width: 100%;
         font-family: 'Cinzel', serif;
         background: linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%);
@@ -852,6 +950,61 @@ function EstilosTAP() {
         box-shadow: 0 3px 10px rgba(126, 34, 206, 0.15);
         transition: all 0.25s ease;
         min-height: 48px;
+        box-sizing: border-box;
+      }
+      .tap-btn-acompanhar:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(126, 34, 206, 0.3);
+      }
+
+      .tap-btn-secundario {
+        width: 100%;
+        font-family: 'Cinzel', serif;
+        background: transparent;
+        color: #55286f;
+        border: 1.5px solid rgba(85, 40, 111, 0.35);
+        padding: 11px 20px;
+        border-radius: 22px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        cursor: pointer;
+        min-height: 44px;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+      .tap-btn-secundario:hover {
+        background: rgba(85, 40, 111, 0.06);
+      }
+
+      .tap-instrucao {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border: 1.5px solid #86efac;
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-top: 18px;
+        text-align: left;
+      }
+      .tap-instrucao-titulo {
+        font-family: 'Cinzel', serif;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #166534;
+        margin: 0 0 6px 0;
+        line-height: 1.4;
+      }
+      .tap-instrucao-texto {
+        font-size: 12px;
+        color: #14532d;
+        margin: 0 0 8px 0;
+        line-height: 1.6;
+      }
+      .tap-instrucao-hint {
+        font-size: 11px;
+        color: #4b7a5a;
+        font-style: italic;
+        margin: 0;
+        line-height: 1.5;
       }
 
       .btn-voltar-lista {
@@ -868,8 +1021,6 @@ function EstilosTAP() {
       }
 
       /* ====== RESPONSIVO ====== */
-
-      /* Tablets e acima — respiro maior */
       @media (min-width: 768px) {
         .tap-tela { padding: 40px 24px; }
         .tap-card { padding: 32px; }
@@ -879,7 +1030,6 @@ function EstilosTAP() {
         }
       }
 
-      /* Mobile padrão (até 640px) */
       @media (max-width: 640px) {
         .tap-tela { padding: 18px 12px; }
         .tap-card {
@@ -889,11 +1039,17 @@ function EstilosTAP() {
         .tap-card h2 { font-size: 19px !important; }
         .tap-secao { font-size: 12px; }
 
-        /* Evita zoom no iOS ao focar input */
         .tap-input,
         .tap-phone-wrap .PhoneInputInput {
           font-size: 16px;
         }
+
+        .tap-tab {
+          font-size: 11.5px;
+          padding: 10px 8px;
+          gap: 4px;
+        }
+        .tap-tab svg { width: 14px; height: 14px; }
 
         .tap-slots-grid {
           grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
@@ -904,12 +1060,6 @@ function EstilosTAP() {
           font-size: 13px;
         }
 
-        .tap-codigo-box {
-          font-size: 16px;
-          letter-spacing: 1.5px;
-          padding: 12px 14px;
-        }
-
         .tap-btn-confirmar {
           font-size: 12px;
           letter-spacing: 0.6px;
@@ -917,7 +1067,7 @@ function EstilosTAP() {
         }
 
         .tap-btn-acompanhar {
-          font-size: 11px;
+          font-size: 11.5px;
           padding: 12px 16px;
         }
 
@@ -925,9 +1075,14 @@ function EstilosTAP() {
           padding: 14px 12px;
           font-size: 11.5px;
         }
+
+        .tap-instrucao {
+          padding: 12px 14px;
+        }
+        .tap-instrucao-titulo { font-size: 12px; }
+        .tap-instrucao-texto { font-size: 11.5px; }
       }
 
-      /* Telas muito estreitas (até 380px) */
       @media (max-width: 380px) {
         .tap-tela { padding: 12px 8px; }
         .tap-card {
@@ -943,23 +1098,24 @@ function EstilosTAP() {
           padding: 10px 2px;
           min-height: 42px;
         }
-        .tap-codigo-box {
-          font-size: 14px;
-          letter-spacing: 1px;
-          padding: 10px 10px;
-        }
         .btn-voltar-lista {
           font-size: 11px !important;
           padding: 9px 14px !important;
         }
+        .tap-tabs {
+          border-radius: 12px;
+          padding: 4px;
+        }
+        .tap-tab {
+          font-size: 11px;
+          padding: 9px 6px;
+        }
       }
 
-      /* Acessibilidade — alvo de toque mínimo */
       .tap-target {
         min-height: 40px;
       }
 
-      /* Modo paisagem em celulares baixos — reduz padding vertical */
       @media (max-height: 500px) and (orientation: landscape) {
         .tap-tela { padding: 12px; }
         .tap-card { padding: 16px; }
