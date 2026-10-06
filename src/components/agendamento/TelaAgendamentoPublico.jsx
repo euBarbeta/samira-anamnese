@@ -787,63 +787,83 @@ export function EstilosTAP() {
   return (
     <style>{`
       /* ====== TELA — fundo vivo em 3 camadas ====== */
-      .tap-tela {
-        position: relative;
-        min-height: 100vh;
-        background:
-          radial-gradient(ellipse 80% 60% at 50% 0%,
-            #f8f2ff 0%, transparent 70%),
-          linear-gradient(155deg,
-            #e6d8f5 0%,
-            #f3eef8 25%,
-            #efe6f7 50%,
-            #f3eef8 75%,
-            #e9dcf3 100%);
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        padding: 30px 16px 100px 16px;
-        padding-top: max(30px, env(safe-area-inset-top));
-        font-family: 'Montserrat', sans-serif;
-        box-sizing: border-box;
-        overflow-x: hidden;
-        isolation: isolate;
-      }
-
-      /* ── Camada 1 — Aurora de blobs (movimento orbital) ── */
-      .tap-tela::before {
-        content: '';
-        position: fixed;
-        inset: -30%;
-        background-image:
-          radial-gradient(circle 45% at 18% 22%,
-            rgba(199, 125, 255, 0.55) 0%,
-            rgba(168, 85, 247, 0.25) 35%,
-            transparent 62%),
-          radial-gradient(circle 50% at 82% 18%,
-            rgba(255, 215, 128, 0.55) 0%,
-            rgba(226, 190, 100, 0.25) 35%,
-            transparent 62%),
-          radial-gradient(circle 55% at 25% 82%,
-            rgba(147, 51, 234, 0.45) 0%,
-            rgba(126, 34, 206, 0.20) 35%,
-            transparent 65%),
-          radial-gradient(circle 45% at 88% 78%,
-            rgba(250, 204, 100, 0.50) 0%,
-            rgba(200, 162, 74, 0.20) 35%,
-            transparent 60%),
-          radial-gradient(circle 40% at 55% 55%,
-            rgba(180, 100, 240, 0.30) 0%,
-            transparent 70%);
-        z-index: 0;
-        pointer-events: none;
-        filter: blur(60px) saturate(140%);
-        -webkit-filter: blur(60px) saturate(140%);
-        animation: tapAurora 24s ease-in-out infinite alternate;
-        will-change: transform;
-        transform: translateZ(0);
-      }
+    /* ====== TELA — fundo vivo em 3 camadas (mais profundo) ====== */
+.tap-tela {
+  position: relative;
+  min-height: 100vh;
+  background:
+    /* brilho superior esquerdo — roxo luminoso */
+    radial-gradient(ellipse 85% 60% at 18% -10%,
+      rgba(199, 125, 255, 0.60) 0%,
+      transparent 65%),
+    /* brilho superior direito — dourado quente */
+    radial-gradient(ellipse 70% 55% at 100% -5%,
+      rgba(226, 190, 100, 0.42) 0%,
+      transparent 62%),
+    /* brilho inferior direito — dourado suave */
+    radial-gradient(ellipse 60% 50% at 100% 100%,
+      rgba(200, 162, 74, 0.30) 0%,
+      transparent 70%),
+    /* brilho inferior esquerdo — ameixa profunda */
+    radial-gradient(ellipse 65% 55% at 0% 105%,
+      rgba(85, 40, 111, 0.35) 0%,
+      transparent 70%),
+    /* halo central — pulso lilás */
+    radial-gradient(ellipse 50% 40% at 50% 50%,
+      rgba(216, 180, 254, 0.30) 0%,
+      transparent 75%),
+    /* degradê base — mais profundo e saturado */
+    linear-gradient(160deg,
+      #b89fdb 0%,
+      #c7b0e3 22%,
+      #d5c1eb 45%,
+      #c2a8e0 70%,
+      #a385cc 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 30px 16px 100px 16px;
+  padding-top: max(30px, env(safe-area-inset-top));
+  font-family: 'Montserrat', sans-serif;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  isolation: isolate;
+}
+  /* ── Camada 1 — Aurora de blobs (movimento orbital) ── */
+.tap-tela::before {
+  content: '';
+  position: fixed;
+  inset: -30%;
+  background-image:
+    radial-gradient(circle 50% at 15% 20%,
+      rgba(199, 125, 255, 0.65) 0%,
+      rgba(168, 85, 247, 0.30) 35%,
+      transparent 65%),
+    radial-gradient(circle 55% at 85% 15%,
+      rgba(255, 215, 128, 0.60) 0%,
+      rgba(226, 190, 100, 0.30) 35%,
+      transparent 65%),
+    radial-gradient(circle 60% at 22% 88%,
+      rgba(147, 51, 234, 0.55) 0%,
+      rgba(126, 34, 206, 0.28) 35%,
+      transparent 68%),
+    radial-gradient(circle 50% at 90% 85%,
+      rgba(250, 204, 100, 0.55) 0%,
+      rgba(200, 162, 74, 0.25) 35%,
+      transparent 65%),
+    radial-gradient(circle 45% at 55% 50%,
+      rgba(180, 100, 240, 0.40) 0%,
+      rgba(85, 40, 111, 0.18) 40%,
+      transparent 75%);
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(65px) saturate(150%);
+  -webkit-filter: blur(65px) saturate(150%);
+  animation: tapAurora 24s ease-in-out infinite alternate;
+  will-change: transform;
+  transform: translateZ(0);
+}
 
       /* ── Camada 2 — Brilho varrendo diagonal ── */
       .tap-tela::after {
