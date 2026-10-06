@@ -183,6 +183,7 @@ useEffect(() => {
   return () => { cancelado = true; };
 }, []);
   // src/components/AnamneseFicha.jsx
+
 useEffect(() => {
   const path = window.location.pathname;
   const hash = window.location.hash.slice(1);
@@ -293,6 +294,37 @@ if (hash === 'consultar') {
       else setRota('login-uid');
     })();
   }
+}, []);
+// ============================================================
+// ✅ Re-avalia a rota quando o hash muda em runtime
+//    (ex: paciente clica em "Agendar novo horário" → /#agendar)
+// ============================================================
+useEffect(() => {
+  const onHashChange = () => {
+    const h = window.location.hash.slice(1);
+
+    // #consultar → tela de consulta por código
+    if (h === 'consultar') {
+      setRota('agendamento-consulta');
+      return;
+    }
+
+    // #agendar ou #agendar/UID → tela pública de agendamento
+    if (h === 'agendar' || h.startsWith('agendar/')) {
+      setUidDaURL(h.startsWith('agendar/') ? h.replace('agendar/', '') : null);
+      setRota('agendamento');
+      return;
+    }
+
+    // Voltou pro #UID (paciente clicou em "Voltar pro meu prontuário")
+    // Não força nada — se já está autenticado, o render decide pelo `abaAtiva`
+    if (h && h !== 'agendar') {
+      setUidDaURL(h);
+    }
+  };
+
+  window.addEventListener('hashchange', onHashChange);
+  return () => window.removeEventListener('hashchange', onHashChange);
 }, []);
 
   // ============================================================

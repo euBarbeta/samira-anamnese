@@ -1021,30 +1021,31 @@ if (consentimentoRecusado) {
 <button
   type="button"
   onClick={() => {
-     window.location.href = '/#agendar';
+    window.location.href = '/#agendar';
   }}
-  className="painel-btn-sec-hover"
+  className="painel-btn-hover"
   style={{
     fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
     color: '#fff',
-    border: 'none',
+    border: '1.5px solid #9c7826',
     padding: '14px 18px',
     borderRadius: '16px',
     fontSize: '11px',
     fontWeight: 700,
+    letterSpacing: '0.5px',
     cursor: 'pointer',
     width: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '8px',
-    boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
-    transition: 'all 0.25s ease'
+    boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+    transition: 'all 0.25s ease',
   }}
 >
   <MdCalendarMonth size={16} color="#fff" />
-  Agendar novo horário
+  AGENDAR NOVO HORÁRIO
 </button>
 
 
