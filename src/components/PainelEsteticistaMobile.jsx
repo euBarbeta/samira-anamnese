@@ -8,8 +8,7 @@ import {
   signOut,
   onAuthStateChanged       // ⬅️ adicione
 } from 'firebase/auth';
-import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,updateDoc,
-  onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
+import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import { db } from './firebase';
 import { secondaryAuth } from './firebaseSecondary';  // ⬅️ ADICIONAR

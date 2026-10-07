@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,updateDoc,
-  onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
+import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
