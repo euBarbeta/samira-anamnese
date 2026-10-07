@@ -148,7 +148,7 @@ export default function CalendarioAgenda({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: compacto ? '4px 2px' : '8px 4px',
+                padding: compacto ? '4px 2px' : '10px 6px',
                 position: 'relative',
                 transition: 'all 0.15s',
                 fontFamily: 'inherit',
@@ -157,7 +157,7 @@ export default function CalendarioAgenda({
             >
               {/* NÚMERO DO DIA — sempre no topo */}
               <span style={{
-                fontSize: compacto ? 12 : 14,
+                fontSize: compacto ? 12 : 15,
                 fontWeight: ehHoje || sel ? 800 : 600,
                 color: corTexto,
                 lineHeight: 1,
@@ -166,7 +166,7 @@ export default function CalendarioAgenda({
                 {dia}
               </span>
 
-              {/* BLOCO DE HORÁRIOS — cor diferente da data, mais espaçado */}
+              {/* BLOCO DE HORÁRIOS — bem maior no desktop */}
               {temHorarios && (
                 <div style={{
                   display: 'flex',
@@ -174,14 +174,15 @@ export default function CalendarioAgenda({
                   alignItems: 'center',
                   justifyContent: 'center',
                   width: '100%',
-                  marginTop: compacto ? 1 : 4,
+                  marginTop: compacto ? 1 : 6,
                   lineHeight: 1,
                   overflow: 'hidden',
                   flexGrow: 1,
+                  gap: compacto ? 0 : 2,
                 }}>
-                  {/* Quantidade — destaque */}
+                  {/* Quantidade — grande e destacada */}
                   <span style={{
-                    fontSize: compacto ? 10 : 15,
+                    fontSize: compacto ? 10 : 22,
                     fontWeight: 800,
                     color: '#7e22ce',
                     lineHeight: 1,
@@ -190,14 +191,13 @@ export default function CalendarioAgenda({
                     {qtd}
                   </span>
 
-                  {/* "horários" / "horário" */}
+                  {/* "horários" — legível no desktop */}
                   <span style={{
-                    fontSize: compacto ? 5.5 : 8,
+                    fontSize: compacto ? 5.5 : 12,
                     fontWeight: 700,
                     color: '#7e22ce',
                     textTransform: 'lowercase',
                     lineHeight: 1.15,
-                    marginTop: compacto ? 0.5 : 2,
                     whiteSpace: 'nowrap',
                     letterSpacing: '0.1px',
                   }}>
@@ -208,7 +208,7 @@ export default function CalendarioAgenda({
 
               {info.status === 'bloqueado' && (
                 <MdEventBusy
-                  size={compacto ? 10 : 12}
+                  size={compacto ? 10 : 14}
                   color="#c62828"
                   style={{ marginTop: 2, flexShrink: 0 }}
                 />
