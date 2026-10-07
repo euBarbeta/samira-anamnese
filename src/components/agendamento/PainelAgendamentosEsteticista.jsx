@@ -761,16 +761,22 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         <>
           {/* Busca */}
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: '#fff',
-            border: '1.5px solid #e2d2f5',
-            borderRadius: 12,
-            padding: '8px 12px',
-            marginBottom: 12,
-          }}>
-            <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
+                          background: 'rgba(255, 255, 255, 0.15)',
+                          backdropFilter: 'blur(8px)',
+                          WebkitBackdropFilter: 'blur(8px)',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(255, 255, 255, 0.3)',
+                          padding: '8px 16px',
+                          marginTop: '-4px',
+                          marginBottom: '20px',
+                          boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          width: '100%',
+                          boxSizing: 'border-box'
+                        }}>
+                          <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Buscar por nome, documento ou data (DD/MM/AAAA)…"
