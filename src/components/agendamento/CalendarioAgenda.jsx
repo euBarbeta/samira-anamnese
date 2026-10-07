@@ -40,7 +40,7 @@ export default function CalendarioAgenda({
       background: '#fff',
       border: '1.5px solid #e2d2f5',
       borderRadius: 14,
-      padding: compacto ? 12 : 16,
+      padding: compacto ? 10 : 16,
     }}>
       {/* Navegação */}
       <div style={{
@@ -80,13 +80,13 @@ export default function CalendarioAgenda({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
-        gap: 4,
+        gap: compacto ? 3 : 4,
         marginBottom: 6,
       }}>
         {DIAS_CURTO.map((d) => (
           <div key={d} style={{
             textAlign: 'center',
-            fontSize: 10,
+            fontSize: compacto ? 9 : 10,
             fontWeight: 700,
             color: '#7e22ce',
             fontFamily: "'Cinzel', serif",
@@ -101,10 +101,17 @@ export default function CalendarioAgenda({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
-        gap: 4,
+        gap: compacto ? 3 : 4,
       }}>
         {cells.map((data, i) => {
-          if (!data) return <div key={`e-${i}`} style={{ aspectRatio: '1 / 1' }} />;
+          if (!data) {
+            return (
+              <div
+                key={`e-${i}`}
+                style={{ aspectRatio: compacto ? '1 / 1.15' : '1 / 1' }}
+              />
+            );
+          }
 
           const iso = toISODateLocal(data);
           const ehHoje = iso === toISODateLocal(new Date());
@@ -139,7 +146,9 @@ export default function CalendarioAgenda({
               disabled={info.disabled}
               title={info.title}
               style={{
-                aspectRatio: '1 / 1',
+                // ✅ Mobile: células um pouco mais altas (1/1.15) pra caber
+                //    "dia + qtd + horários" sem cortar. Desktop mantém 1/1.
+                aspectRatio: compacto ? '1 / 1.15' : '1 / 1',
                 background: bg,
                 border: `1.5px solid ${border}`,
                 borderRadius: 8,
@@ -148,14 +157,15 @@ export default function CalendarioAgenda({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: compacto ? '4px 2px' : '10px 6px',
+                padding: compacto ? '4px 1px 6px 1px' : '10px 6px',
                 position: 'relative',
                 transition: 'all 0.15s',
                 fontFamily: 'inherit',
                 overflow: 'hidden',
+                boxSizing: 'border-box',
               }}
             >
-              {/* NÚMERO DO DIA — sempre no topo */}
+              {/* Número do dia */}
               <span style={{
                 fontSize: compacto ? 12 : 'clamp(14px, 1.4vw, 18px)',
                 fontWeight: ehHoje || sel ? 800 : 600,
@@ -166,7 +176,7 @@ export default function CalendarioAgenda({
                 {dia}
               </span>
 
-              {/* BLOCO DE HORÁRIOS — cor roxa, tamanho escala com a tela */}
+              {/* Bloco de horários */}
               {temHorarios && (
                 <div style={{
                   display: 'flex',
@@ -174,13 +184,12 @@ export default function CalendarioAgenda({
                   alignItems: 'center',
                   justifyContent: 'center',
                   width: '100%',
-                  marginTop: compacto ? 1 : 6,
                   lineHeight: 1,
                   overflow: 'hidden',
                   flexGrow: 1,
                   gap: compacto ? 0 : 2,
+                  paddingBottom: compacto ? 1 : 0,
                 }}>
-                  {/* Quantidade — destaque grande */}
                   <span style={{
                     fontSize: compacto ? 10 : 'clamp(20px, 3.5vw, 28px)',
                     fontWeight: 800,
@@ -191,13 +200,12 @@ export default function CalendarioAgenda({
                     {qtd}
                   </span>
 
-                  {/* "horários" — legível e escala */}
                   <span style={{
                     fontSize: compacto ? 5.5 : 'clamp(11px, 1.6vw, 16px)',
                     fontWeight: 700,
                     color: '#7e22ce',
                     textTransform: 'lowercase',
-                    lineHeight: 1.15,
+                    lineHeight: 1,
                     whiteSpace: 'nowrap',
                     letterSpacing: '0.1px',
                   }}>

@@ -1,9 +1,8 @@
 // src/components/agendamento/ModalAgendarParaPaciente.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
 import {
-  collection, query, where, getDocs, addDoc, doc, getDoc,onSnapshot,
-
+  collection, query, where, getDocs, addDoc, doc, getDoc, onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -32,7 +31,46 @@ export default function ModalAgendarParaPaciente({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
 
-  // ✅ Bloqueia scroll do body enquanto o modal estiver aberto
+  // ✅ Ref sempre atualizado pro onFechar (evita closure obsoleto)
+  const onFecharRef = useRef(onFechar);
+  useEffect(() => { onFecharRef.current = onFechar; }, [onFechar]);
+
+  // ============================================================
+  // ✅ BOTÃO VOLTAR (nativo/navegador) → fecha o modal
+  //   Empilha um estado; quando o user aperta voltar, o popstate
+  //   detecta e chama onFechar. Ao fechar pelo X/Cancel, o cleanup
+  //   remove o estado extra do histórico.
+  // ============================================================
+  useEffect(() => {
+    // Guarda estado atual antes de modificar
+    const estadoAnterior = window.history.state;
+
+    window.history.pushState(
+      { ...(window.history.state || {}), modalAgendarAberto: true },
+      '',
+      window.location.pathname + window.location.search + window.location.hash
+    );
+
+    const onPop = () => {
+      // Se o estado atual é "modal aberto", fecha
+      onFecharRef.current?.();
+    };
+
+    window.addEventListener('popstate', onPop);
+
+    return () => {
+      window.removeEventListener('popstate', onPop);
+
+      // Se ainda estamos no estado do modal, remove do histórico
+      // (evita sobrar uma entrada fantasma quando fecha pelo X/Cancel)
+      if (window.history.state?.modalAgendarAberto) {
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Bloqueia scroll do body enquanto o modal estiver aberto
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -41,116 +79,113 @@ export default function ModalAgendarParaPaciente({
     };
   }, []);
 
-  // ✅ Carrega config + slots disponíveis
-// ============================================================
-// Estado separado: config da agenda + agendamentos ocupados
-// ============================================================
-const [configAgenda, setConfigAgenda] = useState(null);
-const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
+  // ============================================================
+  // Estado separado: config da agenda + agendamentos ocupados
+  // ============================================================
+  const [configAgenda, setConfigAgenda] = useState(null);
+  const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
 
-// ============================================================
-// Listener 1 — CONFIG da agenda (tempo real)
-// Quando a esteta salva o ConfiguradorAgenda, os slots aqui
-// são recalculados automaticamente — sem F5.
-// ============================================================
-useEffect(() => {
-  if (!uidEsteticista) return;
+  // ============================================================
+  // Listener 1 — CONFIG da agenda (tempo real)
+  // ============================================================
+  useEffect(() => {
+    if (!uidEsteticista) return;
 
-  let cancelado = false;
+    let cancelado = false;
 
-  const unsub = onSnapshot(
-    doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
-    (snap) => {
-      if (cancelado) return;
+    const unsub = onSnapshot(
+      doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
+      (snap) => {
+        if (cancelado) return;
 
-      if (!snap.exists()) {
-        setErro(
-          isPaciente
-            ? 'A agenda da profissional ainda não está configurada.'
-            : 'Você ainda não configurou sua agenda.'
-        );
-        setConfigAgenda(null);
-        setSlots([]);
+        if (!snap.exists()) {
+          setErro(
+            isPaciente
+              ? 'A agenda da profissional ainda não está configurada.'
+              : 'Você ainda não configurou sua agenda.'
+          );
+          setConfigAgenda(null);
+          setSlots([]);
+          setCarregando(false);
+          return;
+        }
+
+        setConfigAgenda(snap.data());
+        setErro('');
+      },
+      (err) => {
+        console.error('Erro listener config:', err);
         setCarregando(false);
-        return;
       }
+    );
 
-      setConfigAgenda(snap.data());
-      setErro('');
-    },
-    (err) => {
-      console.error('Erro listener config:', err);
-      setCarregando(false);
-    }
-  );
+    return () => {
+      cancelado = true;
+      unsub();
+    };
+  }, [uidEsteticista, isPaciente]);
 
-  return () => {
-    cancelado = true;
-    unsub();
-  };
-}, [uidEsteticista, isPaciente]);
+  // ============================================================
+  // Listener 2 — AGENDAMENTOS do período (tempo real)
+  // ============================================================
+  useEffect(() => {
+    if (!uidEsteticista || !configAgenda) return;
 
-// ============================================================
-// Listener 2 — AGENDAMENTOS do período (tempo real)
-// Só roda depois que a config chegou (precisa dela pro range).
-// ============================================================
-useEffect(() => {
-  if (!uidEsteticista || !configAgenda) return;
+    let cancelado = false;
 
-  let cancelado = false;
+    const hoje = toISODateLocal(new Date());
+    const max = new Date();
+    max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+    const dataFim = toISODateLocal(max);
 
-  const hoje = toISODateLocal(new Date());
-  const max = new Date();
-  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-  const dataFim = toISODateLocal(max);
+    const unsub = onSnapshot(
+      query(
+        collection(db, 'agendamentos'),
+        where('uidEsteticista', '==', uidEsteticista),
+        where('data', '>=', hoje),
+        where('data', '<=', dataFim)
+      ),
+      (snap) => {
+        if (cancelado) return;
+        const ocupados = snap.docs
+          .map((d) => d.data())
+          .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
+        setAgendamentosOcupados(ocupados);
+        setCarregando(false);
+      },
+      (err) => {
+        console.error('Erro listener agendamentos:', err);
+        setCarregando(false);
+      }
+    );
 
-  const unsub = onSnapshot(
-    query(
-      collection(db, 'agendamentos'),
-      where('uidEsteticista', '==', uidEsteticista),
-      where('data', '>=', hoje),
-      where('data', '<=', dataFim)
-    ),
-    (snap) => {
-      if (cancelado) return;
-      const ocupados = snap.docs
-        .map((d) => d.data())
-        .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
-      setAgendamentosOcupados(ocupados);
-      setCarregando(false);
-    },
-    (err) => {
-      console.error('Erro listener agendamentos:', err);
-      setCarregando(false);
-    }
-  );
+    return () => {
+      cancelado = true;
+      unsub();
+    };
+  }, [uidEsteticista, configAgenda]);
 
-  return () => {
-    cancelado = true;
-    unsub();
-  };
-}, [uidEsteticista, configAgenda]);
+  // ============================================================
+  // Recalcula slots sempre que config ou agendamentos mudarem
+  // ============================================================
+  useEffect(() => {
+    if (!configAgenda) return;
 
-// ============================================================
-// Recalcula slots SEMPRE que config ou agendamentos mudarem
-// ============================================================
-useEffect(() => {
-  if (!configAgenda) return;
+    const hoje = toISODateLocal(new Date());
+    const max = new Date();
+    max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+    const dataFim = toISODateLocal(max);
 
-  const hoje = toISODateLocal(new Date());
-  const max = new Date();
-  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-  const dataFim = toISODateLocal(max);
+    const lista = gerarSlotsDisponiveis(
+      configAgenda,
+      agendamentosOcupados,
+      hoje,
+      dataFim
+    );
 
-  const lista = gerarSlotsDisponiveis(
-    configAgenda,
-    agendamentosOcupados,
-    hoje,
-    dataFim
-  );
+    setSlots(lista);
+  }, [configAgenda, agendamentosOcupados]);
 
-  setSlots(lista);
-}, [configAgenda, agendamentosOcupados]);
   // Agrupa slots por dia
   const slotsPorDia = useMemo(() => {
     const map = {};
@@ -163,6 +198,15 @@ useEffect(() => {
     }
     return map;
   }, [slots]);
+
+  // ✅ Fechar via histórico (pro botão voltar do navegador não bugar)
+  const fecharViaHistorico = useCallback(() => {
+    if (window.history.state?.modalAgendarAberto) {
+      window.history.back();
+    } else {
+      onFecharRef.current?.();
+    }
+  }, []);
 
   const confirmar = async () => {
     if (!slotSelecionado) return;
@@ -188,20 +232,20 @@ useEffect(() => {
         ? 'pendente'
         : (paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente');
 
-     const docRef = await addDoc(collection(db, 'agendamentos'), {
-  uidEsteticista,
-  profissionalId: uidEsteticista,   // ⬅️ NOVO
-  pacienteId: String(paciente.id),
+      const docRef = await addDoc(collection(db, 'agendamentos'), {
+        uidEsteticista,
+        profissionalId: uidEsteticista,
+        pacienteId: String(paciente.id),
 
-  data: slotSelecionado.data,
-  horaInicio: slotSelecionado.horaInicio,
-  horaFim: slotSelecionado.horaFim,
-  duracaoMin: calcularDuracao(slotSelecionado),
+        data: slotSelecionado.data,
+        horaInicio: slotSelecionado.horaInicio,
+        horaFim: slotSelecionado.horaFim,
+        duracaoMin: calcularDuracao(slotSelecionado),
 
-  servicoId: null,                
-  servicoNome: null,                
+        servicoId: null,
+        servicoNome: null,
 
-  nome: paciente.nome || 'Paciente',
+        nome: paciente.nome || 'Paciente',
         documento: paciente.documento || '',
         telefone: paciente.telefone || '',
         email: (paciente.email || paciente.emailAcesso || '').toLowerCase(),
@@ -221,34 +265,33 @@ useEffect(() => {
         atualizadoEm: new Date().toISOString(),
       });
 
-     if (isPaciente) {
-  // ✅ Paciente agendou → notifica a ESTETICISTA
-  notificarAgendamento({
-    tipoEvento: 'novo',
-    uidEsteticista,
-    agendamento: {
-      id: docRef.id,
-      data: slotSelecionado.data,
-      horaInicio: slotSelecionado.horaInicio,
-      nome: paciente.nome,
-    },
-  });
-} else {
-  // ✅ Esteticista agendou → notifica o PACIENTE
-  fetch('/.netlify/functions/notificar-paciente-agendamento', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      pacienteId: paciente.id,
-      agendamento: {
-        id: docRef.id,
-        data: slotSelecionado.data,
-        horaInicio: slotSelecionado.horaInicio,
-        nome: paciente.nome,
-      },
-    }),
-  }).catch((e) => console.warn('Falha ao notificar paciente:', e));
-}
+      if (isPaciente) {
+        notificarAgendamento({
+          tipoEvento: 'novo',
+          uidEsteticista,
+          agendamento: {
+            id: docRef.id,
+            data: slotSelecionado.data,
+            horaInicio: slotSelecionado.horaInicio,
+            nome: paciente.nome,
+          },
+        });
+      } else {
+        fetch('/.netlify/functions/notificar-paciente-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pacienteId: paciente.id,
+            agendamento: {
+              id: docRef.id,
+              data: slotSelecionado.data,
+              horaInicio: slotSelecionado.horaInicio,
+              nome: paciente.nome,
+            },
+          }),
+        }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+      }
+
       onSucesso?.({
         id: docRef.id,
         data: slotSelecionado.data,
@@ -268,7 +311,7 @@ useEffect(() => {
   return (
     <div
       className="map-overlay"
-      onClick={enviando ? undefined : onFechar}
+      onClick={enviando ? undefined : fecharViaHistorico}
     >
       <style>{`
         .map-overlay {
@@ -438,58 +481,25 @@ useEffect(() => {
           box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
         }
 
-        /* ====== RESPONSIVO ====== */
         @media (max-width: 640px) {
-          .map-overlay {
-            padding: 10px;
-          }
-          .map-modal {
-            max-height: 94vh;
-            border-radius: 18px;
-          }
-          .map-header {
-            padding: 12px 16px;
-          }
-          .map-header h3 {
-            font-size: 14px;
-          }
-          .map-header svg {
-            width: 18px;
-            height: 18px;
-          }
-          .map-body {
-            padding: 14px 16px;
-          }
-          .map-footer {
-            padding: 12px 16px;
-            gap: 8px;
-          }
-          .map-btn-cancelar {
-            padding: 12px 16px;
-            font-size: 10.5px;
-            flex: 1;
-          }
-          .map-btn-confirmar {
-            padding: 12px 16px;
-            font-size: 10.5px;
-            flex: 1.4;
-          }
+          .map-overlay { padding: 10px; }
+          .map-modal { max-height: 94vh; border-radius: 18px; }
+          .map-header { padding: 12px 16px; }
+          .map-header h3 { font-size: 14px; }
+          .map-header svg { width: 18px; height: 18px; }
+          .map-body { padding: 14px 16px; }
+          .map-footer { padding: 12px 16px; gap: 8px; }
+          .map-btn-cancelar { padding: 12px 16px; font-size: 10.5px; flex: 1; }
+          .map-btn-confirmar { padding: 12px 16px; font-size: 10.5px; flex: 1.4; }
           .map-slots-grid {
             grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
             gap: 6px;
           }
-          .map-slot-btn {
-            font-size: 12.5px;
-            padding: 10px 4px;
-          }
+          .map-slot-btn { font-size: 12.5px; padding: 10px 4px; }
         }
 
-        /* Telas muito pequenas — modal ocupa quase toda a tela */
         @media (max-width: 380px) {
-          .map-overlay {
-            padding: 0;
-            align-items: stretch;
-          }
+          .map-overlay { padding: 0; align-items: stretch; }
           .map-modal {
             max-height: 100vh;
             height: 100%;
@@ -503,50 +513,26 @@ useEffect(() => {
             padding: 12px 14px;
             padding-top: max(12px, env(safe-area-inset-top));
           }
-          .map-header h3 {
-            font-size: 13px;
-          }
-          .map-body {
-            padding: 12px 14px;
-          }
+          .map-header h3 { font-size: 13px; }
+          .map-body { padding: 12px 14px; }
           .map-footer {
             padding: 10px 14px;
             padding-bottom: max(10px, env(safe-area-inset-bottom));
             flex-direction: column-reverse;
           }
           .map-btn-cancelar,
-          .map-btn-confirmar {
-            width: 100%;
-            flex: none;
-          }
-          .map-slots-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-          }
-          .map-slot-btn {
-            font-size: 12px;
-            padding: 10px 2px;
-          }
+          .map-btn-confirmar { width: 100%; flex: none; }
+          .map-slots-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+          .map-slot-btn { font-size: 12px; padding: 10px 2px; }
         }
 
-        /* Tablets e maiores — leve upgrade */
         @media (min-width: 768px) {
-          .map-header h3 {
-            font-size: 17px;
-          }
-          .map-body {
-            padding: 20px 26px;
-          }
-          .map-slots-grid {
-            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-          }
+          .map-header h3 { font-size: 17px; }
+          .map-body { padding: 20px 26px; }
+          .map-slots-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
         }
 
-        /* Animação suave de entrada */
-        @keyframes mapFadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
+        @keyframes mapFadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes mapSlideUp {
           from { transform: translateY(20px); opacity: 0; }
           to   { transform: translateY(0);    opacity: 1; }
@@ -555,10 +541,7 @@ useEffect(() => {
         .map-modal   { animation: mapSlideUp 0.25s ease; }
       `}</style>
 
-      <div
-        className="map-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="map-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="map-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -572,7 +555,7 @@ useEffect(() => {
           <button
             type="button"
             className="map-btn-fechar"
-            onClick={onFechar}
+            onClick={fecharViaHistorico}
             disabled={enviando}
             aria-label="Fechar"
           >
@@ -618,27 +601,26 @@ useEffect(() => {
                 }}
                 diaSelecionado={diaSelecionado}
                 compacto
-              renderDia={(data) => {
-  const iso = toISODateLocal(data);
-  const slotsDoDia = slotsPorDia[iso] || [];
-  const temSlot = slotsDoDia.length > 0;
-  return {
-    status: temSlot ? 'aberto' : 'vazio',
-    times: temSlot ? slotsDoDia.map((s) => s.horaInicio) : [],
-    disabled: !temSlot,
-    title: temSlot
-      ? `${slotsDoDia.length} horário(s) livre(s)`
-      : 'Sem vagas',
-    onClick: (d) => {
-      setDiaSelecionado(toISODateLocal(d));
-      setSlotSelecionado(null);
-    },
-  };
-}}
+                renderDia={(data) => {
+                  const iso = toISODateLocal(data);
+                  const slotsDoDia = slotsPorDia[iso] || [];
+                  const temSlot = slotsDoDia.length > 0;
+                  return {
+                    status: temSlot ? 'aberto' : 'vazio',
+                    times: temSlot ? slotsDoDia.map((s) => s.horaInicio) : [],
+                    disabled: !temSlot,
+                    title: temSlot
+                      ? `${slotsDoDia.length} horário(s) livre(s)`
+                      : 'Sem vagas',
+                    onClick: (d) => {
+                      setDiaSelecionado(toISODateLocal(d));
+                      setSlotSelecionado(null);
+                    },
+                  };
+                }}
               />
               <LegendaCalendario />
 
-              {/* Horários do dia escolhido */}
               {diaSelecionado && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{
@@ -689,7 +671,6 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* Observações */}
               {slotSelecionado && (
                 <div style={{ marginTop: 16 }}>
                   <label style={{
@@ -739,7 +720,7 @@ useEffect(() => {
         <div className="map-footer">
           <button
             type="button"
-            onClick={onFechar}
+            onClick={fecharViaHistorico}
             disabled={enviando}
             className="map-btn-cancelar"
           >
