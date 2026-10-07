@@ -39,7 +39,7 @@ async function limparSubscriptionEsteticistaAnterior() {
   try {
     const anterior = localStorage.getItem(STORAGE_KEY_LAST_ESTHETICIAN);
     if (!anterior) return;
-    
+
     await updateDoc(
       doc(db, 'push_subscriptions_esteticistas', anterior),
       { subscription: null, subscriptionLimpaEm: new Date().toISOString() }
@@ -54,7 +54,7 @@ async function limparSubscriptionPacienteAnterior() {
   try {
     const anterior = localStorage.getItem(STORAGE_KEY_LAST_PATIENT);
     if (!anterior) return;
-   
+
     await updateDoc(
       doc(db, 'push_subscriptions', anterior),
       { subscription: null, subscriptionLimpaEm: new Date().toISOString() }
@@ -107,10 +107,13 @@ export async function inscreverPush(pacienteId) {
 
     const registration = await navigator.serviceWorker.ready;
 
+    // ✅ Avisa o SW quem é o dono deste navegador (usado no
+    //    pushsubscriptionchange pra saber em qual coleção escrever)
     if (registration.active) {
       registration.active.postMessage({
-        tipo: 'SALVAR_PACIENTE_ID',
-        pacienteId: pacienteIdStr,
+        tipo: 'SALVAR_CONTEXTO_PUSH',
+        role: 'paciente',
+        id: pacienteIdStr,
       });
     }
 
@@ -144,6 +147,8 @@ export async function inscreverPush(pacienteId) {
    ESTETICISTA — web-push (PWA/navegador) — coleção separada
    ============================================================ */
 export async function inscreverPushEsteticistaWeb(uidEsteticista) {
+  const uidStr = String(uidEsteticista);
+
   // 1) Nativo (APK) → FCM
   if (isNativo()) {
     return inscreverPushEsteticista(uidEsteticista);
@@ -166,7 +171,7 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
   await limparSubscriptionEsteticistaAnterior();
 
   try {
-    localStorage.setItem(STORAGE_KEY_LAST_ESTHETICIAN, String(uidEsteticista));
+    localStorage.setItem(STORAGE_KEY_LAST_ESTHETICIAN, uidStr);
   } catch {}
 
   try {
@@ -180,6 +185,16 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
 
     const registration = await navigator.serviceWorker.ready;
 
+    // ✅ Avisa o SW quem é o dono deste navegador (usado no
+    //    pushsubscriptionchange pra saber em qual coleção escrever)
+    if (registration.active) {
+      registration.active.postMessage({
+        tipo: 'SALVAR_CONTEXTO_PUSH',
+        role: 'esteticista',
+        id: uidStr,
+      });
+    }
+
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
@@ -189,9 +204,9 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
     }
 
     await setDoc(
-      doc(db, 'push_subscriptions_esteticistas', String(uidEsteticista)),
+      doc(db, 'push_subscriptions_esteticistas', uidStr),
       {
-        uidEsteticista: String(uidEsteticista),
+        uidEsteticista: uidStr,
         subscription: subscription.toJSON(),
         plataforma: 'web',
         subscriptionAtualizadaEm: new Date().toISOString(),

@@ -1,16 +1,18 @@
 // src/components/agendamento/PainelAgendamentosEsteticista.jsx
 import React, { useState, useEffect, useMemo } from 'react';
+import GerenciarServicos from './GerenciarServicos';
 import {
   collection, query, where, onSnapshot, doc,
   updateDoc, orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import ModalEscolherServico from './ModalEscolherServico';
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
 import {
   MdCheckCircle, MdCancel, MdWarning, MdSearch,
   MdCalendarMonth, MdSettings, MdPhone, MdBadge,
   MdEmail, MdChatBubbleOutline, MdClear, MdHourglassEmpty,
-  MdContentCopy, MdCheck, MdDelete,
+  MdContentCopy, MdCheck, MdDelete, MdAssignment, MdEvent
 } from 'react-icons/md';
 import ConfiguradorAgenda from './ConfiguradorAgenda';
 
@@ -280,11 +282,12 @@ function ModalConfirmarCancelamento({
 }
 
 export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
-  const [aba, setAba] = useState('agenda'); // 'agenda' | 'config'
+  const [aba, setAba] = useState('agenda'); // 'agenda' | 'config' | 'servicos'
   const [agendamentos, setAgendamentos] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('pendente');
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
+  const [agendamentoParaConfirmar, setAgendamentoParaConfirmar] = useState(null);
 
   // ✅ Estado do modal de cancelamento
   const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
@@ -335,32 +338,16 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [uidEsteticista]);
 
   // ============================================================
-  // Confirmar agendamento (status pendente → confirmado)
+  // ✅ Abre o modal de escolher serviço (pendente)
+  //    Substitui a antiga função `confirmar(ag)` que fazia
+  //    updateDoc direto. Agora o serviço define duração/status.
   // ============================================================
-  const confirmar = async (ag) => {
-    try {
-      await updateDoc(doc(db, 'agendamentos', ag.id), {
-        status: 'confirmado',
-        aguardandoConsentimento: false,
-        atualizadoEm: new Date().toISOString(),
-      });
-
-      fetch('/.netlify/functions/notificar-paciente-agendamento', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pacienteId: ag.pacienteId,
-          agendamento: ag,
-          tipoEvento: 'confirmado',
-        }),
-      }).catch((e) => console.warn('Falha ao notificar paciente (confirmado):', e));
-    } catch (e) {
-      alert('Erro ao confirmar: ' + e.message);
-    }
+  const solicitarEscolhaServico = (ag) => {
+    setAgendamentoParaConfirmar(ag);
   };
 
   // ============================================================
-  // ✅ Abre o modal (substitui o window.confirm)
+  // ✅ Abre o modal de cancelamento
   // ============================================================
   const solicitarCancelamento = (ag) => {
     setAgendamentoParaCancelar(ag);
@@ -456,7 +443,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   return (
     <div style={{ padding: '20px 0' }}>
       {/* Abas */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <button type="button" onClick={() => setAba('agenda')} style={abaBtn(aba === 'agenda')}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <MdCalendarMonth size={14} /> Agendamentos
@@ -467,7 +454,16 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             <MdSettings size={14} /> Configurar horários
           </span>
         </button>
+        <button type="button" onClick={() => setAba('servicos')} style={abaBtn(aba === 'servicos')}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <MdAssignment size={14} /> Meus Serviços
+          </span>
+        </button>
       </div>
+
+      {aba === 'servicos' && (
+        <GerenciarServicos uidEsteticista={uidEsteticista} />
+      )}
 
       {aba === 'config' && <ConfiguradorAgenda uidEsteticista={uidEsteticista} />}
 
@@ -596,9 +592,31 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
                       <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
                         {/* Data e hora */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-                          {formatarDataBR(ag.data)} às {ag.horaInicio} ({ag.duracaoMin}min)
+                          <span>
+                            {formatarDataBR(ag.data)} às {ag.horaInicio}
+                            {ag.horaFim ? `–${ag.horaFim}` : ''}
+                            {ag.duracaoMin ? ` (${ag.duracaoMin}min)` : ''}
+                          </span>
+                          {/* ✅ Badge do serviço */}
+                          {ag.servicoNome && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: '#7e22ce',
+                              background: '#faf5ff',
+                              border: '1px solid #d8b4fe',
+                              borderRadius: 10,
+                              padding: '1px 8px',
+                              marginLeft: 2,
+                            }}>
+                              <MdEvent size={11} /> {ag.servicoNome}
+                            </span>
+                          )}
                         </div>
 
                         {/* Telefone + copiar */}
@@ -689,8 +707,12 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {ag.status === 'pendente' && (
                         <>
-                          <button type="button" onClick={() => confirmar(ag)} style={btnOk}>
-                            <MdCheckCircle size={14} /> Confirmar
+                          <button
+                            type="button"
+                            onClick={() => solicitarEscolhaServico(ag)}
+                            style={btnOk}
+                          >
+                            <MdCheckCircle size={14} /> Escolher serviço
                           </button>
                           <button
                             type="button"
@@ -728,6 +750,16 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           onFechar={() => {
             if (!cancelando) setAgendamentoParaCancelar(null);
           }}
+        />
+      )}
+
+      {/* ✅ Modal de escolher serviço (ao confirmar pendente) */}
+      {agendamentoParaConfirmar && (
+        <ModalEscolherServico
+          agendamento={agendamentoParaConfirmar}
+          uidEsteticista={uidEsteticista}
+          onFechar={() => setAgendamentoParaConfirmar(null)}
+          onConfirmado={() => setAgendamentoParaConfirmar(null)}
         />
       )}
     </div>

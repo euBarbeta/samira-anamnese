@@ -1,4 +1,4 @@
-const CACHE_NAME = 'samira-estetica-v11';
+const CACHE_NAME = 'samira-estetica-v12';
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
@@ -24,13 +24,57 @@ self.addEventListener('activate', (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+        keys
+          .filter((k) => k !== CACHE_NAME && k !== 'sw-push-context')
+          .map((k) => caches.delete(k))
       );
       await self.clients.claim();
     })()
   );
 });
-/* ---------- RENOVAÇÃO AUTOMÁTICA DA SUBSCRIPTION ---------- */
+
+/* ============================================================
+   CONTEXTO PERSISTIDO — quem é o dono deste navegador
+   Formato: { role: 'paciente' | 'esteticista', id: '<uid>' }
+   ============================================================ */
+async function getContextoSalvo() {
+  try {
+    const cache = await caches.open('sw-push-context');
+    const resp = await cache.match('/context');
+    if (!resp) return null;
+    const txt = await resp.text();
+    try {
+      const parsed = JSON.parse(txt);
+      if (parsed && parsed.role && parsed.id) return parsed;
+    } catch {}
+    // Compat: formato antigo era só o id (paciente)
+    return { role: 'paciente', id: txt };
+  } catch {
+    return null;
+  }
+}
+
+self.addEventListener('message', (event) => {
+  const d = event.data || {};
+
+  // Formato novo
+  let ctx = null;
+  if (d.role && d.id) {
+    ctx = { role: d.role, id: String(d.id) };
+  } else if (d.tipo === 'SALVAR_PACIENTE_ID' && d.pacienteId) {
+    // Compat com a versão antiga
+    ctx = { role: 'paciente', id: String(d.pacienteId) };
+  }
+
+  if (!ctx) return;
+
+  event.waitUntil(
+    caches.open('sw-push-context').then((cache) =>
+      cache.put('/context', new Response(JSON.stringify(ctx)))
+    )
+  );
+});
+
 /* ---------- RENOVAÇÃO AUTOMÁTICA DA SUBSCRIPTION ---------- */
 self.addEventListener('pushsubscriptionchange', (event) => {
   event.waitUntil(
@@ -38,42 +82,42 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       try {
         const reg = self.registration;
         const oldSub = event.oldSubscription;
-        const newSub = event.newSubscription || await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: oldSub?.options?.applicationServerKey
-        });
+        const newSub =
+          event.newSubscription ||
+          (await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: oldSub?.options?.applicationServerKey,
+          }));
 
         const subJson = newSub.toJSON();
 
-        // ✅ 1. Envia a nova subscription DIRETO para o backend
-        //    (funciona mesmo se o app estiver fechado)
-        const pacienteId = await reg.pushManager
-          .getSubscription()
-          .then(s => s && extractPacienteId(s));
+        // ✅ 1. Descobre o contexto (paciente ou esteta)
+        const ctx = await getContextoSalvo();
 
-        // Tenta descobrir o pacienteId via IndexedDB/localStorage gravado antes
-        const pacienteIdSalvo = await getPacienteIdSalvo();
-
-        if (pacienteIdSalvo) {
+        if (ctx) {
+          // ✅ 2. Envia pro backend unificado
           await fetch('/.netlify/functions/atualizar-subscription', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              pacienteId: pacienteIdSalvo,
-              subscription: subJson
-            })
+              role: ctx.role,
+              id: ctx.id,
+              subscription: subJson,
+            }),
           }).catch(() => {});
         }
 
-        // ✅ 2. Também avisa janelas abertas (redundância)
+        // ✅ 3. Avisa janelas abertas (redundância)
         const clientList = await clients.matchAll({
           type: 'window',
-          includeUncontrolled: true
+          includeUncontrolled: true,
         });
         clientList.forEach((client) => {
           client.postMessage({
             tipo: 'RESUBSCRIBE_PUSH',
-            subscription: subJson
+            subscription: subJson,
+            role: ctx?.role || null,
+            id: ctx?.id || null,
           });
         });
       } catch (e) {
@@ -83,112 +127,110 @@ self.addEventListener('pushsubscriptionchange', (event) => {
   );
 });
 
-// Helpers para o SW guardar o pacienteId localmente
-async function getPacienteIdSalvo() {
-  try {
-    const cache = await caches.open('sw-paciente-id');
-    const resp = await cache.match('/paciente-id');
-    if (!resp) return null;
-    return await resp.text();
-  } catch (e) {
-    return null;
-  }
-}
-
-function extractPacienteId(subscription) {
-  // não usamos mais, mantido por compatibilidade
-  return null;
-}
-
-// ✅ Ouvir mensagem do app para guardar o pacienteId no CacheStorage
-self.addEventListener('message', (event) => {
-  if (event.data?.tipo === 'SALVAR_PACIENTE_ID' && event.data?.pacienteId) {
-    event.waitUntil(
-      caches.open('sw-paciente-id').then((cache) =>
-        cache.put('/paciente-id', new Response(String(event.data.pacienteId)))
-      )
-    );
-  }
-});
-
-/* ---------- PUSH ---------- */
 /* ---------- PUSH ---------- */
 self.addEventListener('push', (event) => {
-  let data = {
-    title: 'Lembrete',
-    body: 'Você tem um lembrete da Samira Estética',
-    icon: '/imagens/pwa-192.png',
-    badge: '/imagens/badge-72.png',
-    vibrate: [200, 100, 200, 100, 200],
-    requireInteraction: false,          // ⬅️ mantém visível até interagir
-    silent: false,
-    timestamp: Date.now(),
-    dir: 'ltr',
-    lang: 'pt-BR',
-    url: '/'
-  };
-
-  if (event.data) {
-    try {
-      data = { ...data, ...event.data.json() };
-    } catch (e) {
-      data.body = event.data.text();
-    }
-  }
-
-  const tagFinal =
-    data.tag ||
-    `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  const options = {
-    body: data.body,
-    icon: data.icon,
-    badge: data.badge,
-    vibrate: data.vibrate,
-    tag: tagFinal,
-    renotify: true,
-    requireInteraction: false,           // ⬅️ também aqui
-    silent: false,
-    timestamp: data.timestamp,
-    dir: data.dir,
-    lang: data.lang,
-    data: {
-      url: data.url || '/',
-      lembreteId: data.lembreteId || null
-    },
-    actions: [
-      { action: 'abrir', title: '📖 Ver ficha' },
-  
-    ]
-  };
-
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    (async () => {
+      let data = {
+        title: 'Lembrete',
+        body: 'Você tem um lembrete da Samira Estética',
+        icon: '/imagens/pwa-192.png',
+        badge: '/imagens/badge-72.png',
+        vibrate: [200, 100, 200, 100, 200],
+        requireInteraction: false,
+        silent: false,
+        timestamp: Date.now(),
+        dir: 'ltr',
+        lang: 'pt-BR',
+        url: '/',
+      };
+
+      if (event.data) {
+        try {
+          data = { ...data, ...event.data.json() };
+        } catch (e) {
+          data.body = event.data.text();
+        }
+      }
+
+      // ✅ Deep-link automático:
+      //    - Paciente → /#<pacienteId>
+      //    - Esteta   → /#agendamentos  (ou outra rota definida no payload)
+      //    Só sobrescreve se o payload NÃO trouxe url explícita.
+      if (!data.url || data.url === '/') {
+        const ctx = await getContextoSalvo();
+        if (ctx?.role === 'paciente' && ctx.id) {
+          data.url = `/#${ctx.id}`;
+        }
+        // Se for esteta, mantém '/' (painel já cai na lista)
+      }
+
+      const tagFinal =
+        data.tag ||
+        `lembrete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const options = {
+        body: data.body,
+        icon: data.icon,
+        badge: data.badge,
+        vibrate: data.vibrate,
+        tag: tagFinal,
+        renotify: true,
+        requireInteraction: false,
+        silent: false,
+        timestamp: data.timestamp,
+        dir: data.dir,
+        lang: data.lang,
+        data: {
+          url: data.url,
+          lembreteId: data.lembreteId || null,
+          tipo: data.tipo || null,
+          agendamentoId: data.agendamentoId || null,
+        },
+        actions: [{ action: 'abrir', title: '📖 Ver ficha' }],
+      };
+
+      await self.registration.showNotification(data.title, options);
+    })()
   );
 });
 
+/* ---------- CLICK ---------- */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // ✅ Qualquer clique (corpo ou botão "Ver ficha") abre a PASTA do paciente
-  const urlDestino = new URL('/', self.location.origin);
-  // NÃO adiciona ?abrir=anamnese → abre no detalhe_pasta por padrão
+  // ✅ Usa a URL que foi calculada no push handler
+  const destino = event.notification.data?.url || '/';
+  const urlDestino = new URL(destino, self.location.origin);
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // Só foca, sem mandar mensagem — o app já está na pasta
-          return client.focus();
+    clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Foca uma aba já aberta na origem
+        for (const client of clientList) {
+          if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+            // Se a URL desejada for diferente da atual, navega
+            try {
+              const clientUrl = new URL(client.url);
+              if (
+                clientUrl.pathname !== urlDestino.pathname ||
+                clientUrl.hash !== urlDestino.hash
+              ) {
+                client.navigate(urlDestino.toString());
+              }
+            } catch {}
+            return client.focus();
+          }
         }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(urlDestino.toString());
-      }
-    })
+        if (clients.openWindow) {
+          return clients.openWindow(urlDestino.toString());
+        }
+      })
   );
 });
-/* ---------- FETCH (MANTIDO) ---------- */
+
+/* ---------- FETCH ---------- */
 const CACHEABLE_DESTINATIONS = ['image', 'style', 'script', 'font'];
 
 self.addEventListener('fetch', (event) => {
@@ -209,7 +251,9 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() =>
-        caches.match(request).then((cached) => cached || new Response('Offline', { status: 503 }))
+        caches
+          .match(request)
+          .then((cached) => cached || new Response('Offline', { status: 503 }))
       )
   );
 });

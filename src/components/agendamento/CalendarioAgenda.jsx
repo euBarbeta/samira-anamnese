@@ -128,6 +128,8 @@ export default function CalendarioAgenda({
             : info.status === 'aberto' ? '#166534'
             : '#999';
 
+          const qtd = info.times?.length || 0;
+
           return (
             <button
               key={i}
@@ -144,32 +146,68 @@ export default function CalendarioAgenda({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
-                padding: 4,
+                justifyContent: 'flex-start',
+                padding: compacto ? '3px 1px 2px 1px' : '4px 2px 3px 2px',
                 position: 'relative',
                 transition: 'all 0.15s',
                 fontFamily: 'inherit',
+                overflow: 'hidden',
               }}
             >
+              {/* ✅ LINHA 1 — NÚMERO DO DIA */}
               <span style={{
                 fontSize: compacto ? 12 : 13,
                 fontWeight: ehHoje || sel ? 800 : 600,
                 color: corTexto,
+                lineHeight: 1,
+                flexShrink: 0,
               }}>
                 {dia}
               </span>
-              {info.status === 'aberto' && info.badge && (
-                <span style={{
-                  fontSize: 8,
-                  color: corTexto,
-                  marginTop: 2,
-                  fontWeight: 700,
+
+              {/* ✅ LINHAS 2/3 — quantidade + "horários" */}
+              {info.status === 'aberto' && qtd > 0 && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  width: '100%',
+                  marginTop: compacto ? 1 : 2,
+                  lineHeight: 1,
+                  overflow: 'hidden',
                 }}>
-                  {info.badge}
-                </span>
+                  {/* Quantidade — destaque */}
+                  <span style={{
+                    fontSize: compacto ? 10 : 13,
+                    fontWeight: 800,
+                    color: corTexto,
+                    lineHeight: 1,
+                  }}>
+                    {qtd}
+                  </span>
+
+                  {/* "horários" */}
+                  <span style={{
+                    fontSize: compacto ? 5.5 : 7,
+                    fontWeight: 700,
+                    color: corTexto,
+                    textTransform: 'lowercase',
+                    lineHeight: 1.05,
+                    marginTop: compacto ? 0.5 : 1,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {qtd === 1 ? 'horário' : 'horários'}
+                  </span>
+                </div>
               )}
+
               {info.status === 'bloqueado' && (
-                <MdEventBusy size={10} color="#c62828" style={{ marginTop: 2 }} />
+                <MdEventBusy
+                  size={10}
+                  color="#c62828"
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
               )}
             </button>
           );

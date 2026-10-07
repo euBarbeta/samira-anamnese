@@ -151,6 +151,9 @@ export default function GaleriaPaciente({
           notificado: false,
           uidEsteticista: uidEsteticista,
           pacienteNome: pacienteNome,
+          // ✅ Campo usado pelo collectionGroup do painel para agrupar
+          //    fotos por paciente sem precisar parsear o path.
+          pacienteId: String(pacienteId),
         }
       );
 

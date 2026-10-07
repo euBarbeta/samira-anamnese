@@ -334,14 +334,19 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
         userAgent: (navigator.userAgent || '').slice(0, 200),
       };
 
-      const docRef = await addDoc(collection(db, 'agendamentos'), {
-        uidEsteticista,
-        data: slotSelecionado.data,
-        horaInicio: slotSelecionado.horaInicio,
-        horaFim: slotSelecionado.horaFim,
-        duracaoMin: calcularDuracao(slotSelecionado),
+     const docRef = await addDoc(collection(db, 'agendamentos'), {
+  uidEsteticista,
+  profissionalId: uidEsteticista,   // ⬅️ NOVO
 
-        nome: nome.trim(),
+  data: slotSelecionado.data,
+  horaInicio: slotSelecionado.horaInicio,
+  horaFim: slotSelecionado.horaFim,
+  duracaoMin: calcularDuracao(slotSelecionado),
+
+  servicoId: null,                 
+  servicoNome: null,                
+
+  nome: nome.trim(),
         documento: documento.trim(),
         telefone: telefone,
 
@@ -568,7 +573,7 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
               </div>
             ) : (
               <>
-                <h3 className="tap-secao">1. Escolha a data</h3>
+                <h3 className="tap-secao"> Escolha a data</h3>
 
                 <div className="tap-calendario-wrap">
                   <CalendarioAgenda
@@ -585,20 +590,20 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                     }}
                     diaSelecionado={diaSelecionado}
                     compacto
-                    renderDia={(data) => {
-                      const iso = toISODateLocal(data);
-                      const qtd = slotsPorDia[iso]?.length || 0;
-                      const temSlot = qtd > 0;
-                      return {
-                        status: temSlot ? 'aberto' : 'vazio',
-                        badge: temSlot ? `${qtd}×` : null,
-                        disabled: !temSlot,
-                        title: temSlot
-                          ? `${qtd} horário${qtd > 1 ? 's' : ''} disponível${qtd > 1 ? 'is' : ''}`
-                          : 'Sem vagas',
-                        onClick: (d) => setDiaSelecionado(toISODateLocal(d)),
-                      };
-                    }}
+                   renderDia={(data) => {
+  const iso = toISODateLocal(data);
+  const slotsDoDia = slotsPorDia[iso] || [];
+  const temSlot = slotsDoDia.length > 0;
+  return {
+    status: temSlot ? 'aberto' : 'vazio',
+    times: temSlot ? slotsDoDia.map((s) => s.horaInicio) : [],
+    disabled: !temSlot,
+    title: temSlot
+      ? `${slotsDoDia.length} horário${slotsDoDia.length > 1 ? 's' : ''} disponível${slotsDoDia.length > 1 ? 'is' : ''}`
+      : 'Sem vagas',
+    onClick: (d) => setDiaSelecionado(toISODateLocal(d)),
+  };
+}}
                   />
                 </div>
                 <LegendaCalendario />
@@ -643,8 +648,27 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
                             type="button"
                             onClick={() => setSlotSelecionado(s)}
                             className={`tap-slot-btn${ativo ? ' ativo' : ''}`}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 2,
+                              lineHeight: 1.1,
+                            }}
                           >
-                            {s.horaInicio}
+                            <span style={{ fontSize: 13, fontWeight: 700 }}>
+                              {s.horaInicio}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 9.5,
+                                fontWeight: 500,
+                                opacity: 0.7,
+                              }}
+                            >
+                              às {s.horaFim}
+                            </span>
                           </button>
                         );
                       })}

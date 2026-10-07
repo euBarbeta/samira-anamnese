@@ -1357,8 +1357,8 @@ export default function PainelPaciente({
                       gap: '8px',
                     }}
                   >
-                    <MdFolderOpen size={20} color="#C8A24A" />
-                    {pacienteData.nome}
+                   
+                   📁{pacienteData.nome}
                   </h2>
                   <span style={{ fontSize: '11px', color: '#555' }}>
                     Pasta criada em:{' '}

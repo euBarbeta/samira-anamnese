@@ -28,7 +28,8 @@ export function gerarSlotsDisponiveis(
   config,
   agendamentosOcupados = [],
   dataInicioISO,
-  dataFimISO
+  dataFimISO,
+  duracaoMinOverride = null   // 
 ) {
   if (!config?.blocosSemanais?.length && !config?.datasEspecificas) {
     return [];
@@ -81,10 +82,10 @@ export function gerarSlotsDisponiveis(
       .filter((l) => l.data === iso)
       .map((l) => ({ inicio: l.inicio, fim: l.fim, duracaoMin: 60 }));
 
-    for (const bloco of [...blocos, ...avulsos]) {
-      const [hI, mI] = bloco.inicio.split(':').map(Number);
-      const [hF, mF] = bloco.fim.split(':').map(Number);
-      const duracao = bloco.duracaoMin || 60;
+  for (const bloco of [...blocos, ...avulsos]) {
+  const [hI, mI] = bloco.inicio.split(':').map(Number);
+  const [hF, mF] = bloco.fim.split(':').map(Number);
+  const duracao = duracaoMinOverride || bloco.duracaoMin || 60;
 
       let cursor = new Date(d);
       cursor.setHours(hI, mI, 0, 0);

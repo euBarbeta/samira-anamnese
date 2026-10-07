@@ -8,7 +8,8 @@ import {
   signOut,
   onAuthStateChanged       // ⬅️ adicione
 } from 'firebase/auth';
-import { collection, getDocs, query, where, doc, setDoc, deleteDoc, updateDoc  } from 'firebase/firestore';
+import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,updateDoc,
+  onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import { db } from './firebase';
 import { secondaryAuth } from './firebaseSecondary';  // ⬅️ ADICIONAR
@@ -58,6 +59,16 @@ const SpinnerLoading = ({ texto = 'Carregando…' }) => (
 );
 
 export default function PainelEsteticistaMobile({ onLogout }) {
+  const TAMANHO_PAGINA = 50;
+  const [ultimoDoc, setUltimoDoc] = useState(null);
+  const [temMais, setTemMais] = useState(true);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+
+  // ✅ Busca global
+  const [resultadosBusca, setResultadosBusca] = useState(null);
+  const [buscandoGlobal, setBuscandoGlobal] = useState(false);
+  const cacheBuscaRef = useRef(null);
+
   const [telaAtual, setTelaAtual] = useState('lista');
   const [termoBusca, setTermoBusca] = useState('');
   const [termoBuscaEvolucao, setTermoBuscaEvolucao] = useState('');
@@ -80,7 +91,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const evoRef = useRef(null);
   const modalOpenRef = useRef(false);
   const [fotosPendentes, setFotosPendentes] = useState([]);
-const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
+  const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
   useEffect(() => { pacRef.current = pacienteSelecionado; }, [pacienteSelecionado]);
   useEffect(() => { evoRef.current = evolucaoSelecionada; }, [evolucaoSelecionada]);
   useEffect(() => { modalOpenRef.current = modalExclusao.isOpen; }, [modalExclusao.isOpen]);
@@ -229,46 +240,61 @@ useEffect(() => {
 }, []);
 
 // ✅ Checa fotos não notificadas
+// ✅ Fotos pendentes em TEMPO REAL via collectionGroup
+//    Uma única query atravessa todos os pacientes — sem polling.
 useEffect(() => {
-  if (!auth.currentUser || !pacientes.length) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
 
   let cancelado = false;
 
-  const checar = async () => {
-    const uid = auth.currentUser.uid;
-    const pendentes = [];
-    for (const p of pacientes) {
-      try {
-        const snap = await getDocs(query(
-          collection(db, `usuarios/${uid}/pacientes/${p.id}/fotos`),
-          where('notificado', '==', false)
-        ));
-        if (!snap.empty && !cancelado) {
-          pendentes.push({
-            pacienteId: p.id,
-            pacienteNome: p.nome,
-            count: snap.size,
-          });
+  const q = query(
+    collectionGroup(db, 'fotos'),
+    where('uidEsteticista', '==', uid),
+    where('notificado', '==', false)
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      if (cancelado) return;
+
+      // Agrupa por pacienteId
+      const mapa = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+
+        // Fallback: extrai do path usuarios/{uid}/pacientes/{pid}/fotos/{fid}
+        let pid = data.pacienteId;
+        if (!pid) {
+          const partes = d.ref.path.split('/');
+          // partes = ['usuarios', uid, 'pacientes', pid, 'fotos', fotoId]
+          pid = partes[3] || null;
         }
-      } catch (e) { /* ignora */ }
+        if (!pid) return;
+
+        if (!mapa[pid]) {
+          mapa[pid] = {
+            pacienteId: pid,
+            pacienteNome: data.pacienteNome || 'Paciente',
+            count: 0,
+          };
+        }
+        mapa[pid].count++;
+      });
+
+      setFotosPendentes(Object.values(mapa));
+    },
+    (err) => {
+      console.error('Erro listener fotos pendentes:', err);
     }
-    if (!cancelado) setFotosPendentes(pendentes);
-  };
-
-  checar();
-
-  const onVis = () => {
-    if (document.visibilityState === 'visible') checar();
-  };
-  document.addEventListener('visibilitychange', onVis);
-  const interval = setInterval(checar, 60000); // 1x por minuto
+  );
 
   return () => {
     cancelado = true;
-    document.removeEventListener('visibilitychange', onVis);
-    clearInterval(interval);
+    unsub();
   };
-}, [pacientes]);
+}, []);
 
 // ✅ Marca fotos como notificadas quando abre a galeria do paciente
 const marcarFotosComoNotificadas = async (pacienteId) => {
@@ -285,51 +311,132 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
     console.warn('Falha ao marcar como notificadas:', e);
   }
 };
+
+// ============================================================
+// BUSCA GLOBAL — carrega todos os pacientes UMA VEZ (cache)
+// quando o usuário digita 2+ caracteres. Depois filtra local.
+// ============================================================
+useEffect(() => {
+  const termo = termoBusca.trim();
+
+  // Sem termo → volta pra lista paginada normal
+  if (termo.length < 2) {
+    setResultadosBusca(null);
+    setBuscandoGlobal(false);
+    return;
+  }
+
+  const timer = setTimeout(async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setBuscandoGlobal(true);
+    try {
+      let todos = cacheBuscaRef.current;
+
+      // Carrega TUDO uma vez (fica em memória)
+      if (!todos) {
+        const snap = await getDocs(
+          collection(db, `usuarios/${user.uid}/pacientes`)
+        );
+        todos = snap.docs.map((d) => d.data());
+        cacheBuscaRef.current = todos;
+      }
+
+      // Normaliza pra busca sem acento/caixa
+      const norm = (s) =>
+        (s || '')
+          .toString()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+      const termoNorm = norm(termo);
+
+      const filtrados = todos.filter((p) => {
+        const nomeNorm = norm(p.nome);
+        const docNorm = norm(p.documento);
+        return nomeNorm.includes(termoNorm) || docNorm.includes(termoNorm);
+      });
+
+      setResultadosBusca(filtrados);
+    } catch (e) {
+      console.error('Erro na busca global:', e);
+      setResultadosBusca([]);
+    } finally {
+      setBuscandoGlobal(false);
+    }
+  }, 300); // debounce
+
+  return () => clearTimeout(timer);
+}, [termoBusca]);
+
   // Carregar dados iniciais do Firestore
   // Carregar dados do Firestore — espera o auth hidratar antes
   useEffect(() => {
     let unsubAuth = null;
 
-    const carregarPacientes = async (user) => {
-      if (!user) {
-        // Ainda não autenticou — aguarda, NÃO marca jaCarregou
-        return;
-      }
+  const carregarPagina = async (user, cursor = null) => {
+  const base = collection(db, `usuarios/${user.uid}/pacientes`);
+  const q = cursor
+    ? query(base, orderBy('nome'), startAfter(cursor), limit(TAMANHO_PAGINA))
+    : query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
 
-     try {
-  const querySnapshot = await getDocs(
-    collection(db, `usuarios/${user.uid}/pacientes`)
-  );
-  const listaPacientes = [];
-  querySnapshot.forEach((docSnap) => {
-    listaPacientes.push(docSnap.data());
-  });
-  listaPacientes.sort((a, b) =>
-    (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
-  );
-  setPacientes(listaPacientes);
+  const snap = await getDocs(q);
+  const docs = snap.docs;
+  const lista = docs.map((d) => d.data());
 
-  // ✅ BACKFILL — registra em links_pacientes os que ainda não têm.
-  // Roda em background, silencioso, não trava a UI nem o loading.
-  // Idempotente: pode rodar toda vez sem problema.
-  Promise.allSettled(
-    listaPacientes.map((p) =>
-      registrarLinkPaciente(p.id, user.uid).catch(() => {})
-    )
-  ).then(() => {
-    console.log('✅ Links de pacientes sincronizados:', listaPacientes.length);
-  });
-} catch (e) {
-  console.error('Erro ao carregar fichas do Firestore:', e);
-} finally {
-  setCarregandoNuvem(false);
-  setJaCarregou(true);      // ✅ SÓ AQUI decide entre vazio e lista
-}
-    };
+  return {
+    lista,
+    ultimo: docs[docs.length - 1] || null,
+    temMais: docs.length === TAMANHO_PAGINA,
+  };
+};
+
+const carregarPacientes = async (user) => {
+  if (!user) return;
+  try {
+    const { lista, ultimo, temMais } = await carregarPagina(user, null);
+    setPacientes(lista);
+    setUltimoDoc(ultimo);
+    setTemMais(temMais);
+
+    // Backfill (só da página atual — barato)
+    Promise.allSettled(
+      lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+    );
+  } catch (e) {
+    console.error('Erro ao carregar fichas do Firestore:', e);
+  } finally {
+    setCarregandoNuvem(false);
+    setJaCarregou(true);
+  }
+};
+
+const carregarMais = async () => {
+  const user = auth.currentUser;
+  if (!user || !ultimoDoc || carregandoMais) return;
+  setCarregandoMais(true);
+  try {
+    const { lista, ultimo, temMais } = await carregarPagina(user, ultimoDoc);
+    setPacientes((prev) => [...prev, ...lista]);
+    setUltimoDoc(ultimo);
+    setTemMais(temMais);
+
+    Promise.allSettled(
+      lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+    );
+  } catch (e) {
+    console.error('Erro ao paginar pacientes:', e);
+  } finally {
+    setCarregandoMais(false);
+  }
+};
 
     unsubAuth = onAuthStateChanged(auth, carregarPacientes);
     return () => { if (unsubAuth) unsubAuth(); };
   }, [db, auth]);
+
   const extrairDocumento = (dados) => {
     if (!dados) return 'Não informado';
     return (
@@ -348,10 +455,13 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
 
     try {
       await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), pacienteObj);
+      // ✅ Invalida o cache da busca global
+      cacheBuscaRef.current = null;
     } catch (e) {
       console.error('Erro ao salvar paciente na nuvem:', e);
     }
   };
+
 const excluirPacienteDaNuvem = async (idPaciente) => {
   const user = auth.currentUser;
   if (!user) return;
@@ -366,10 +476,14 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
     } catch (e) {
       console.warn('Falha ao apagar links_pacientes:', e);
     }
+
+    // 3. ✅ Invalida o cache da busca global
+    cacheBuscaRef.current = null;
   } catch (e) {
     console.error('Erro ao excluir paciente da nuvem:', e);
   }
 };
+
   const handleSalvarAnamnese = async (dadosAnamnese) => {
     // 1. Garante que pegamos o usuário esteticista logado corretamente do Auth principal
     const userEsteticista = auth.currentUser;
@@ -571,6 +685,9 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
         setPacienteSelecionado(null);
         setEvolucaoSelecionada(null);
 
+        // ✅ Invalida o cache da busca global
+        cacheBuscaRef.current = null;
+
         // Substitui a entrada do modal pela lista (evita botão voltar travar)
         window.history.replaceState(
           { painelEsteticista: 'lista' },
@@ -714,15 +831,6 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
     const valorFormatado = formatarMascaraData(e.target.value);
     setTermoBuscaEvolucao(valorFormatado);
   };
-
-  // Filtragem e Ordenação Alfabética dos Pacientes
-  const pacientesFiltradosOrdenados = pacientes.filter(pac => {
-    const termo = termoBusca.toLowerCase().trim();
-    if (!termo) return true;
-    const nomeMatch = pac.nome?.toLowerCase().includes(termo);
-    const docMatch = pac.documento?.toLowerCase().includes(termo);
-    return nomeMatch || docMatch;
-  });
 
   // Filtragem das Evoluções do Paciente Selecionado
   const evolucoesFiltradas = pacienteSelecionado?.evolucoes?.filter(evo => {
@@ -1062,180 +1170,340 @@ if (!jaCarregou) {
         </div>
       )}
 
-      {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
-      {fotosPendentes.length > 0 && mostrarBannerFotos && (
-        <div style={{
-          marginTop: 4,
-          marginBottom: 16,
-          background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
-          border: '1.5px solid #a855f7',
-          borderRadius: 12,
-          padding: '12px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-        }}>
-          {/* Ícone grande único (removida a duplicata) */}
-          <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
+    {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
+{fotosPendentes.length > 0 && mostrarBannerFotos && (
+  <div style={{
+    marginTop: 4,
+    marginBottom: 16,
+    background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
+    border: '1.5px solid #a855f7',
+    borderRadius: 12,
+    padding: '12px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  }}>
+    {/* Ícone grande único (removida a duplicata) */}
+    <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#2c163a',
-              fontSize: 12,
-              fontWeight: 700,
-              marginBottom: 3,
-              lineHeight: 1.3,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {fotosPendentes.length === 1
-                ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
-                : `${fotosPendentes.length} pacientes enviaram fotos`}
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{
+        fontFamily: "'Cinzel', serif",
+        color: '#2c163a',
+        fontSize: 12,
+        fontWeight: 700,
+        marginBottom: 3,
+        lineHeight: 1.3,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+        {fotosPendentes.length === 1
+          ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+          : `${fotosPendentes.length} pacientes enviaram fotos`}
+      </div>
+      <div style={{
+        fontSize: 10.5,
+        color: '#555',
+        fontFamily: "'Montserrat', sans-serif",
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+        {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+      </div>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => {
+        const primeiro = fotosPendentes[0];
+        const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
+        if (pac) {
+          marcarFotosComoNotificadas(pac.id);
+          navegarPara('galeria', { paciente: pac });
+        }
+      }}
+      style={{
+        background: '#7e22ce', color: '#fff', border: 'none',
+        padding: '7px 12px', borderRadius: 14,
+        fontFamily: "'Cinzel', serif",
+        fontSize: 10, fontWeight: 700, cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+      }}
+    >
+      VER
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setMostrarBannerFotos(false)}
+      style={{
+        background: 'transparent', border: 'none', color: '#888',
+        fontSize: 18, cursor: 'pointer', padding: 2, lineHeight: 1,
+        flexShrink: 0,
+      }}
+      title="Fechar"
+    >
+      ×
+    </button>
+  </div>
+)}
+
+{/* ============================================================
+   BUSCA GLOBAL — ignora paginação, varre TODOS os pacientes
+   ============================================================ */}
+{termoBusca.trim().length >= 2 ? (
+ buscandoGlobal ? (
+  <div style={{
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 12, padding: '30px 15px',
+    background: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: '14px', border: '1px solid #e2d2f5',
+    boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+    backdropFilter: 'blur(5px)',
+  }}>
+    <div style={{
+      width: '36px', height: '36px',
+      border: '4px solid #e2d2f5',
+      borderTop: '4px solid #C8A24A',
+      borderRadius: '50%',
+      animation: 'spinBuscaMobile 0.8s linear infinite',
+    }} />
+    <span style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#55286f',
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: '0.3px',
+    }}>
+      BUSCANDO…
+    </span>
+    <style>{`
+      @keyframes spinBuscaMobile { to { transform: rotate(360deg); } }
+    `}</style>
+  </div>
+  ) : !resultadosBusca || resultadosBusca.length === 0 ? (
+    <div style={{
+      textAlign: 'center', padding: '30px 15px',
+      background: 'rgba(255, 255, 255, 0.92)',
+      borderRadius: '14px', border: '1px solid #e2d2f5',
+      boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+      backdropFilter: 'blur(5px)',
+    }}>
+      <p style={{ color: '#666', fontSize: '13px', marginBottom: '6px' }}>
+        Nenhum paciente encontrado para "{termoBusca}".
+      </p>
+      <button
+        type="button"
+        onClick={() => setTermoBusca('')}
+        style={{
+          background: 'transparent', border: 'none',
+          color: '#C8A24A', fontSize: '11px',
+          fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        Limpar pesquisa
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {resultadosBusca.map((pac) => (
+        <div
+          key={pac.id}
+          className="card-pasta-hover"
+          style={{
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1.5px solid #dfc6fc',
+            borderRadius: '12px',
+            padding: '16px',
+            boxShadow: '0 4px 10px rgba(44, 22, 58, 0.05)',
+            backdropFilter: 'blur(5px)'
+          }}
+        >
+          <div
+            onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', fontFamily: "'Cinzel', serif" }}>
+              Criado em: {pac.dataCriacao}
             </div>
-            <div style={{
-              fontSize: 10.5,
-              color: '#555',
-              fontFamily: "'Montserrat', sans-serif",
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+            <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '6px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
+              Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
             </div>
+
+            <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', margin: '0 0 4px 0' }}>
+              📁 {pac.nome}
+            </h3>
+            <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
+              Doc: {pac.documento || 'Não informado'}
+            </div>
+            <LinkAcessoPaciente pacienteId={pac.id} compacto empilhado />
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              const primeiro = fotosPendentes[0];
-              const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
-              if (pac) {
-                marcarFotosComoNotificadas(pac.id);
-                navegarPara('galeria', { paciente: pac });
-              }
-            }}
-            style={{
-              background: '#7e22ce', color: '#fff', border: 'none',
-              padding: '7px 12px', borderRadius: 14,
-              fontFamily: "'Cinzel', serif",
-              fontSize: 10, fontWeight: 700, cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            VER
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMostrarBannerFotos(false)}
-            style={{
-              background: 'transparent', border: 'none', color: '#888',
-              fontSize: 18, cursor: 'pointer', padding: 2, lineHeight: 1,
-              flexShrink: 0,
-            }}
-            title="Fechar"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {pacientes.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
-          <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>Nenhum paciente cadastrado na nuvem ainda.</p>
-          <span style={{ color: '#C8A24A', fontSize: '11px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
-        </div>
-      ) : pacientesFiltradosOrdenados.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '30px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
-          <p style={{ color: '#666', fontSize: '13px', marginBottom: '6px' }}>Nenhum paciente encontrado para "{termoBusca}".</p>
-          <button
-            onClick={() => setTermoBusca('')}
-            style={{ background: 'transparent', border: 'none', color: '#C8A24A', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-          >
-            Limpar pesquisa
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {pacientesFiltradosOrdenados.map((pac) => (
-            <div
-              key={pac.id}
-              className="card-pasta-hover"
-              style={{
-                background: 'rgba(255, 255, 255, 0.92)',
-                border: '1.5px solid #dfc6fc',
-                borderRadius: '12px',
-                padding: '16px',
-                boxShadow: '0 4px 10px rgba(44, 22, 58, 0.05)',
-                backdropFilter: 'blur(5px)'
-              }}
+          <div style={{ fontSize: '11px', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0e6fa', paddingTop: '8px', marginTop: '8px' }}>
+            <span
+              onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+              style={{ cursor: 'pointer' }}
             >
-              <div
+              Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong>
+            </span>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <span
                 onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                style={{ cursor: 'pointer' }}
+                style={{ color: '#C8A24A', fontWeight: 700, cursor: 'pointer' }}
               >
-                <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', fontFamily: "'Cinzel', serif" }}>
-                  Criado em: {pac.dataCriacao}
-                </div>
-                <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '6px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
-                  Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
-                </div>
+                Abrir Pasta →
+              </span>
 
-                <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', margin: '0 0 4px 0' }}>
-                  📁 {pac.nome}
-                </h3>
-                <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
-                  Doc: {pac.documento || 'Não informado'}
-                </div>
-                <LinkAcessoPaciente pacienteId={pac.id} compacto empilhado />
-              </div>
-
-              <div style={{ fontSize: '11px', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0e6fa', paddingTop: '8px', marginTop: '8px' }}>
-                <span
-                  onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                  style={{ cursor: 'pointer' }}
-                >
-                  Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong>
-                </span>
-
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <span
-                    onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-                    style={{ color: '#C8A24A', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Abrir Pasta →
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      solicitarExclusaoPasta(pac.id);
-                    }}
-                    className="btn-efeito-hover-perigo"
-                    style={{
-                      background: '#ffebee',
-                      color: '#c62828',
-                      border: '1px solid #ef9a9a',
-                      padding: '4px 8px',
-                      borderRadius: '10px',
-                      fontSize: '9px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      fontFamily: "'Cinzel', serif"
-                    }}
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  solicitarExclusaoPasta(pac.id);
+                }}
+                className="btn-efeito-hover-perigo"
+                style={{
+                  background: '#ffebee',
+                  color: '#c62828',
+                  border: '1px solid #ef9a9a',
+                  padding: '4px 8px',
+                  borderRadius: '10px',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: "'Cinzel', serif"
+                }}
+              >
+                Excluir
+              </button>
             </div>
-          ))}
+          </div>
         </div>
-      )}
+      ))}
+    </div>
+  )
+) : pacientes.length === 0 ? (
+  /* ============================================================
+     ESTADO VAZIO — nenhum paciente cadastrado
+     ============================================================ */
+  <div style={{ textAlign: 'center', padding: '40px 15px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '14px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)', backdropFilter: 'blur(5px)' }}>
+    <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>Nenhum paciente cadastrado na nuvem ainda.</p>
+    <span style={{ color: '#C8A24A', fontSize: '11px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
+  </div>
+) : (
+  /* ============================================================
+     LISTA PAGINADA — modo normal sem busca
+     ============================================================ */
+  <>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {pacientes.map((pac) => (
+        <div
+          key={pac.id}
+          className="card-pasta-hover"
+          style={{
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1.5px solid #dfc6fc',
+            borderRadius: '12px',
+            padding: '16px',
+            boxShadow: '0 4px 10px rgba(44, 22, 58, 0.05)',
+            backdropFilter: 'blur(5px)'
+          }}
+        >
+          <div
+            onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px', fontFamily: "'Cinzel', serif" }}>
+              Criado em: {pac.dataCriacao}
+            </div>
+            <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '6px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
+              Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
+            </div>
+
+            <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '15px', margin: '0 0 4px 0' }}>
+              📁 {pac.nome}
+            </h3>
+            <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '8px' }}>
+              Doc: {pac.documento || 'Não informado'}
+            </div>
+            <LinkAcessoPaciente pacienteId={pac.id} compacto empilhado />
+          </div>
+
+          <div style={{ fontSize: '11px', color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0e6fa', paddingTop: '8px', marginTop: '8px' }}>
+            <span
+              onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+              style={{ cursor: 'pointer' }}
+            >
+              Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong>
+            </span>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <span
+                onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                style={{ color: '#C8A24A', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Abrir Pasta →
+              </span>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  solicitarExclusaoPasta(pac.id);
+                }}
+                className="btn-efeito-hover-perigo"
+                style={{
+                  background: '#ffebee',
+                  color: '#c62828',
+                  border: '1px solid #ef9a9a',
+                  padding: '4px 8px',
+                  borderRadius: '10px',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: "'Cinzel', serif"
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {temMais && (
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18 }}>
+        <button
+          type="button"
+          onClick={carregarMais}
+          disabled={carregandoMais}
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: carregandoMais
+              ? '#ddd'
+              : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: carregandoMais ? '#888' : '#fff',
+            border: 'none',
+            padding: '11px 24px',
+            borderRadius: '22px',
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: carregandoMais ? 'wait' : 'pointer',
+            boxShadow: '0 3px 12px rgba(200, 162, 74, 0.3)',
+            letterSpacing: '0.5px',
+          }}
+        >
+          {carregandoMais ? 'CARREGANDO…' : 'CARREGAR MAIS PACIENTES'}
+        </button>
+      </div>
+    )}
+  </>
+)}
     </div>
   )}
 

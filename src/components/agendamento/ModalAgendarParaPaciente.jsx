@@ -1,5 +1,6 @@
 // src/components/agendamento/ModalAgendarParaPaciente.jsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { notificarAgendamento } from '../../utils/agendamentoNotify';
 import {
   collection, query, where, getDocs, addDoc, doc, getDoc,onSnapshot,
 
@@ -142,16 +143,20 @@ export default function ModalAgendarParaPaciente({
         ? 'pendente'
         : (paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente');
 
-      const docRef = await addDoc(collection(db, 'agendamentos'), {
-        uidEsteticista,
-        pacienteId: String(paciente.id),
+     const docRef = await addDoc(collection(db, 'agendamentos'), {
+  uidEsteticista,
+  profissionalId: uidEsteticista,   // ⬅️ NOVO
+  pacienteId: String(paciente.id),
 
-        data: slotSelecionado.data,
-        horaInicio: slotSelecionado.horaInicio,
-        horaFim: slotSelecionado.horaFim,
-        duracaoMin: calcularDuracao(slotSelecionado),
+  data: slotSelecionado.data,
+  horaInicio: slotSelecionado.horaInicio,
+  horaFim: slotSelecionado.horaFim,
+  duracaoMin: calcularDuracao(slotSelecionado),
 
-        nome: paciente.nome || 'Paciente',
+  servicoId: null,                
+  servicoNome: null,                
+
+  nome: paciente.nome || 'Paciente',
         documento: paciente.documento || '',
         telefone: paciente.telefone || '',
         email: (paciente.email || paciente.emailAcesso || '').toLowerCase(),
@@ -171,36 +176,34 @@ export default function ModalAgendarParaPaciente({
         atualizadoEm: new Date().toISOString(),
       });
 
-      if (isPaciente) {
-        fetch('/.netlify/functions/notificar-esteticista-novo-agendamento', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            uidEsteticista,
-            agendamento: {
-              id: docRef.id,
-              data: slotSelecionado.data,
-              horaInicio: slotSelecionado.horaInicio,
-              nome: paciente.nome,
-            },
-          }),
-        }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
-      } else {
-        fetch('/.netlify/functions/notificar-paciente-agendamento', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pacienteId: paciente.id,
-            agendamento: {
-              id: docRef.id,
-              data: slotSelecionado.data,
-              horaInicio: slotSelecionado.horaInicio,
-              nome: paciente.nome,
-            },
-          }),
-        }).catch((e) => console.warn('Falha ao notificar paciente:', e));
-      }
-
+     if (isPaciente) {
+  // ✅ Paciente agendou → notifica a ESTETICISTA
+  notificarAgendamento({
+    tipoEvento: 'novo',
+    uidEsteticista,
+    agendamento: {
+      id: docRef.id,
+      data: slotSelecionado.data,
+      horaInicio: slotSelecionado.horaInicio,
+      nome: paciente.nome,
+    },
+  });
+} else {
+  // ✅ Esteticista agendou → notifica o PACIENTE
+  fetch('/.netlify/functions/notificar-paciente-agendamento', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      pacienteId: paciente.id,
+      agendamento: {
+        id: docRef.id,
+        data: slotSelecionado.data,
+        horaInicio: slotSelecionado.horaInicio,
+        nome: paciente.nome,
+      },
+    }),
+  }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+}
       onSucesso?.({
         id: docRef.id,
         data: slotSelecionado.data,
@@ -570,21 +573,23 @@ export default function ModalAgendarParaPaciente({
                 }}
                 diaSelecionado={diaSelecionado}
                 compacto
-                renderDia={(data) => {
-                  const iso = toISODateLocal(data);
-                  const qtd = slotsPorDia[iso]?.length || 0;
-                  const temSlot = qtd > 0;
-                  return {
-                    status: temSlot ? 'aberto' : 'vazio',
-                    badge: temSlot ? `${qtd}×` : null,
-                    disabled: !temSlot,
-                    title: temSlot ? `${qtd} horário(s) livre(s)` : 'Sem vagas',
-                    onClick: (d) => {
-                      setDiaSelecionado(toISODateLocal(d));
-                      setSlotSelecionado(null);
-                    },
-                  };
-                }}
+              renderDia={(data) => {
+  const iso = toISODateLocal(data);
+  const slotsDoDia = slotsPorDia[iso] || [];
+  const temSlot = slotsDoDia.length > 0;
+  return {
+    status: temSlot ? 'aberto' : 'vazio',
+    times: temSlot ? slotsDoDia.map((s) => s.horaInicio) : [],
+    disabled: !temSlot,
+    title: temSlot
+      ? `${slotsDoDia.length} horário(s) livre(s)`
+      : 'Sem vagas',
+    onClick: (d) => {
+      setDiaSelecionado(toISODateLocal(d));
+      setSlotSelecionado(null);
+    },
+  };
+}}
               />
               <LegendaCalendario />
 
@@ -611,8 +616,27 @@ export default function ModalAgendarParaPaciente({
                           type="button"
                           onClick={() => setSlotSelecionado(s)}
                           className={`map-slot-btn${ativo ? ' ativo' : ''}`}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 2,
+                            lineHeight: 1.1,
+                          }}
                         >
-                          {s.horaInicio}
+                          <span style={{ fontSize: 13, fontWeight: 700 }}>
+                            {s.horaInicio}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 9.5,
+                              fontWeight: 500,
+                              opacity: 0.7,
+                            }}
+                          >
+                            às {s.horaFim}
+                          </span>
                         </button>
                       );
                     })}

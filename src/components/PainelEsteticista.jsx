@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
+import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,updateDoc,
+  onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
@@ -52,6 +53,16 @@ const SpinnerLoading = ({ texto = 'Carregando…' }) => (
 );
 
 export default function PainelEsteticista({ onLogout }) {
+  const TAMANHO_PAGINA = 50;
+  const [ultimoDoc, setUltimoDoc] = useState(null);
+  const [temMais, setTemMais] = useState(true);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+
+  // ✅ Busca global
+  const [resultadosBusca, setResultadosBusca] = useState(null);
+  const [buscandoGlobal, setBuscandoGlobal] = useState(false);
+  const cacheBuscaRef = useRef(null);
+
   const [telaAtual, setTelaAtual] = useState('lista');
   const [termoBusca, setTermoBusca] = useState('');
   const [termoBuscaEvolucao, setTermoBuscaEvolucao] = useState('');
@@ -73,7 +84,7 @@ export default function PainelEsteticista({ onLogout }) {
   const evoRef = useRef(null);
   const modalOpenRef = useRef(false);
   const [fotosPendentes, setFotosPendentes] = useState([]);
-const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
+  const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
   useEffect(() => { pacRef.current = pacienteSelecionado; }, [pacienteSelecionado]);
   useEffect(() => { evoRef.current = evolucaoSelecionada; }, [evolucaoSelecionada]);
   useEffect(() => { modalOpenRef.current = modalExclusao.isOpen; }, [modalExclusao.isOpen]);
@@ -201,46 +212,61 @@ const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
 
 
 // ✅ Checa fotos não notificadas
+// ✅ Fotos pendentes em TEMPO REAL via collectionGroup
+//    Uma única query atravessa todos os pacientes — sem polling.
 useEffect(() => {
-  if (!auth.currentUser || !pacientes.length) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
 
   let cancelado = false;
 
-  const checar = async () => {
-    const uid = auth.currentUser.uid;
-    const pendentes = [];
-    for (const p of pacientes) {
-      try {
-        const snap = await getDocs(query(
-          collection(db, `usuarios/${uid}/pacientes/${p.id}/fotos`),
-          where('notificado', '==', false)
-        ));
-        if (!snap.empty && !cancelado) {
-          pendentes.push({
-            pacienteId: p.id,
-            pacienteNome: p.nome,
-            count: snap.size,
-          });
+  const q = query(
+    collectionGroup(db, 'fotos'),
+    where('uidEsteticista', '==', uid),
+    where('notificado', '==', false)
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      if (cancelado) return;
+
+      // Agrupa por pacienteId
+      const mapa = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+
+        // Fallback: extrai do path usuarios/{uid}/pacientes/{pid}/fotos/{fid}
+        let pid = data.pacienteId;
+        if (!pid) {
+          const partes = d.ref.path.split('/');
+          // partes = ['usuarios', uid, 'pacientes', pid, 'fotos', fotoId]
+          pid = partes[3] || null;
         }
-      } catch (e) { /* ignora */ }
+        if (!pid) return;
+
+        if (!mapa[pid]) {
+          mapa[pid] = {
+            pacienteId: pid,
+            pacienteNome: data.pacienteNome || 'Paciente',
+            count: 0,
+          };
+        }
+        mapa[pid].count++;
+      });
+
+      setFotosPendentes(Object.values(mapa));
+    },
+    (err) => {
+      console.error('Erro listener fotos pendentes:', err);
     }
-    if (!cancelado) setFotosPendentes(pendentes);
-  };
-
-  checar();
-
-  const onVis = () => {
-    if (document.visibilityState === 'visible') checar();
-  };
-  document.addEventListener('visibilitychange', onVis);
-  const interval = setInterval(checar, 60000); // 1x por minuto
+  );
 
   return () => {
     cancelado = true;
-    document.removeEventListener('visibilitychange', onVis);
-    clearInterval(interval);
+    unsub();
   };
-}, [pacientes]);
+}, []);
 
 // ✅ Marca fotos como notificadas quando abre a galeria do paciente
 const marcarFotosComoNotificadas = async (pacienteId) => {
@@ -287,43 +313,125 @@ useEffect(() => {
     { merge: true }
   ).catch((e) => console.warn('Falha publicando UID global:', e));
 }, []);
+
+// ============================================================
+// BUSCA GLOBAL — carrega todos os pacientes UMA VEZ (cache)
+// quando o usuário digita 2+ caracteres. Depois filtra local.
+// ============================================================
+useEffect(() => {
+  const termo = termoBusca.trim();
+
+  // Sem termo → volta pra lista paginada normal
+  if (termo.length < 2) {
+    setResultadosBusca(null);
+    setBuscandoGlobal(false);
+    return;
+  }
+
+  const timer = setTimeout(async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setBuscandoGlobal(true);
+    try {
+      let todos = cacheBuscaRef.current;
+
+      // Carrega TUDO uma vez (fica em memória)
+      if (!todos) {
+        const snap = await getDocs(
+          collection(db, `usuarios/${user.uid}/pacientes`)
+        );
+        todos = snap.docs.map((d) => d.data());
+        cacheBuscaRef.current = todos;
+      }
+
+      // Normaliza pra busca sem acento/caixa
+      const norm = (s) =>
+        (s || '')
+          .toString()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+      const termoNorm = norm(termo);
+
+      const filtrados = todos.filter((p) => {
+        const nomeNorm = norm(p.nome);
+        const docNorm = norm(p.documento);
+        return nomeNorm.includes(termoNorm) || docNorm.includes(termoNorm);
+      });
+
+      setResultadosBusca(filtrados);
+    } catch (e) {
+      console.error('Erro na busca global:', e);
+      setResultadosBusca([]);
+    } finally {
+      setBuscandoGlobal(false);
+    }
+  }, 300); // debounce
+
+  return () => clearTimeout(timer);
+}, [termoBusca]);
+
   useEffect(() => {
     let unsubAuth = null;
 
-    const carregarPacientes = async (user) => {
-      if (!user) {
-        // Ainda não autenticou — aguarda, NÃO marca jaCarregou
-        return;
-      }
+  const carregarPagina = async (user, cursor = null) => {
+  const base = collection(db, `usuarios/${user.uid}/pacientes`);
+  const q = cursor
+    ? query(base, orderBy('nome'), startAfter(cursor), limit(TAMANHO_PAGINA))
+    : query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
 
-     try {
-  const querySnapshot = await getDocs(
-    collection(db, `usuarios/${user.uid}/pacientes`)
-  );
-  const listaPacientes = [];
-  querySnapshot.forEach((docSnap) => {
-    listaPacientes.push(docSnap.data());
-  });
-  listaPacientes.sort((a, b) =>
-    (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
-  );
-  setPacientes(listaPacientes);
+  const snap = await getDocs(q);
+  const docs = snap.docs;
+  const lista = docs.map((d) => d.data());
 
-  // ✅ BACKFILL — registra em links_pacientes os que ainda não têm.
-  // Roda em background, silencioso, não trava a UI nem o loading.
-  // Idempotente: pode rodar toda vez sem problema.
-  Promise.allSettled(
-    listaPacientes.map((p) =>
-      registrarLinkPaciente(p.id, user.uid).catch(() => {})
-    )
-  )
-} catch (e) {
-  console.error('Erro ao carregar fichas do Firestore:', e);
-} finally {
-  setCarregandoNuvem(false);
-  setJaCarregou(true);      // ✅ SÓ AQUI decide entre vazio e lista
-}
-    };
+  return {
+    lista,
+    ultimo: docs[docs.length - 1] || null,
+    temMais: docs.length === TAMANHO_PAGINA,
+  };
+};
+
+const carregarPacientes = async (user) => {
+  if (!user) return;
+  try {
+    const { lista, ultimo, temMais } = await carregarPagina(user, null);
+    setPacientes(lista);
+    setUltimoDoc(ultimo);
+    setTemMais(temMais);
+
+    // Backfill (só da página atual — barato)
+    Promise.allSettled(
+      lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+    );
+  } catch (e) {
+    console.error('Erro ao carregar fichas do Firestore:', e);
+  } finally {
+    setCarregandoNuvem(false);
+    setJaCarregou(true);
+  }
+};
+
+const carregarMais = async () => {
+  const user = auth.currentUser;
+  if (!user || !ultimoDoc || carregandoMais) return;
+  setCarregandoMais(true);
+  try {
+    const { lista, ultimo, temMais } = await carregarPagina(user, ultimoDoc);
+    setPacientes((prev) => [...prev, ...lista]);
+    setUltimoDoc(ultimo);
+    setTemMais(temMais);
+
+    Promise.allSettled(
+      lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+    );
+  } catch (e) {
+    console.error('Erro ao paginar pacientes:', e);
+  } finally {
+    setCarregandoMais(false);
+  }
+};
 
     unsubAuth = onAuthStateChanged(auth, carregarPacientes);
     return () => { if (unsubAuth) unsubAuth(); };
@@ -344,6 +452,9 @@ useEffect(() => {
     } catch (e) {
       console.warn('Falha ao apagar links_pacientes:', e);
     }
+
+    // 3. ✅ Invalida o cache da busca global
+    cacheBuscaRef.current = null;
   } catch (e) {
     console.error('Erro ao excluir paciente da nuvem:', e);
   }
@@ -367,6 +478,8 @@ useEffect(() => {
 
     try {
       await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), pacienteObj);
+      // ✅ Invalida o cache da busca global
+      cacheBuscaRef.current = null;
     } catch (e) {
       console.error('Erro ao salvar paciente na nuvem:', e);
     }
@@ -696,14 +809,6 @@ useEffect(() => {
     setTermoBuscaEvolucao(valorFormatado);
   };
 
-  const pacientesFiltrados = pacientes.filter(pac => {
-    const termo = termoBusca.toLowerCase().trim();
-    if (!termo) return true;
-    const nomePaciente = (pac.nome || '').toLowerCase();
-    const docPaciente = (pac.documento || '').toLowerCase();
-    return nomePaciente.includes(termo) || docPaciente.includes(termo);
-  });
-
   const evolucoesFiltradas = pacienteSelecionado?.evolucoes?.filter(evo => {
     const termo = termoBuscaEvolucao.toLowerCase().trim();
     if (!termo) return true;
@@ -998,124 +1103,249 @@ useEffect(() => {
               </div>
             )}
 
-            {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
-            {fotosPendentes.length > 0 && mostrarBannerFotos && (
-              <div style={{
-                marginTop: 4,
-                marginBottom: 20,
-                background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
-                border: '1.5px solid #a855f7',
-                borderRadius: 12,
-                padding: '14px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}>
-                <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Cinzel', serif",
-                    color: '#2c163a',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    marginBottom: 4,
-                  }}>
-                    {fotosPendentes.length === 1
-                      ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
-                      : `${fotosPendentes.length} pacientes enviaram fotos`}
-                  </div>
-                  <div style={{
-                    fontSize: 11,
-                    color: '#555',
-                    fontFamily: "'Montserrat', sans-serif",
-                  }}>
-                    {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const primeiro = fotosPendentes[0];
-                    const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
-                    if (pac) {
-                      marcarFotosComoNotificadas(pac.id);
-                      navegarPara('galeria', { paciente: pac });
-                    }
-                  }}
-                  style={{
-                    background: '#7e22ce', color: '#fff', border: 'none',
-                    padding: '8px 14px', borderRadius: 16,
-                    fontFamily: "'Cinzel', serif",
-                    fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                  }}
-                >
-                  VER
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMostrarBannerFotos(false)}
-                  style={{
-                    background: 'transparent', border: 'none', color: '#888',
-                    fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
-                    flexShrink: 0,
-                  }}
-                  title="Fechar"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-          {!jaCarregou ? (
+     {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
+{fotosPendentes.length > 0 && mostrarBannerFotos && (
+  <div style={{
+    marginTop: 4,
+    marginBottom: 20,
+    background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
+    border: '1.5px solid #a855f7',
+    borderRadius: 12,
+    padding: '14px 18px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  }}>
+    <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{
+        fontFamily: "'Cinzel', serif",
+        color: '#2c163a',
+        fontSize: 13,
+        fontWeight: 700,
+        marginBottom: 4,
+      }}>
+        {fotosPendentes.length === 1
+          ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+          : `${fotosPendentes.length} pacientes enviaram fotos`}
+      </div>
+      <div style={{
+        fontSize: 11,
+        color: '#555',
+        fontFamily: "'Montserrat', sans-serif",
+      }}>
+        {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+      </div>
+    </div>
+    <button
+      type="button"
+      onClick={() => {
+        const primeiro = fotosPendentes[0];
+        const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
+        if (pac) {
+          marcarFotosComoNotificadas(pac.id);
+          navegarPara('galeria', { paciente: pac });
+        }
+      }}
+      style={{
+        background: '#7e22ce', color: '#fff', border: 'none',
+        padding: '8px 14px', borderRadius: 16,
+        fontFamily: "'Cinzel', serif",
+        fontSize: 10, fontWeight: 700, cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+      }}
+    >
+      VER
+    </button>
+    <button
+      type="button"
+      onClick={() => setMostrarBannerFotos(false)}
+      style={{
+        background: 'transparent', border: 'none', color: '#888',
+        fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
+        flexShrink: 0,
+      }}
+      title="Fechar"
+    >
+      ×
+    </button>
+  </div>
+)}
+
+{!jaCarregou ? (
   <SpinnerLoading texto="Carregando pastas de pacientes…" />
+) : termoBusca.trim().length >= 2 ? (
+  /* ============================================================
+     MODO BUSCA GLOBAL — ignora paginação, varre TODOS os pacientes
+     ============================================================ */
+ buscandoGlobal ? (
+  <div style={{
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 14, padding: '40px 20px',
+    background: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: '16px', border: '1px solid #e2d2f5',
+    boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+  }}>
+    {/* Spinner dourado girando */}
+    <div style={{
+      width: '40px', height: '40px',
+      border: '4px solid #e2d2f5',
+      borderTop: '4px solid #C8A24A',
+      borderRadius: '50%',
+      animation: 'spinBusca 0.8s linear infinite',
+    }} />
+    <span style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#55286f',
+      fontSize: 12,
+      fontWeight: 700,
+      letterSpacing: '0.3px',
+    }}>
+      BUSCANDO…
+    </span>
+    <style>{`
+      @keyframes spinBusca { to { transform: rotate(360deg); } }
+    `}</style>
+  </div>
+  ) : !resultadosBusca || resultadosBusca.length === 0 ? (
+    <div style={{
+      textAlign: 'center', padding: '40px 20px',
+      background: 'rgba(255, 255, 255, 0.92)',
+      borderRadius: '16px', border: '1px solid #e2d2f5',
+    }}>
+      <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>
+        Nenhum paciente encontrado para "{termoBusca}".
+      </p>
+      <button
+        type="button"
+        onClick={() => setTermoBusca('')}
+        style={{
+          background: 'transparent', border: 'none',
+          color: '#C8A24A', fontSize: '12px',
+          fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        Limpar busca
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+      {resultadosBusca.map((pac) => (
+        <div
+          key={pac.id}
+          onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+          className="card-pasta-hover"
+          style={{
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1.5px solid #dfc6fc',
+            borderRadius: '12px',
+            padding: '20px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+            backdropFilter: 'blur(5px)'
+          }}
+        >
+          <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
+            Criado em: {pac.dataCriacao}
+          </div>
+          <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
+            Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
+          </div>
+
+          <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
+            📁 {pac.nome}
+          </h3>
+          <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
+            Doc: {pac.documento || 'Não informado'}
+          </div>
+          <LinkAcessoPaciente pacienteId={pac.id} compacto />
+          <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
+            <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
+            <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 ) : pacientes.length === 0 ? (
+  /* ============================================================
+     ESTADO VAZIO — nenhum paciente cadastrado
+     ============================================================ */
   <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
     <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>Nenhum paciente cadastrado ainda.</p>
     <span style={{ color: '#C8A24A', fontSize: '12px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
   </div>
-) : pacientesFiltrados.length === 0 ? (
-  <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
-    <p style={{ color: '#666', fontSize: '13px' }}>Nenhum paciente encontrado para "{termoBusca}".</p>
-  </div>
 ) : (
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-    {pacientesFiltrados.map((pac) => (
-      <div
-        key={pac.id}
-        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-        className="card-pasta-hover"
-        style={{
-          background: 'rgba(255, 255, 255, 0.92)',
-          border: '1.5px solid #dfc6fc',
-          borderRadius: '12px',
-          padding: '20px',
-          cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
-          backdropFilter: 'blur(5px)'
-        }}
-      >
-        <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
-          Criado em: {pac.dataCriacao}
+  /* ============================================================
+     LISTA PAGINADA — modo normal sem busca
+     ============================================================ */
+  <>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+      {pacientes.map((pac) => (
+        <div
+          key={pac.id}
+          onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+          className="card-pasta-hover"
+          style={{
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1.5px solid #dfc6fc',
+            borderRadius: '12px',
+            padding: '20px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+            backdropFilter: 'blur(5px)'
+          }}
+        >
+          <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
+            Criado em: {pac.dataCriacao}
+          </div>
+          <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
+            Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
+          </div>
+
+          <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
+            📁 {pac.nome}
+          </h3>
+          <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
+            Doc: {pac.documento || 'Não informado'}
+          </div>
+          <LinkAcessoPaciente pacienteId={pac.id} compacto />
+          <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
+            <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
+            <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
+          </div>
         </div>
-        <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
-          Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
-        </div>
-        
-        <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
-          📁 {pac.nome}
-        </h3>
-        <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
-          Doc: {pac.documento || 'Não informado'}
-         </div>
-         <LinkAcessoPaciente pacienteId={pac.id} compacto />
-        <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
-          <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
-          <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
-        </div>
+      ))}
+    </div>
+
+    {temMais && (
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+        <button
+          type="button"
+          onClick={carregarMais}
+          disabled={carregandoMais}
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: carregandoMais
+              ? '#ddd'
+              : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: carregandoMais ? '#888' : '#fff',
+            border: 'none',
+            padding: '12px 28px',
+            borderRadius: '24px',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: carregandoMais ? 'wait' : 'pointer',
+            boxShadow: '0 3px 12px rgba(200, 162, 74, 0.3)',
+          }}
+        >
+          {carregandoMais ? 'CARREGANDO…' : 'CARREGAR MAIS PACIENTES'}
+        </button>
       </div>
-    ))}
-  </div>
+    )}
+  </>
 )}
             </div>
           )}
