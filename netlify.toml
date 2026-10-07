@@ -5,6 +5,8 @@
 
 [functions]
   node_bundler = "esbuild"
+  [functions."checar-lembretes-esteticista"]
+  schedule = "*/15 * * * *"
 
 # ============================================================
 # SPA FALLBACK — qualquer rota cai no index.html
