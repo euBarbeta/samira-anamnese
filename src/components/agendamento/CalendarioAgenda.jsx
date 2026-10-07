@@ -157,7 +157,7 @@ export default function CalendarioAgenda({
             >
               {/* NÚMERO DO DIA — sempre no topo */}
               <span style={{
-                fontSize: compacto ? 12 : 15,
+                fontSize: compacto ? 12 : 'clamp(14px, 1.4vw, 18px)',
                 fontWeight: ehHoje || sel ? 800 : 600,
                 color: corTexto,
                 lineHeight: 1,
@@ -166,7 +166,7 @@ export default function CalendarioAgenda({
                 {dia}
               </span>
 
-              {/* BLOCO DE HORÁRIOS — bem maior no desktop */}
+              {/* BLOCO DE HORÁRIOS — cor roxa, tamanho escala com a tela */}
               {temHorarios && (
                 <div style={{
                   display: 'flex',
@@ -180,9 +180,9 @@ export default function CalendarioAgenda({
                   flexGrow: 1,
                   gap: compacto ? 0 : 2,
                 }}>
-                  {/* Quantidade — grande e destacada */}
+                  {/* Quantidade — destaque grande */}
                   <span style={{
-                    fontSize: compacto ? 10 : 22,
+                    fontSize: compacto ? 10 : 'clamp(20px, 3.5vw, 28px)',
                     fontWeight: 800,
                     color: '#7e22ce',
                     lineHeight: 1,
@@ -191,9 +191,9 @@ export default function CalendarioAgenda({
                     {qtd}
                   </span>
 
-                  {/* "horários" — legível no desktop */}
+                  {/* "horários" — legível e escala */}
                   <span style={{
-                    fontSize: compacto ? 5.5 : 12,
+                    fontSize: compacto ? 5.5 : 'clamp(11px, 1.6vw, 16px)',
                     fontWeight: 700,
                     color: '#7e22ce',
                     textTransform: 'lowercase',
