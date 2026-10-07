@@ -129,6 +129,7 @@ export default function CalendarioAgenda({
             : '#999';
 
           const qtd = info.times?.length || 0;
+          const temHorarios = info.status === 'aberto' && qtd > 0;
 
           return (
             <button
@@ -146,17 +147,17 @@ export default function CalendarioAgenda({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'flex-start',
-                padding: compacto ? '3px 1px 2px 1px' : '4px 2px 3px 2px',
+                justifyContent: 'space-between',
+                padding: compacto ? '4px 2px' : '8px 4px',
                 position: 'relative',
                 transition: 'all 0.15s',
                 fontFamily: 'inherit',
                 overflow: 'hidden',
               }}
             >
-              {/* ✅ LINHA 1 — NÚMERO DO DIA */}
+              {/* NÚMERO DO DIA — sempre no topo */}
               <span style={{
-                fontSize: compacto ? 12 : 13,
+                fontSize: compacto ? 12 : 14,
                 fontWeight: ehHoje || sel ? 800 : 600,
                 color: corTexto,
                 lineHeight: 1,
@@ -165,37 +166,40 @@ export default function CalendarioAgenda({
                 {dia}
               </span>
 
-              {/* ✅ LINHAS 2/3 — quantidade + "horários" */}
-              {info.status === 'aberto' && qtd > 0 && (
+              {/* BLOCO DE HORÁRIOS — cor diferente da data, mais espaçado */}
+              {temHorarios && (
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'flex-start',
+                  justifyContent: 'center',
                   width: '100%',
-                  marginTop: compacto ? 1 : 2,
+                  marginTop: compacto ? 1 : 4,
                   lineHeight: 1,
                   overflow: 'hidden',
+                  flexGrow: 1,
                 }}>
                   {/* Quantidade — destaque */}
                   <span style={{
-                    fontSize: compacto ? 10 : 13,
+                    fontSize: compacto ? 10 : 15,
                     fontWeight: 800,
-                    color: corTexto,
+                    color: '#7e22ce',
                     lineHeight: 1,
+                    fontFamily: "'Cinzel', serif",
                   }}>
                     {qtd}
                   </span>
 
-                  {/* "horários" */}
+                  {/* "horários" / "horário" */}
                   <span style={{
-                    fontSize: compacto ? 5.5 : 7,
+                    fontSize: compacto ? 5.5 : 8,
                     fontWeight: 700,
-                    color: corTexto,
+                    color: '#7e22ce',
                     textTransform: 'lowercase',
-                    lineHeight: 1.05,
-                    marginTop: compacto ? 0.5 : 1,
+                    lineHeight: 1.15,
+                    marginTop: compacto ? 0.5 : 2,
                     whiteSpace: 'nowrap',
+                    letterSpacing: '0.1px',
                   }}>
                     {qtd === 1 ? 'horário' : 'horários'}
                   </span>
@@ -204,7 +208,7 @@ export default function CalendarioAgenda({
 
               {info.status === 'bloqueado' && (
                 <MdEventBusy
-                  size={10}
+                  size={compacto ? 10 : 12}
                   color="#c62828"
                   style={{ marginTop: 2, flexShrink: 0 }}
                 />
