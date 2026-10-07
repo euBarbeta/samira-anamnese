@@ -42,70 +42,115 @@ export default function ModalAgendarParaPaciente({
   }, []);
 
   // ✅ Carrega config + slots disponíveis
- useEffect(() => {
+// ============================================================
+// Estado separado: config da agenda + agendamentos ocupados
+// ============================================================
+const [configAgenda, setConfigAgenda] = useState(null);
+const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
+
+// ============================================================
+// Listener 1 — CONFIG da agenda (tempo real)
+// Quando a esteta salva o ConfiguradorAgenda, os slots aqui
+// são recalculados automaticamente — sem F5.
+// ============================================================
+useEffect(() => {
   if (!uidEsteticista) return;
 
-  let unsub = null;
   let cancelado = false;
 
-  (async () => {
-    try {
-      const cfgSnap = await getDoc(
-        doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal')
-      );
-      if (!cfgSnap.exists()) {
+  const unsub = onSnapshot(
+    doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
+    (snap) => {
+      if (cancelado) return;
+
+      if (!snap.exists()) {
         setErro(
           isPaciente
             ? 'A agenda da profissional ainda não está configurada.'
             : 'Você ainda não configurou sua agenda.'
         );
+        setConfigAgenda(null);
+        setSlots([]);
         setCarregando(false);
         return;
       }
-      const cfg = cfgSnap.data();
-      if (cancelado) return;
 
-      const hoje = toISODateLocal(new Date());
-      const max = new Date();
-      max.setDate(max.getDate() + (cfg.diasFuturosMaximo || 60));
-      const dataFim = toISODateLocal(max);
-
-      // ✅ Listener em tempo real
-      unsub = onSnapshot(
-        query(
-          collection(db, 'agendamentos'),
-          where('uidEsteticista', '==', uidEsteticista),
-          where('data', '>=', hoje),
-          where('data', '<=', dataFim)
-        ),
-        (snap) => {
-          if (cancelado) return;
-          const ocupados = snap.docs
-            .map((d) => d.data())
-            .filter(
-              (a) => a.status === 'pendente' || a.status === 'confirmado'
-            );
-          const lista = gerarSlotsDisponiveis(cfg, ocupados, hoje, dataFim);
-          setSlots(lista);
-          setCarregando(false);
-        },
-        (e) => {
-          console.error('Erro no listener:', e);
-          setCarregando(false);
-        }
-      );
-    } catch (e) {
-      console.error('Erro ao carregar agenda:', e);
-      setErro('Não foi possível carregar a agenda.');
+      setConfigAgenda(snap.data());
+      setErro('');
+    },
+    (err) => {
+      console.error('Erro listener config:', err);
       setCarregando(false);
     }
-  })();
+  );
 
   return () => {
     cancelado = true;
-    if (unsub) unsub();
+    unsub();
   };
 }, [uidEsteticista, isPaciente]);
+
+// ============================================================
+// Listener 2 — AGENDAMENTOS do período (tempo real)
+// Só roda depois que a config chegou (precisa dela pro range).
+// ============================================================
+useEffect(() => {
+  if (!uidEsteticista || !configAgenda) return;
+
+  let cancelado = false;
+
+  const hoje = toISODateLocal(new Date());
+  const max = new Date();
+  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+  const dataFim = toISODateLocal(max);
+
+  const unsub = onSnapshot(
+    query(
+      collection(db, 'agendamentos'),
+      where('uidEsteticista', '==', uidEsteticista),
+      where('data', '>=', hoje),
+      where('data', '<=', dataFim)
+    ),
+    (snap) => {
+      if (cancelado) return;
+      const ocupados = snap.docs
+        .map((d) => d.data())
+        .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
+      setAgendamentosOcupados(ocupados);
+      setCarregando(false);
+    },
+    (err) => {
+      console.error('Erro listener agendamentos:', err);
+      setCarregando(false);
+    }
+  );
+
+  return () => {
+    cancelado = true;
+    unsub();
+  };
+}, [uidEsteticista, configAgenda]);
+
+// ============================================================
+// Recalcula slots SEMPRE que config ou agendamentos mudarem
+// ============================================================
+useEffect(() => {
+  if (!configAgenda) return;
+
+  const hoje = toISODateLocal(new Date());
+  const max = new Date();
+  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+  const dataFim = toISODateLocal(max);
+
+  const lista = gerarSlotsDisponiveis(
+    configAgenda,
+    agendamentosOcupados,
+    hoje,
+    dataFim
+  );
+
+  setSlots(lista);
+}, [configAgenda, agendamentosOcupados]);
   // Agrupa slots por dia
   const slotsPorDia = useMemo(() => {
     const map = {};

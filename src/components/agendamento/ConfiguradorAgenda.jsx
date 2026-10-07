@@ -33,29 +33,34 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
   const [mostrarPadrao, setMostrarPadrao] = useState(false);
 
   // Carrega config
-  useEffect(() => {
-    if (!uidEsteticista) return;
-    (async () => {
-      try {
-        const ref = doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal');
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const d = snap.data();
-          setBlocos(d.blocosSemanais || []);
-          setBloqueios(d.bloqueios || []);
-          setDatasEspecificas(d.datasEspecificas || {});
-          setConfig({
-            diasFuturosMaximo: d.diasFuturosMaximo ?? 60,
-            antecedenciaMinimaHoras: d.antecedenciaMinimaHoras ?? 4,
-          });
-        }
-      } catch (e) {
-        console.error('Erro ao carregar config:', e);
-      } finally {
-        setCarregando(false);
+useEffect(() => {
+  if (!uidEsteticista) return;
+  let cancelado = false;
+
+  const unsub = onSnapshot(
+    doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
+    (snap) => {
+      if (cancelado) return;
+      if (snap.exists()) {
+        const d = snap.data();
+        setBlocos(d.blocosSemanais || []);
+        setBloqueios(d.bloqueios || []);
+        setDatasEspecificas(d.datasEspecificas || {});
+        setConfig({
+          diasFuturosMaximo: d.diasFuturosMaximo ?? 60,
+          antecedenciaMinimaHoras: d.antecedenciaMinimaHoras ?? 4,
+        });
       }
-    })();
-  }, [uidEsteticista]);
+      setCarregando(false);
+    },
+    (err) => {
+      console.error('Erro listener config:', err);
+      setCarregando(false);
+    }
+  );
+
+  return () => { cancelado = true; unsub(); };
+}, [uidEsteticista]);
 
   // Monta dias do mês visível
   const diasDoMes = useMemo(() => {
