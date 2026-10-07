@@ -1,6 +1,6 @@
 // src/components/agendamento/ConfiguradorAgenda.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   MdAdd, MdDelete, MdSave, MdCheckCircle,
