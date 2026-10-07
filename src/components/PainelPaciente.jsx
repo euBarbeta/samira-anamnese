@@ -31,6 +31,202 @@ import FichaEvoMobile from './FichaEvoMobile';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 
 /* ============================================================
+   MODAL AMIGÁVEL DE DOWNLOAD DO APK (Android)
+   — "Baixar App Agora" em destaque (largura total).
+   — "Agora não" discreto como link embaixo.
+   ============================================================ */
+function ModalBaixarAPK({ onFechar, onConfirmar }) {
+  return (
+    <div
+      onClick={onFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(44, 22, 58, 0.65)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999999,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '28px 24px 20px',
+          maxWidth: 420,
+          width: '100%',
+          boxShadow: '0 25px 70px rgba(44, 22, 58, 0.4)',
+          border: '1.5px solid #C8A24A',
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        {/* Ícone amigável */}
+        <div
+          style={{
+            width: 72,
+            height: 72,
+            margin: '0 auto 16px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+            border: '2px solid #d8b4fe',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 6px 20px rgba(126, 34, 206, 0.15)',
+          }}
+        >
+          <DownloadCloud size={34} color="#7e22ce" />
+        </div>
+
+        <h3
+          style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#2c163a',
+            fontSize: 17,
+            fontWeight: 700,
+            margin: '0 0 8px',
+            letterSpacing: '0.4px',
+          }}
+        >
+          Instalar o App Samira
+        </h3>
+
+        <p
+          style={{
+            fontSize: 12.5,
+            color: '#666',
+            margin: '0 0 16px',
+            lineHeight: 1.6,
+          }}
+        >
+          Acesso rápido ao seu prontuário, lembretes e notificações direto no
+          celular. É só seguir os passos:
+        </p>
+
+        {/* Passo a passo numerado */}
+        <div
+          style={{
+            background: 'rgba(250, 245, 255, 0.9)',
+            border: '1.5px dashed #d8b4fe',
+            borderRadius: 12,
+            padding: '14px 16px',
+            textAlign: 'left',
+            marginBottom: 20,
+          }}
+        >
+          {[
+            'Toque em "Baixar App" no final',
+            'Abra o arquivo .apk baixado',
+            'Permita "Instalar de fontes desconhecidas"',
+            'Confirme a instalação',
+          ].map((passo, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                marginBottom: i < 3 ? 8 : 0,
+                fontSize: 12,
+                color: '#2c163a',
+                lineHeight: 1.5,
+              }}
+            >
+              <span
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#a855f7',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: 1,
+                }}
+              >
+                {i + 1}
+              </span>
+              <span>{passo}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* BOTÃO PRINCIPAL EM DESTAQUE (largura total) */}
+        <button
+          type="button"
+          onClick={onConfirmar}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
+            border: '1.5px solid #9c7826',
+            padding: '16px 20px',
+            borderRadius: 26,
+            fontSize: 14,
+            fontWeight: 700,
+            letterSpacing: '0.8px',
+            cursor: 'pointer',
+            fontFamily: "'Cinzel', serif",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            boxShadow: '0 6px 20px rgba(200, 162, 74, 0.45)',
+            transition: 'all 0.2s ease',
+            marginBottom: 12,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 26px rgba(200, 162, 74, 0.55)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(200, 162, 74, 0.45)';
+          }}
+        >
+          <DownloadCloud size={18} />
+          BAIXAR APP AGORA
+        </button>
+
+        {/* LINK DISCRETO — "Agora não" */}
+        <button
+          type="button"
+          onClick={onFechar}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#999',
+            fontSize: 11.5,
+            fontWeight: 500,
+            cursor: 'pointer',
+            fontFamily: "'Montserrat', sans-serif",
+            padding: '8px 12px',
+            textDecoration: 'underline',
+            letterSpacing: '0.2px',
+            transition: 'color 0.2s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#666'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#999'; }}
+        >
+          Agora não
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    MODAL DE AVISO / CONFIRMAÇÃO — estética do sistema
    Substitui alert() e window.confirm() nativos
    ============================================================ */
@@ -728,6 +924,7 @@ export default function PainelPaciente({
   const [appInstalado, setAppInstalado] = useState(false);
 
   const [mostrarModalInstalacao, setMostrarModalInstalacao] = useState(false);
+  const [mostrarModalAPK, setMostrarModalAPK] = useState(false);
   const [mostrarConsentimento, setMostrarConsentimento] = useState(false);
   const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
   const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
@@ -914,38 +1111,20 @@ export default function PainelPaciente({
   const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
 
   const handleInstalarApp = async () => {
+    // ✅ ANDROID → abre o modal amigável (não mais o "aviso" vermelho)
     if (isAndroid) {
-      setAviso({
-        tipo: 'aviso',
-        titulo: 'Baixar aplicativo',
-        mensagem:
-          'Após o download:\n' +
-          '1. Abra o arquivo .apk\n' +
-          '2. Permita "Instalar de fontes desconhecidas"\n' +
-          '3. Confirme a instalação',
-        textoConfirmar: 'Baixar agora',
-        textoCancelar: 'Cancelar',
-        mostrarCancelar: true,
-        onConfirmar: () => {
-          setAviso(null);
-          const link = document.createElement('a');
-          link.href = APK_URL;
-          link.download = 'samira-ferreira.apk';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        },
-      });
+      setMostrarModalAPK(true);
       return;
     }
 
+    // iOS → modal de instruções Safari
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isIOS) {
       setMostrarModalInstalacao(true);
       return;
     }
 
+    // Desktop → prompt nativo ou modal
     const prompt =
       deferredPrompt ||
       (typeof window !== 'undefined' ? window.__deferredPrompt : null);
@@ -970,6 +1149,18 @@ export default function PainelPaciente({
     }
 
     setMostrarModalInstalacao(true);
+  };
+
+  // ✅ Executa o download do APK (chamado pelo modal amigável)
+  const baixarAPK = () => {
+    setMostrarModalAPK(false);
+    const link = document.createElement('a');
+    link.href = APK_URL;
+    link.download = 'samira-ferreira.apk';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const cancelarAgendamento = (ag) => {
@@ -1866,6 +2057,14 @@ export default function PainelPaciente({
 
       {mostrarModalInstalacao && (
         <ModalInstalacao onClose={() => setMostrarModalInstalacao(false)} />
+      )}
+
+      {/* ✅ NOVO: modal amigável de download do APK (Android) */}
+      {mostrarModalAPK && (
+        <ModalBaixarAPK
+          onFechar={() => setMostrarModalAPK(false)}
+          onConfirmar={baixarAPK}
+        />
       )}
 
       {/* Modal de confirmação para remover agendamento */}
