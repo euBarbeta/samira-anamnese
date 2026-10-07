@@ -1,7 +1,8 @@
 // src/push-notifications-native.js
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { doc, setDoc } from 'firebase/firestore';
+import { Preferences } from '@capacitor/preferences';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
@@ -9,6 +10,56 @@ import { db } from './firebase';
  */
 export function isNativo() {
   return Capacitor.isNativePlatform();
+}
+
+/* ============================================================
+   CHAVES DE RASTREIO — "quem usou este APK por último"
+   ------------------------------------------------------------
+   Um aparelho tem UM ÚNICO token FCM. Se dois pacientes (ou
+   uma paciente e uma esteticista) usam o mesmo celular, os
+   docs dos dois apontariam para o mesmo token — e a notificação
+   de um chegaria no celular do outro. Estas chaves resolvem:
+   ao inscrever alguém, limpamos o `fcmToken` do dono anterior.
+   ============================================================ */
+const PREF_KEY_LAST_PACIENTE = 'push_native_last_paciente_id';
+const PREF_KEY_LAST_ESTETICISTA = 'push_native_last_esteticista_uid';
+
+/* ============================================================
+   Helpers de limpeza
+   ============================================================ */
+async function limparTokenPacienteAnterior(novoPacienteId) {
+  try {
+    const { value: anterior } = await Preferences.get({
+      key: PREF_KEY_LAST_PACIENTE,
+    });
+    if (!anterior || anterior === novoPacienteId) return;
+
+    await updateDoc(doc(db, 'push_subscriptions', anterior), {
+      fcmToken: null,
+      atualizadoEm: new Date().toISOString(),
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('Falha ao limpar token anterior (paciente):', e);
+  }
+}
+
+async function limparTokenEsteticistaAnterior(novaEsteticistaUid) {
+  try {
+    const { value: anterior } = await Preferences.get({
+      key: PREF_KEY_LAST_ESTETICISTA,
+    });
+    if (!anterior || anterior === novaEsteticistaUid) return;
+
+    await updateDoc(
+      doc(db, 'push_subscriptions_esteticistas', anterior),
+      {
+        fcmToken: null,
+        atualizadoEm: new Date().toISOString(),
+      }
+    ).catch(() => {});
+  } catch (e) {
+    console.warn('Falha ao limpar token anterior (esteticista):', e);
+  }
 }
 
 /* ============================================================
@@ -30,9 +81,8 @@ export async function inscreverPushNativo(pacienteId) {
 
   const pacienteIdStr = String(pacienteId);
 
-  // ✅ Detalhe sutil: se o paciente MUDOU (logout/login com outro usuário),
-  //    força um re-registro dos listeners, pois o closure antigo aponta
-  //    para o paciente errado.
+  // ✅ Se o paciente MUDOU (logout/login com outro usuário),
+  //    força re-registro dos listeners.
   if (pacienteIdAtual && pacienteIdAtual !== pacienteIdStr) {
     console.log('🔄 Paciente mudou — forçando re-registro de listeners');
     listenerRegistrado = false;
@@ -52,8 +102,16 @@ export async function inscreverPushNativo(pacienteId) {
       return null;
     }
 
+    // ============================================================
+    // ✅ PASSO CRÍTICO: limpa o token FCM do PACIENTE ANTERIOR
+    //    deste aparelho (se houve troca de conta neste celular).
+    //    Também limpa a sub da esteticista anterior, caso o mesmo
+    //    celular tenha sido usado por ela antes.
+    // ============================================================
+    await limparTokenPacienteAnterior(pacienteIdStr);
+    await limparTokenEsteticistaAnterior(null);
+
     // 2. Registra listeners — SOMENTE UMA VEZ por sessão
-    //    (evita race condition: removeAllListeners + addListener concorrentes)
     if (!listenerRegistrado) {
       await PushNotifications.removeAllListeners();
 
@@ -71,6 +129,13 @@ export async function inscreverPushNativo(pacienteId) {
             },
             { merge: true }
           );
+
+          // ✅ Marca este paciente como "último a usar o aparelho"
+          //    Só depois que o token foi gravado com sucesso.
+          await Preferences.set({
+            key: PREF_KEY_LAST_PACIENTE,
+            value: pacienteIdStr,
+          });
         } catch (e) {
           console.error('❌ Erro ao salvar token FCM:', e);
         }
@@ -128,6 +193,14 @@ export async function inscreverPushEsteticista(uidEsteticista) {
       return null;
     }
 
+    // ============================================================
+    // ✅ PASSO CRÍTICO: limpa o token FCM da ESTETICISTA ANTERIOR
+    //    (se houve troca de conta neste celular) e do PACIENTE
+    //    anterior, caso o mesmo aparelho tenha sido usado por ele.
+    // ============================================================
+    await limparTokenEsteticistaAnterior(uidStr);
+    await limparTokenPacienteAnterior(null);
+
     if (!listenerRegistradoEsteticista) {
       await PushNotifications.removeAllListeners();
 
@@ -145,6 +218,12 @@ export async function inscreverPushEsteticista(uidEsteticista) {
             },
             { merge: true }
           );
+
+          // ✅ Marca esta esteticista como "última a usar o aparelho"
+          await Preferences.set({
+            key: PREF_KEY_LAST_ESTETICISTA,
+            value: uidStr,
+          });
         } catch (e) {
           console.error('❌ Erro ao salvar token esteticista:', e);
         }
