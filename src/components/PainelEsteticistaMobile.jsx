@@ -56,6 +56,121 @@ const SpinnerLoading = ({ texto = 'Carregando…' }) => (
     <style>{`@keyframes spinCarga { to { transform: rotate(360deg); } }`}</style>
   </div>
 );
+/* ============================================================
+   MODAL DE FEEDBACK — substitui alert() nativo
+   ============================================================ */
+function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
+  const config = {
+    sucesso: { cor: '#166534', bg: '#f0fdf4', borda: '#86efac', icone: '✅' },
+    info:    { cor: '#7e22ce', bg: '#faf5ff', borda: '#d8b4fe', icone: 'ℹ️' },
+    aviso:   { cor: '#92400e', bg: '#fff8e1', borda: '#fcd34d', icone: '⚠️' },
+    erro:    { cor: '#991b1b', bg: '#fef2f2', borda: '#fca5a5', icone: '❌' },
+  }[tipo] || { cor: '#7e22ce', bg: '#faf5ff', borda: '#d8b4fe', icone: 'ℹ️' };
+
+  const { cor, bg, borda, icone } = config;
+
+  return (
+    <div
+      onClick={onFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(44, 22, 58, 0.6)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999999,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '28px 24px 22px',
+          maxWidth: 400,
+          width: '100%',
+          boxShadow: '0 20px 60px rgba(44, 22, 58, 0.4)',
+          border: '1.5px solid #e2d2f5',
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            margin: '0 auto 14px auto',
+            borderRadius: '50%',
+            background: bg,
+            border: `2px solid ${borda}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 30,
+            boxShadow: `0 4px 14px ${cor}22`,
+          }}
+        >
+          {icone}
+        </div>
+
+        {titulo && (
+          <h3
+            style={{
+              fontFamily: "'Cinzel', serif",
+              color: cor,
+              fontSize: 17,
+              fontWeight: 700,
+              margin: '0 0 10px 0',
+              letterSpacing: '0.4px',
+            }}
+          >
+            {titulo}
+          </h3>
+        )}
+
+        {mensagem && (
+          <p
+            style={{
+              fontSize: 13,
+              color: '#2c163a',
+              margin: '0 0 20px 0',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {mensagem}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={onFechar}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
+            border: '1.5px solid #9c7826',
+            padding: '13px 16px',
+            borderRadius: 22,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: "'Cinzel', serif",
+            boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+            letterSpacing: '0.6px',
+          }}
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function PainelEsteticistaMobile({ onLogout }) {
   const TAMANHO_PAGINA = 50;
@@ -73,6 +188,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const [termoBuscaEvolucao, setTermoBuscaEvolucao] = useState('');
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
+  const [modalFeedback, setModalFeedback] = useState(null);
   const [pacientes, setPacientes] = useState([]);
   const [carregandoNuvem, setCarregandoNuvem] = useState(true);
   const [jaCarregou, setJaCarregou] = useState(false);   
@@ -1946,7 +2062,13 @@ if (!jaCarregou) {
     onFechar={() => setMostrarModalAgendar(false)}
     onSucesso={(ag) => {
       setMostrarModalAgendar(false);
-      alert(`Agendamento criado para ${pacienteSelecionado.nome} em ${ag.data} às ${ag.horaInicio}.`);
+      const [a, m, d] = (ag.data || '').split('-');
+      const dataBR = d && m && a ? `${d}/${m}/${a}` : ag.data;
+      setModalFeedback({
+        tipo: 'sucesso',
+        titulo: 'Agendamento criado!',
+        mensagem: `${pacienteSelecionado.nome}\n${dataBR} às ${ag.horaInicio}`,
+      });
     }}
   />
 )}
@@ -1959,6 +2081,14 @@ if (!jaCarregou) {
       )}
 
       {/* MODAL CUSTOMIZADO DE EXCLUSÃO COM SENHA E SUPORTE A ENTER */}
+      {modalFeedback && (
+  <ModalFeedback
+    tipo={modalFeedback.tipo}
+    titulo={modalFeedback.titulo}
+    mensagem={modalFeedback.mensagem}
+    onFechar={() => setModalFeedback(null)}
+  />
+)}
       {modalExclusao.isOpen && (
         <div style={{
           position: 'fixed',

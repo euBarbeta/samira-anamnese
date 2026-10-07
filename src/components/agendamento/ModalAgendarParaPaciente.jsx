@@ -37,14 +37,8 @@ export default function ModalAgendarParaPaciente({
 
   // ============================================================
   // ✅ BOTÃO VOLTAR (nativo/navegador) → fecha o modal
-  //   Empilha um estado; quando o user aperta voltar, o popstate
-  //   detecta e chama onFechar. Ao fechar pelo X/Cancel, o cleanup
-  //   remove o estado extra do histórico.
   // ============================================================
   useEffect(() => {
-    // Guarda estado atual antes de modificar
-    const estadoAnterior = window.history.state;
-
     window.history.pushState(
       { ...(window.history.state || {}), modalAgendarAberto: true },
       '',
@@ -52,7 +46,6 @@ export default function ModalAgendarParaPaciente({
     );
 
     const onPop = () => {
-      // Se o estado atual é "modal aberto", fecha
       onFecharRef.current?.();
     };
 
@@ -61,8 +54,6 @@ export default function ModalAgendarParaPaciente({
     return () => {
       window.removeEventListener('popstate', onPop);
 
-      // Se ainda estamos no estado do modal, remove do histórico
-      // (evita sobrar uma entrada fantasma quando fecha pelo X/Cancel)
       if (window.history.state?.modalAgendarAberto) {
         window.history.back();
       }
@@ -199,7 +190,7 @@ export default function ModalAgendarParaPaciente({
     return map;
   }, [slots]);
 
-  // ✅ Fechar via histórico (pro botão voltar do navegador não bugar)
+  // ✅ Fechar via histórico
   const fecharViaHistorico = useCallback(() => {
     if (window.history.state?.modalAgendarAberto) {
       window.history.back();
@@ -232,10 +223,16 @@ export default function ModalAgendarParaPaciente({
         ? 'pendente'
         : (paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente');
 
+      // ============================================================
+      // ✅ pacienteId só é gravado se o paciente EXISTE no sistema
+      //    (reagendamento público sem pasta → null)
+      // ============================================================
+      const temPacienteNoSistema = Boolean(paciente?.id);
+
       const docRef = await addDoc(collection(db, 'agendamentos'), {
         uidEsteticista,
         profissionalId: uidEsteticista,
-        pacienteId: String(paciente.id),
+        pacienteId: temPacienteNoSistema ? String(paciente.id) : null,
 
         data: slotSelecionado.data,
         horaInicio: slotSelecionado.horaInicio,
@@ -245,10 +242,10 @@ export default function ModalAgendarParaPaciente({
         servicoId: null,
         servicoNome: null,
 
-        nome: paciente.nome || 'Paciente',
-        documento: paciente.documento || '',
-        telefone: paciente.telefone || '',
-        email: (paciente.email || paciente.emailAcesso || '').toLowerCase(),
+        nome: paciente?.nome || 'Paciente',
+        documento: paciente?.documento || '',
+        telefone: paciente?.telefone || '',
+        email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
         observacoes: observacoes.trim(),
 
         status: novoStatus,
@@ -265,7 +262,14 @@ export default function ModalAgendarParaPaciente({
         atualizadoEm: new Date().toISOString(),
       });
 
+      // ============================================================
+      // ✅ Notificações:
+      //    - Paciente agendou (origem = 'paciente')  → notifica ESTETA
+      //    - Esteta agendou COM app (pacienteId)     → notifica PACIENTE
+      //    - Esteta agendou SEM app (público)        → NÃO notifica
+      // ============================================================
       if (isPaciente) {
+        // Paciente agendou → notifica a esteticista
         notificarAgendamento({
           tipoEvento: 'novo',
           uidEsteticista,
@@ -273,10 +277,11 @@ export default function ModalAgendarParaPaciente({
             id: docRef.id,
             data: slotSelecionado.data,
             horaInicio: slotSelecionado.horaInicio,
-            nome: paciente.nome,
+            nome: paciente?.nome,
           },
         });
-      } else {
+      } else if (temPacienteNoSistema) {
+        // Esteta agendou pra paciente que TEM app → notifica o paciente
         fetch('/.netlify/functions/notificar-paciente-agendamento', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -291,6 +296,7 @@ export default function ModalAgendarParaPaciente({
           }),
         }).catch((e) => console.warn('Falha ao notificar paciente:', e));
       }
+      // else: reagendamento público → nada a notificar (não tem app)
 
       onSucesso?.({
         id: docRef.id,
@@ -549,7 +555,7 @@ export default function ModalAgendarParaPaciente({
             <h3>
               {isPaciente
                 ? 'Escolher data e horário'
-                : `Agendar para ${paciente?.nome}`}
+                : `Agendar para ${paciente?.nome || 'paciente'}`}
             </h3>
           </div>
           <button

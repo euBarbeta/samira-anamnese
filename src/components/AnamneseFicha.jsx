@@ -724,11 +724,56 @@ setAutenticado(true);
 
   const uidPacienteAtual = uidDaURL || dadosPaciente?.id;
 
+  // ⬇️⬇️⬇️ COLA O BLOCO NOVO AQUI ⬇️⬇️⬇️
+  if (isNativo()) {
+    try {
+      const { doc: docRef, updateDoc } = await import('firebase/firestore');
+      const { db: dbRef } = await import('./firebase');
+
+      if (eraEsteticista && usuarioLogado?.uid) {
+        try {
+          await updateDoc(
+            docRef(dbRef, 'push_subscriptions_esteticistas', usuarioLogado.uid),
+            {
+              fcmToken: null,
+              atualizadoEm: new Date().toISOString(),
+            }
+          );
+        } catch (e) {
+          console.warn('Falha ao limpar FCM da esteticista:', e);
+        }
+      } else if (dadosPaciente?.id) {
+        try {
+          await updateDoc(
+            docRef(dbRef, 'push_subscriptions', String(dadosPaciente.id)),
+            {
+              fcmToken: null,
+              atualizadoEm: new Date().toISOString(),
+            }
+          );
+        } catch (e) {
+          console.warn('Falha ao limpar FCM do paciente:', e);
+        }
+      }
+
+      try {
+        await Preferences.remove({ key: 'push_native_last_paciente_id' });
+        await Preferences.remove({ key: 'push_native_last_esteticista_uid' });
+      } catch (e) {
+        console.warn('Falha ao limpar Preferences:', e);
+      }
+    } catch (e) {
+      console.warn('Falha ao limpar FCM no logout:', e);
+    }
+  }
+  // ⬆️⬆️⬆️ FIM DO BLOCO NOVO ⬆️⬆️⬆️
+
   try {
     await signOut(auth);
   } catch (e) {
     console.error('Erro ao sair:', e);
   }
+ 
 
   if (isNativo()) {
     try { await Preferences.remove({ key: 'pacienteId' }); } catch {}

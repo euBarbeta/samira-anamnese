@@ -18,14 +18,8 @@ import {
 } from 'react-icons/md';
 import ConfiguradorAgenda from './ConfiguradorAgenda';
 
-// ============================================================
-// Quantos dias manter na lista de histórico
-// ============================================================
 const DIAS_HISTORICO = 30;
 
-/* ============================================================
-   Formatação de telefone por país
-   ============================================================ */
 function formatarTelefoneInternacional(tel) {
   if (!tel) return '—';
   try {
@@ -36,9 +30,6 @@ function formatarTelefoneInternacional(tel) {
   }
 }
 
-/* ============================================================
-   Botão "copiar" — pequeno, reutilizável
-   ============================================================ */
 function BotaoCopiar({ valor, rotulo, title }) {
   const [copiado, setCopiado] = useState(false);
 
@@ -197,7 +188,7 @@ function ModalConfirmarCancelamento({
               marginTop: 6,
             }}
           >
-            O paciente será notificado. Esta ação não pode ser desfeita.
+            O paciente será notificado (se tiver app). Esta ação não pode ser desfeita.
           </span>
         </p>
 
@@ -280,243 +271,24 @@ function ModalConfirmarCancelamento({
   );
 }
 
-/* ============================================================
-   MODAL DE CONTATO — agendamento público sem pasta
-   ============================================================ */
-function ModalContatoPaciente({ agendamento, onFechar }) {
-  if (!agendamento) return null;
-
-  const primeiroNome = (agendamento.nome || '').split(' ')[0] || '';
-  const msgWhatsApp =
-    `Olá ${primeiroNome}! Vi que você não conseguiu comparecer ao seu horário. ` +
-    `Vamos marcar um novo? Me diga qual dia/horário fica melhor pra você.`;
-
-  const telefoneLimpo = String(agendamento.telefone || '').replace(/\D/g, '');
-
-  return (
-    <div
-      onClick={onFechar}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(44, 22, 58, 0.65)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 2147483647,
-        padding: 20,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#fff',
-          borderRadius: 20,
-          padding: '28px 24px 24px 24px',
-          maxWidth: 440,
-          width: '100%',
-          boxShadow: '0 25px 70px rgba(44, 22, 58, 0.4)',
-          border: '1.5px solid #0891b2',
-          fontFamily: "'Montserrat', sans-serif",
-          textAlign: 'center',
-        }}
-      >
-        {/* Ícone */}
-        <div
-          style={{
-            width: 68,
-            height: 68,
-            margin: '0 auto 16px auto',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #e0f2fe 0%, #cffafe 100%)',
-            border: '2px solid #67e8f9',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 6px 18px rgba(8, 145, 178, 0.18)',
-          }}
-        >
-          <MdPhone size={32} color="#0891b2" />
-        </div>
-
-        <h3
-          style={{
-            fontFamily: "'Cinzel', serif",
-            color: '#0891b2',
-            fontSize: 17,
-            fontWeight: 700,
-            margin: '0 0 12px 0',
-            letterSpacing: '0.4px',
-          }}
-        >
-          Entre em contato com o paciente
-        </h3>
-
-        <p
-          style={{
-            fontSize: 13,
-            color: '#2c163a',
-            margin: '0 0 10px 0',
-            fontWeight: 600,
-            lineHeight: 1.5,
-          }}
-        >
-          {agendamento.nome || 'Paciente'}
-        </p>
-
-        <p
-          style={{
-            fontSize: 12,
-            color: '#555',
-            margin: '0 0 18px 0',
-            lineHeight: 1.6,
-          }}
-        >
-          Este agendamento foi feito <strong>pelo site</strong> e ainda
-          não tem pasta no sistema.
-          <br />
-          <br />
-          Para reagendar, entre em contato direto com o paciente e combine
-          um novo horário.
-        </p>
-
-        {/* Dados de contato */}
-        <div
-          style={{
-            background: '#f0f9ff',
-            border: '1px solid #bae6fd',
-            borderRadius: 12,
-            padding: '12px 14px',
-            textAlign: 'left',
-            marginBottom: 18,
-          }}
-        >
-          {agendamento.telefone && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: agendamento.email ? 8 : 0 }}>
-              <MdPhone size={16} color="#0891b2" style={{ flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#666', fontWeight: 700, letterSpacing: '0.5px' }}>
-                  TELEFONE
-                </div>
-                <div style={{ fontSize: 13, color: '#2c163a', fontWeight: 600 }}>
-                  {formatarTelefoneInternacional(agendamento.telefone)}
-                </div>
-              </div>
-              <BotaoCopiar
-                valor={agendamento.telefone}
-                rotulo="telefone"
-                title="Copiar telefone"
-              />
-            </div>
-          )}
-
-          {agendamento.email && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <MdEmail size={16} color="#0891b2" style={{ flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: '#666', fontWeight: 700, letterSpacing: '0.5px' }}>
-                  E-MAIL
-                </div>
-                <div style={{ fontSize: 12, color: '#2c163a', fontWeight: 600, wordBreak: 'break-all' }}>
-                  {agendamento.email}
-                </div>
-              </div>
-              <BotaoCopiar
-                valor={agendamento.email}
-                rotulo="e-mail"
-                title="Copiar e-mail"
-              />
-            </div>
-          )}
-
-          {!agendamento.telefone && !agendamento.email && (
-            <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
-              Nenhum contato registrado.
-            </div>
-          )}
-        </div>
-
-        {/* Botões */}
-        <div style={{ display: 'flex', gap: 10 }}>
-          {telefoneLimpo && (
-            <a
-              href={`https://wa.me/${telefoneLimpo}?text=${encodeURIComponent(msgWhatsApp)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                flex: 1,
-                background: '#25D366',
-                color: '#fff',
-                border: 'none',
-                padding: '12px 16px',
-                borderRadius: 22,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: "'Cinzel', serif",
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
-                textDecoration: 'none',
-              }}
-            >
-              WhatsApp
-            </a>
-          )}
-
-          <button
-            type="button"
-            onClick={onFechar}
-            style={{
-              flex: 1,
-              background: '#f0f0f0',
-              color: '#333',
-              border: 'none',
-              padding: '12px 16px',
-              borderRadius: 22,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: "'Cinzel', serif",
-            }}
-          >
-            FECHAR
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
-  const [aba, setAba] = useState('agenda'); // 'agenda' | 'config' | 'servicos'
+  const [aba, setAba] = useState('agenda');
   const [agendamentos, setAgendamentos] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('pendente');
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
 
-  // Modal de escolher serviço (pendente → confirmado)
   const [agendamentoParaConfirmar, setAgendamentoParaConfirmar] = useState(null);
-
-  // Modal de cancelamento
   const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
   const [cancelando, setCancelando] = useState(false);
 
-  // Modal de reagendamento (faltou → novo horário)
+  // Reagendamento (funciona pra COM e SEM pasta)
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
-  // ✅ Aviso de contato para card "faltou" SEM pasta (público)
-  const [avisoContatoPaciente, setAvisoContatoPaciente] = useState(null);
-
   // ============================================================
-  // Listener em tempo real (só observa — sem auto-conclusão)
+  // Listener em tempo real
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
@@ -539,23 +311,14 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     return () => unsub();
   }, [uidEsteticista]);
 
-  // ============================================================
-  // Abre modal de escolher serviço (pendente → confirmado)
-  // ============================================================
   const solicitarEscolhaServico = (ag) => {
     setAgendamentoParaConfirmar(ag);
   };
 
-  // ============================================================
-  // Abre modal de cancelamento
-  // ============================================================
   const solicitarCancelamento = (ag) => {
     setAgendamentoParaCancelar(ag);
   };
 
-  // ============================================================
-  // Executa o cancelamento
-  // ============================================================
   const confirmarCancelamento = async () => {
     if (!agendamentoParaCancelar) return;
     const ag = agendamentoParaCancelar;
@@ -567,15 +330,18 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         atualizadoEm: new Date().toISOString(),
       });
 
-      fetch('/.netlify/functions/notificar-paciente-agendamento', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pacienteId: ag.pacienteId,
-          agendamento: ag,
-          tipoEvento: 'cancelado',
-        }),
-      }).catch((e) => console.warn('Falha ao notificar paciente (cancelado):', e));
+      // Só notifica se o paciente tiver app (tem pacienteId)
+      if (ag.pacienteId) {
+        fetch('/.netlify/functions/notificar-paciente-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pacienteId: ag.pacienteId,
+            agendamento: ag,
+            tipoEvento: 'cancelado',
+          }),
+        }).catch((e) => console.warn('Falha ao notificar paciente (cancelado):', e));
+      }
 
       setAgendamentoParaCancelar(null);
     } catch (e) {
@@ -585,9 +351,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
   };
 
-  // ============================================================
-  // ✅ CONCLUIR manualmente (paciente veio e foi atendido)
-  // ============================================================
   const concluirManual = async (ag) => {
     try {
       await updateDoc(doc(db, 'agendamentos', ag.id), {
@@ -601,9 +364,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
   };
 
-  // ============================================================
-  // ✅ MARCAR COMO FALTOU (paciente não compareceu)
-  // ============================================================
   const marcarFaltou = async (ag) => {
     try {
       await updateDoc(doc(db, 'agendamentos', ag.id), {
@@ -618,52 +378,51 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   };
 
   // ============================================================
-  // ✅ REAGENDAR (faltou COM pasta)
-  // 1. Busca a pasta do paciente no Firestore
-  // 2. Abre o ModalAgendarParaPaciente com o paciente pré-preenchido
-  // 3. Ao sucesso, marca o novo agendamento com `reagendamentoDe`
+  // ✅ REAGENDAR — funciona COM e SEM pasta
+  //    Se o agendamento veio do público (sem pacienteId), monta
+  //    um objeto temporário com os dados que já temos no agendamento.
   // ============================================================
   const abrirReagendamento = async (ag) => {
-    if (!ag.pacienteId) {
-      // Rede de segurança — botão deveria estar escondido
-      setAvisoContatoPaciente(ag);
-      return;
-    }
-
-    setBuscandoPaciente(true);
-    try {
-      const snap = await getDoc(
-        doc(db, `usuarios/${uidEsteticista}/pacientes`, String(ag.pacienteId))
-      );
-
-      if (!snap.exists()) {
-        alert(
-          'Paciente não encontrado no sistema. A pasta pode ter sido excluída.\n\n' +
-          'Crie uma nova pasta antes de reagendar.'
+    // Tem pasta → busca os dados completos do paciente
+    if (ag.pacienteId) {
+      setBuscandoPaciente(true);
+      try {
+        const snap = await getDoc(
+          doc(db, `usuarios/${uidEsteticista}/pacientes`, String(ag.pacienteId))
         );
-        setBuscandoPaciente(false);
-        return;
-      }
 
-      setPacienteReagendar({ id: snap.id, ...snap.data() });
-      setAgendamentoParaReagendar(ag);
-    } catch (e) {
-      console.error('Erro ao buscar paciente:', e);
-      alert('Erro ao carregar paciente. Tente novamente.');
-    } finally {
-      setBuscandoPaciente(false);
+        if (snap.exists()) {
+          setPacienteReagendar({ id: snap.id, ...snap.data() });
+          setAgendamentoParaReagendar(ag);
+          setBuscandoPaciente(false);
+          return;
+        }
+      } catch (e) {
+        console.error('Erro ao buscar paciente:', e);
+      } finally {
+        setBuscandoPaciente(false);
+      }
     }
+
+    // Sem pasta (público) OU pasta não encontrada → monta objeto temporário
+    // com os dados que já estão no próprio agendamento
+    setPacienteReagendar({
+      id: ag.pacienteId || null,
+      nome: ag.nome,
+      documento: ag.documento,
+      telefone: ag.telefone,
+      email: ag.email,
+      emailAcesso: ag.email,
+      consentimentoLGPD: ag.consentimentoLGPD,
+    });
+    setAgendamentoParaReagendar(ag);
   };
 
-  // Fecha o modal de reagendamento
   const fecharReagendamento = () => {
     setPacienteReagendar(null);
     setAgendamentoParaReagendar(null);
   };
 
-  // ============================================================
-  // Contagem por status (com corte de 30 dias para histórico)
-  // ============================================================
   const contagens = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -692,9 +451,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     return cont;
   }, [agendamentos]);
 
-  // ============================================================
-  // Lista filtrada
-  // ============================================================
   const filtrados = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -761,22 +517,22 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         <>
           {/* Busca */}
           <div style={{
-                          background: 'rgba(255, 255, 255, 0.15)',
-                          backdropFilter: 'blur(8px)',
-                          WebkitBackdropFilter: 'blur(8px)',
-                          borderRadius: '12px',
-                          border: '1px solid rgba(255, 255, 255, 0.3)',
-                          padding: '8px 16px',
-                          marginTop: '-4px',
-                          marginBottom: '20px',
-                          boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          width: '100%',
-                          boxSizing: 'border-box'
-                        }}>
-                          <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
+            background: 'rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            padding: '8px 16px',
+            marginTop: '-4px',
+            marginBottom: '20px',
+            boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            width: '100%',
+            boxSizing: 'border-box',
+          }}>
+            <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Buscar por nome, documento ou data (DD/MM/AAAA)…"
@@ -888,7 +644,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                       </h4>
 
                       <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
-                        {/* Data e hora */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
                           <span>
@@ -915,46 +670,30 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                           )}
                         </div>
 
-                        {/* Telefone + copiar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <MdPhone size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
                           <span>{formatarTelefoneInternacional(ag.telefone)}</span>
                           {ag.telefone && (
-                            <BotaoCopiar
-                              valor={ag.telefone}
-                              rotulo="telefone"
-                              title="Copiar telefone"
-                            />
+                            <BotaoCopiar valor={ag.telefone} rotulo="telefone" title="Copiar telefone" />
                           )}
                         </div>
 
-                        {/* Documento + copiar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <MdBadge size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
                           <span>{ag.documento || ag.cpf || '—'}</span>
                           {(ag.documento || ag.cpf) && (
-                            <BotaoCopiar
-                              valor={ag.documento || ag.cpf}
-                              rotulo="documento"
-                              title="Copiar documento"
-                            />
+                            <BotaoCopiar valor={ag.documento || ag.cpf} rotulo="documento" title="Copiar documento" />
                           )}
                         </div>
 
-                        {/* E-mail + copiar */}
                         {ag.email && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
                             <span style={{ wordBreak: 'break-all' }}>{ag.email}</span>
-                            <BotaoCopiar
-                              valor={ag.email}
-                              rotulo="e-mail"
-                              title="Copiar e-mail"
-                            />
+                            <BotaoCopiar valor={ag.email} rotulo="e-mail" title="Copiar e-mail" />
                           </div>
                         )}
 
-                        {/* Observações */}
                         {ag.observacoes && (
                           <div style={{
                             marginTop: 6,
@@ -973,46 +712,25 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                         {ag.aguardandoConsentimento && (
                           <span style={badgeAguardando}>
-                            <MdHourglassEmpty
-                              size={11}
-                              style={{ verticalAlign: 'middle', marginRight: 4 }}
-                            />
+                            <MdHourglassEmpty size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                             Aguardando consentimento do paciente
                           </span>
                         )}
                         {ag.consentimentoLGPD?.aceito ? (
                           <span style={badgeOk}>
-                            <MdCheckCircle
-                              size={11}
-                              style={{ verticalAlign: 'middle', marginRight: 4 }}
-                            />
+                            <MdCheckCircle size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                             LGPD aceito
                           </span>
                         ) : (
                           <span style={badgeWarn}>
-                            <MdWarning
-                              size={11}
-                              style={{ verticalAlign: 'middle', marginRight: 4 }}
-                            />
+                            <MdWarning size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                             Sem LGPD
                           </span>
                         )}
                         {ag.status === 'faltou' && (
                           <span style={badgeFaltou}>
-                            <MdPersonOff
-                              size={11}
-                              style={{ verticalAlign: 'middle', marginRight: 4 }}
-                            />
+                            <MdPersonOff size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                             Paciente não compareceu
-                          </span>
-                        )}
-                        {ag.status === 'faltou' && !ag.pacienteId && (
-                          <span style={badgeAviso}>
-                            <MdWarning
-                              size={11}
-                              style={{ verticalAlign: 'middle', marginRight: 4 }}
-                            />
-                            Sem pasta — contatar direto
                           </span>
                         )}
                       </div>
@@ -1020,7 +738,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
                     {/* ============ AÇÕES ============ */}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {/* PENDENTE → Escolher serviço + Cancelar */}
                       {ag.status === 'pendente' && (
                         <>
                           <button
@@ -1040,7 +757,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                         </>
                       )}
 
-                      {/* CONFIRMADO → Concluir + Faltou + Cancelar */}
                       {ag.status === 'confirmado' && (
                         <>
                           <button
@@ -1069,38 +785,23 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                         </>
                       )}
 
-                      {/* FALTOU → Reagendar (com pasta) OU Contatar (sem pasta) + Cancelar */}
+                      {/* FALTOU → Reagendar (funciona COM e SEM pasta) + Cancelar */}
                       {ag.status === 'faltou' && (
                         <>
-                          {ag.pacienteId && (
-                            <button
-                              type="button"
-                              onClick={() => abrirReagendamento(ag)}
-                              disabled={buscandoPaciente}
-                              style={{
-                                ...btnReagendar,
-                                opacity: buscandoPaciente ? 0.6 : 1,
-                                cursor: buscandoPaciente ? 'wait' : 'pointer',
-                              }}
-                              title="Criar novo agendamento para este paciente"
-                            >
-                              <MdRefresh size={14} />
-                              {buscandoPaciente ? 'Carregando…' : 'Reagendar'}
-                            </button>
-                          )}
-
-                          {!ag.pacienteId && (
-                            <button
-                              type="button"
-                              onClick={() => setAvisoContatoPaciente(ag)}
-                              style={btnContato}
-                              title="Paciente agendou pelo site — não tem pasta no sistema"
-                            >
-                              <MdPhone size={14} />
-                              Contatar paciente
-                            </button>
-                          )}
-
+                          <button
+                            type="button"
+                            onClick={() => abrirReagendamento(ag)}
+                            disabled={buscandoPaciente}
+                            style={{
+                              ...btnReagendar,
+                              opacity: buscandoPaciente ? 0.6 : 1,
+                              cursor: buscandoPaciente ? 'wait' : 'pointer',
+                            }}
+                            title="Criar novo agendamento para este paciente"
+                          >
+                            <MdRefresh size={14} />
+                            {buscandoPaciente ? 'Carregando…' : 'Reagendar'}
+                          </button>
                           <button
                             type="button"
                             onClick={() => solicitarCancelamento(ag)}
@@ -1119,7 +820,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         </>
       )}
 
-      {/* ✅ Modal de confirmação de cancelamento */}
+      {/* Modal de confirmação de cancelamento */}
       {agendamentoParaCancelar && (
         <ModalConfirmarCancelamento
           agendamento={agendamentoParaCancelar}
@@ -1131,7 +832,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         />
       )}
 
-      {/* ✅ Modal de escolher serviço (pendente → confirmado) */}
+      {/* Modal de escolher serviço */}
       {agendamentoParaConfirmar && (
         <ModalEscolherServico
           agendamento={agendamentoParaConfirmar}
@@ -1141,7 +842,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         />
       )}
 
-      {/* ✅ Modal de reagendamento (faltou COM pasta) */}
+      {/* Modal de reagendamento */}
       {pacienteReagendar && agendamentoParaReagendar && (
         <ModalAgendarParaPaciente
           paciente={pacienteReagendar}
@@ -1160,14 +861,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             }
             fecharReagendamento();
           }}
-        />
-      )}
-
-      {/* ✅ Modal de contato (faltou SEM pasta — público) */}
-      {avisoContatoPaciente && (
-        <ModalContatoPaciente
-          agendamento={avisoContatoPaciente}
-          onFechar={() => setAvisoContatoPaciente(null)}
         />
       )}
     </div>
@@ -1266,20 +959,6 @@ const btnReagendar = {
   gap: 4,
 };
 
-const btnContato = {
-  background: '#0891b2',
-  color: '#fff',
-  border: 'none',
-  padding: '8px 14px',
-  borderRadius: 16,
-  fontSize: 11,
-  fontWeight: 700,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-};
-
 const btnDanger = {
   background: '#c62828',
   color: '#fff',
@@ -1336,18 +1015,6 @@ const badgeFaltou = {
   background: '#fff7ed',
   color: '#c2410c',
   border: '1px solid #fdba74',
-  padding: '2px 10px',
-  borderRadius: 12,
-  fontSize: 10,
-  fontWeight: 700,
-};
-
-const badgeAviso = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  background: '#ecfeff',
-  color: '#0891b2',
-  border: '1px solid #67e8f9',
   padding: '2px 10px',
   borderRadius: 12,
   fontSize: 10,
