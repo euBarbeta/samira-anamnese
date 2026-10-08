@@ -2037,7 +2037,7 @@ const podeRemover = (ag) =>
             <div>
               <button
                 type="button"
-                onClick={() => window.history.back()}
+                onClick={() =>  irParaTela('detalhe_pasta')}
                 className="btn-voltar-lista"
                 style={{
                   fontFamily: "'Cinzel', serif",
@@ -2076,7 +2076,7 @@ const podeRemover = (ag) =>
             <div>
               <button
                 type="button"
-                onClick={() => window.history.back()}
+                onClick={() =>  irParaTela('detalhe_pasta')}
                 className="btn-voltar-lista"
                 style={{
                   fontFamily: "'Cinzel', serif",
@@ -2108,14 +2108,14 @@ const podeRemover = (ag) =>
           key={`ficha-mobile-${pacienteData.anamnese?.dataModificacao || pacienteData.dataUltimaEdicao || 'init'}`}
           mode="view"
           fichaSelecionada={pacienteData.anamnese || pacienteData}
-          onVoltar={() => window.history.back()}
+          onVoltar={() => irParaTela('detalhe_pasta')}
         />
       ) : (
         <FichaDesktop
           key={`ficha-desktop-${pacienteData.anamnese?.dataModificacao || pacienteData.dataUltimaEdicao || 'init'}`}
           mode="view"
           fichaSelecionada={pacienteData.anamnese || pacienteData}
-          onVoltar={() => window.history.back()}
+          onVoltar={() => irParaTela('detalhe_pasta')}
         />
       )}
     </div>
