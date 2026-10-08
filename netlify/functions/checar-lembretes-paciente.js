@@ -16,6 +16,14 @@ exports.handler = async (event) => {
  // ✅ ADICIONE ESTE BLOCO AQUI
   let secret = event.queryStringParameters?.secret;
   if (!secret && event.body) {
+    // ✅ Validação do secret (cron externo)
+let secret = event.queryStringParameters?.secret;
+if (!secret && event.body) {
+  try { secret = JSON.parse(event.body).secret; } catch (e) {}
+}
+if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+}
     try { secret = JSON.parse(event.body).secret; } catch (e) {}
   }
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {

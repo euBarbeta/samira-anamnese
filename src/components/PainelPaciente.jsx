@@ -1179,6 +1179,25 @@ export default function PainelPaciente({
             canceladoPor: 'paciente',
             atualizadoEm: new Date().toISOString(),
           });
+          // ✅ Notifica a esteticista
+try {
+  await fetch('/.netlify/functions/notificar-agendamento', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tipoEvento: 'cancelado_paciente',
+      uidEsteticista: ag.uidEsteticista,
+      agendamento: {
+        id: ag.id,
+        nome: ag.nome,
+        data: ag.data,
+        horaInicio: ag.horaInicio,
+      },
+    }),
+  });
+} catch (e) {
+  console.warn('Falha ao notificar esteticista:', e);
+}
           setAviso(null);
           setAviso({
             tipo: 'sucesso',
