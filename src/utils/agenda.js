@@ -189,7 +189,28 @@ export function gerarSlotsDisponiveis(
     }
   }
 
-  return slots;
+  // ============================================================
+  // ✅ Deduplicação final — remove slots com mesmo data+horaInicio
+  //    (protege contra liberacoesExtras duplicadas ou overlap com bloco)
+  // ============================================================
+  const slotsUnicos = [];
+  const chavesVistas = new Set();
+
+  for (const s of slots) {
+    const chave = `${s.data}|${s.horaInicio}`;
+    if (chavesVistas.has(chave)) continue;
+    chavesVistas.add(chave);
+    slotsUnicos.push(s);
+  }
+
+  // Ordena por data + hora
+  slotsUnicos.sort((a, b) => {
+    const ka = `${a.data} ${a.horaInicio}`;
+    const kb = `${b.data} ${b.horaInicio}`;
+    return ka.localeCompare(kb);
+  });
+
+  return slotsUnicos;
 }
 
 /**

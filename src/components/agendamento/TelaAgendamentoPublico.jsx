@@ -240,7 +240,6 @@ useEffect(() => {
       }
 
       setConfigAgenda(snap.data());
-      setConfig(null); // compat — o `config` só é usado pra checar "erro && !config"
     },
     (err) => {
       console.error('Erro listener config:', err);
@@ -369,15 +368,15 @@ useEffect(() => {
 
      const docRef = await addDoc(collection(db, 'agendamentos'), {
   uidEsteticista,
-  profissionalId: uidEsteticista,   // ⬅️ NOVO
+  profissionalId: uidEsteticista,
 
   data: slotSelecionado.data,
   horaInicio: slotSelecionado.horaInicio,
   horaFim: slotSelecionado.horaFim,
   duracaoMin: calcularDuracao(slotSelecionado),
 
-  servicoId: null,                 
-  servicoNome: null,                
+  servicoId: null,
+  servicoNome: null,
 
   nome: nome.trim(),
         documento: documento.trim(),
@@ -445,7 +444,9 @@ useEffect(() => {
   }
 
   // 2) Config não encontrada
-  if (erro && !config) {
+  // ✅ Só mostra tela cheia se REALMENTE a config da agenda não carregou.
+  //    Erros de validação de form (nome/doc/tel/LGPD) ficam inline no form.
+  if (erro && !configAgenda) {
     return (
       <>
         <TelaSemInternet />
@@ -536,6 +537,7 @@ useEffect(() => {
                     setObservacoes('');
                     setTelefone('');
                     setLgpdAceito(false);
+                    setErro('');
                   }}
                   className="tap-btn-secundario tap-target"
                 >
@@ -705,7 +707,10 @@ useEffect(() => {
                 <Campo label="Nome completo *">
                   <input
                     value={nome}
-                    onChange={(e) => setNome(e.target.value)}
+                    onChange={(e) => {
+                      setNome(e.target.value);
+                      if (erro) setErro('');
+                    }}
                     className="tap-input"
                     placeholder="Como no documento"
                     autoComplete="name"
@@ -715,7 +720,10 @@ useEffect(() => {
                 <Campo label="Documento * (CPF, RG, passaporte, ID…)">
                   <input
                     value={documento}
-                    onChange={(e) => setDocumento(e.target.value)}
+                    onChange={(e) => {
+                      setDocumento(e.target.value);
+                      if (erro) setErro('');
+                    }}
                     className="tap-input"
                     placeholder="Ex: 123.456.789-00 / AB123456 / 12345678Z"
                     autoComplete="off"
@@ -740,7 +748,10 @@ useEffect(() => {
                       international
                       defaultCountry="BR"
                       value={telefone}
-                      onChange={setTelefone}
+                      onChange={(v) => {
+                        setTelefone(v);
+                        if (erro) setErro('');
+                      }}
                       placeholder="Digite seu número"
                     />
                   </div>
@@ -786,7 +797,10 @@ useEffect(() => {
                   <input
                     type="checkbox"
                     checked={lgpdAceito}
-                    onChange={(e) => setLgpdAceito(e.target.checked)}
+                    onChange={(e) => {
+                      setLgpdAceito(e.target.checked);
+                      if (erro) setErro('');
+                    }}
                     style={{ marginTop: 3, width: 20, height: 20, flexShrink: 0 }}
                   />
                   <span style={{ fontSize: 11.5, color: '#333', lineHeight: 1.6 }}>
