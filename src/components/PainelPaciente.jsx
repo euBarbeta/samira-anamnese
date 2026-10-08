@@ -11,6 +11,7 @@ import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning, MdCalendarMonth,
   MdFolderOpen, MdInfoOutline, MdHourglassEmpty, MdCancel,
   MdLightbulbOutline, MdDelete, MdCheckCircle, MdErrorOutline, MdClose,
+  MdRefresh,   // ⬅️ ADICIONE ESTA LINHA
 } from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
 import {
@@ -931,6 +932,7 @@ export default function PainelPaciente({
 
   // ✅ Modal de remoção de agendamento
   const [agendamentoParaRemover, setAgendamentoParaRemover] = useState(null);
+  const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
 
   // ✅ NOVO: controla o modal de agendar pelo próprio painel do paciente
   const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
@@ -1224,6 +1226,39 @@ try {
   const abrirModalRemoverAgendamento = (ag) => {
     setAgendamentoParaRemover(ag);
   };
+  // ✅ Abre o modal de agendamento para o paciente reagendar
+const abrirModalReagendar = (ag) => {
+  setAgendamentoParaReagendar(ag);
+};
+
+// ✅ Ao confirmar o reagendamento, oculta o antigo (faltou)
+const concluirReagendamento = async (novoAg) => {
+  const agAntigo = agendamentoParaReagendar;
+  setAgendamentoParaReagendar(null);
+
+  // Oculta o agendamento antigo (faltou) da lista do paciente
+  if (agAntigo) {
+    try {
+      await updateDoc(doc(db, 'agendamentos', agAntigo.id), {
+        ocultoParaPaciente: true,
+        ocultadoPacienteEm: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Falha ao ocultar agendamento antigo:', e);
+    }
+  }
+
+  // Feedback de sucesso
+  setAviso({
+    tipo: 'sucesso',
+    titulo: 'Solicitação enviada',
+    mensagem:
+      `Sua solicitação para ${formatarDataBR(novoAg.data)} às ${novoAg.horaInicio} foi enviada.\n` +
+      `Aguarde a confirmação da profissional.`,
+    textoConfirmar: 'OK',
+    onConfirmar: () => setAviso(null),
+  });
+};
 
   // ✅ Confirma e apaga o documento
 const confirmarRemocaoAgendamento = async () => {
@@ -1778,30 +1813,69 @@ const podeRemover = (ag) =>
                             )}
 
                             {/* Cancelado / Concluído → botão Remover da lista (abre modal) */}
-                            {podeRemover(ag) && (
-                              <button
-                                type="button"
-                                onClick={() => abrirModalRemoverAgendamento(ag)}
-                                style={{
-                                  marginTop: 4,
-                                  background: '#f5f5f5',
-                                  color: '#555',
-                                  border: '1px solid #ddd',
-                                  padding: '4px 10px',
-                                  borderRadius: 10,
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  fontFamily: "'Cinzel', serif",
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                }}
-                              >
-                                <MdDelete size={12} />
-                                Remover da lista
-                              </button>
-                            )}
+                           {/* Faltou / Cancelado / Concluído → botões de ação */}
+{(ag.status === 'faltou' ||
+  ag.status === 'cancelado' ||
+  ag.status === 'concluido') && (
+  <div
+    style={{
+      display: 'flex',
+      gap: 6,
+      marginTop: 4,
+      flexWrap: 'wrap',
+    }}
+  >
+    {/* 🔄 Reagendar — só aparece quando faltou */}
+    {ag.status === 'faltou' && (
+      <button
+        type="button"
+        onClick={() => abrirModalReagendar(ag)}
+        style={{
+          background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+          color: '#fff',
+          border: 'none',
+          padding: '4px 10px',
+          borderRadius: 10,
+          fontSize: 9,
+          fontWeight: 700,
+          cursor: 'pointer',
+          fontFamily: "'Cinzel', serif",
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+        }}
+      >
+        <MdRefresh size={12} />
+        Reagendar
+      </button>
+    )}
+
+    {/* 🗑️ Remover da lista — cancelado, concluído ou faltou */}
+    <button
+      type="button"
+      onClick={() => abrirModalRemoverAgendamento(ag)}
+      style={{
+        background: '#f5f5f5',
+        color: '#555',
+        border: '1px solid #ddd',
+        padding: '4px 10px',
+        borderRadius: 10,
+        fontSize: 9,
+        fontWeight: 700,
+        cursor: 'pointer',
+        fontFamily: "'Cinzel', serif",
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+      }}
+    >
+      <MdDelete size={12} />
+      Remover da lista
+    </button>
+  </div>
+)}
+                            
                           </div>
                         ))}
                       </div>
@@ -2139,6 +2213,17 @@ const podeRemover = (ag) =>
           onFechar={() => setAviso(null)}
         />
       )}
+      {/* ✅ Modal de REAGENDAR — mesma coisa, mas esconde o antigo após confirmar */}
+{agendamentoParaReagendar && (
+  <ModalAgendarParaPaciente
+    paciente={pacienteData}
+    uidEsteticista={pacienteData.criadoPorUid}
+    origem="paciente"
+    onFechar={() => setAgendamentoParaReagendar(null)}
+    onSucesso={concluirReagendamento}
+  />
+)}
     </div>
+    
   );
 }
