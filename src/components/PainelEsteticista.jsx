@@ -732,6 +732,45 @@ const carregarMais = async () => {
     setPacienteSelecionado(pacAtualizado);
     // ⚠️ Não navega aqui — FichaDesktop chama onVoltar após mostrar "SALVO COM SUCESSO"
   };
+  // ============================================================
+// ✅ Chamado quando a esteta "SUBSTITUI" email/telefone no painel
+//    de agendamentos. Atualiza os states locais em TEMPO REAL
+//    pra que a ficha mostre o novo valor imediatamente.
+// ============================================================
+const handleCampoSubstituido = (pacId, campo, valor) => {
+  // 1) Atualiza a lista de pacientes
+  const atualizados = pacientes.map((p) => {
+    if (String(p.id) !== String(pacId)) return p;
+
+    const anamneseAtualizada = p.anamnese
+      ? { ...p.anamnese, [campo]: valor }
+      : p.anamnese;
+
+    return {
+      ...p,
+      [campo]: valor,
+      anamnese: anamneseAtualizada,
+    };
+  });
+
+  setPacientes(atualizados);
+
+  // 2) Atualiza o pacienteSelecionado (se for o mesmo)
+  if (pacienteSelecionado && String(pacienteSelecionado.id) === String(pacId)) {
+    const anamneseAtualizada = pacienteSelecionado.anamnese
+      ? { ...pacienteSelecionado.anamnese, [campo]: valor }
+      : pacienteSelecionado.anamnese;
+
+    setPacienteSelecionado({
+      ...pacienteSelecionado,
+      [campo]: valor,
+      anamnese: anamneseAtualizada,
+    });
+  }
+
+  // 3) Invalida o cache da busca global
+  cacheBuscaRef.current = null;
+};
 
   const solicitarExclusaoPasta = (idPaciente) => {
     // ✅ Empilha entrada no histórico para o voltar fechar o modal
@@ -1497,7 +1536,10 @@ const carregarMais = async () => {
   <MdArrowBack size={16} color="#C8A24A" />
   Voltar para lista de pacientes
 </button>
-    <PainelAgendamentosEsteticista uidEsteticista={auth.currentUser?.uid} />
+   <PainelAgendamentosEsteticista
+  uidEsteticista={auth.currentUser?.uid}
+  onCampoSubstituido={handleCampoSubstituido}
+/>
   </div>
 )}
 

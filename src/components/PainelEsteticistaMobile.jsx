@@ -736,7 +736,46 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
     setPacienteSelecionado(pacAtualizado);
     // ⚠️ FichaMobile chama onVoltar após mostrar "SALVO COM SUCESSO"
   };
+// ============================================================
+// ✅ Chamado quando a esteta "SUBSTITUI" email/telefone no painel
+//    de agendamentos. Atualiza os states locais em TEMPO REAL
+//    pra que a ficha mostre o novo valor imediatamente.
+// ============================================================
+// ============================================================
+// ✅ Chamado quando a esteta "SUBSTITUI" email/telefone no painel
+//    de agendamentos. Atualiza os states locais em TEMPO REAL.
+// ============================================================
+const handleCampoSubstituido = (pacId, campo, valor) => {
+  const atualizados = pacientes.map((p) => {
+    if (String(p.id) !== String(pacId)) return p;
 
+    const anamneseAtualizada = p.anamnese
+      ? { ...p.anamnese, [campo]: valor }
+      : p.anamnese;
+
+    return {
+      ...p,
+      [campo]: valor,
+      anamnese: anamneseAtualizada,
+    };
+  });
+
+  setPacientes(atualizados);
+
+  if (pacienteSelecionado && String(pacienteSelecionado.id) === String(pacId)) {
+    const anamneseAtualizada = pacienteSelecionado.anamnese
+      ? { ...pacienteSelecionado.anamnese, [campo]: valor }
+      : pacienteSelecionado.anamnese;
+
+    setPacienteSelecionado({
+      ...pacienteSelecionado,
+      [campo]: valor,
+      anamnese: anamneseAtualizada,
+    });
+  }
+
+  cacheBuscaRef.current = null;
+};
   // Abrir Modal de Exclusão de Pasta
   const solicitarExclusaoPasta = (idPaciente) => {
     // ✅ Empilha entrada no histórico para o voltar fechar o modal
@@ -1658,7 +1697,10 @@ if (!jaCarregou) {
   <MdArrowBack size={16} color="#C8A24A" />
   Voltar para lista de pacientes
 </button>
-    <PainelAgendamentosEsteticista uidEsteticista={auth.currentUser?.uid} />
+    <PainelAgendamentosEsteticista
+  uidEsteticista={auth.currentUser?.uid}
+  onCampoSubstituido={handleCampoSubstituido}
+/>
   </div>
 )}
 

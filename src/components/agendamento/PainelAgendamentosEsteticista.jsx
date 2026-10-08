@@ -9,7 +9,7 @@ import FichaMobile from '../FichaMobile';
 
 import {
   collection, query, where, onSnapshot, doc, getDoc, setDoc,
-  updateDoc, orderBy,
+  updateDoc, deleteDoc, orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -329,7 +329,10 @@ function ModalConfirmarCancelamento({
   );
 }
 
-export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
+export default function PainelAgendamentosEsteticista({
+  uidEsteticista,
+  onCampoSubstituido,
+}) {
   const [aba, setAba] = useState('agenda');
   const [agendamentos, setAgendamentos] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('pendente');
@@ -349,6 +352,10 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+
+  // ✅ Exclusão manual de agendamentos (cancelados / faltou / concluídos)
+  const [agendamentoParaExcluir, setAgendamentoParaExcluir] = useState(null);
+  const [excluindoAg, setExcluindoAg] = useState(false);
 
   // ============================================================
   // Listener 1 — AGENDAMENTOS em tempo real
@@ -411,12 +418,10 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   //    (agenda pública NÃO salva pacienteId, então precisa fallback)
   // ============================================================
   const acharPacienteDoAgendamento = (ag) => {
-    // 1) Por ID
     if (ag.pacienteId && pacientesPorId[ag.pacienteId]) {
       return pacientesPorId[ag.pacienteId];
     }
 
-    // 2) Fallback: nome + documento
     const agNome = normalizarNome(ag.nome);
     const agDoc = normalizarDoc(ag.documento);
     if (!agNome || !agDoc) return null;
@@ -433,7 +438,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
   // ============================================================
   // ✅ AUTO-SYNC — copia email/tel vazios da ficha a partir do agendamento
-  //    Usa fallback por nome+doc pra pegar agendamentos da agenda pública
   // ============================================================
   useEffect(() => {
     const user = getAuth().currentUser;
@@ -444,10 +448,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       const pacDocNorm = normalizarDoc(pac.documento);
 
       const agsDoPaciente = agendamentos.filter((a) => {
-        // 1) Por pacienteId
         if (a.pacienteId && a.pacienteId === pac.id) return true;
 
-        // 2) Fallback: nome+doc (agenda pública sem pacienteId)
         if (!a.pacienteId) {
           return (
             normalizarNome(a.nome) === pacNomeNorm &&
@@ -461,7 +463,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
       const ag = agsDoPaciente[0];
 
-      // ----- E-mail -----
       const emailFicha = getEmailContatoDoPaciente(pac);
       const emailRealAg = emailContatoDoAgendamento(ag.email);
       const chaveEmail = `${pac.id}|email|${emailRealAg}`;
@@ -482,7 +483,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         ).catch((e) => console.warn('Auto-sync email falhou:', e));
       }
 
-      // ----- Telefone -----
       const telFicha = getTelefoneDoPaciente(pac);
       const telAg = (ag.telefone || '').trim();
       const chaveTel = `${pac.id}|tel|${telAg}`;
@@ -690,6 +690,27 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     setAgendamentoParaReagendar(null);
   };
 
+  // ============================================================
+  // ✅ Exclusão manual de agendamento (só cancelado/faltou/concluído)
+  // ============================================================
+  const solicitarExclusaoAgendamento = (ag) => {
+    setAgendamentoParaExcluir(ag);
+  };
+
+  const confirmarExclusaoAgendamento = async () => {
+    if (!agendamentoParaExcluir) return;
+    setExcluindoAg(true);
+    try {
+      await deleteDoc(doc(db, 'agendamentos', agendamentoParaExcluir.id));
+      setAgendamentoParaExcluir(null);
+    } catch (e) {
+      console.error('Erro ao excluir agendamento:', e);
+      alert('Erro ao excluir. Tente novamente.');
+    } finally {
+      setExcluindoAg(false);
+    }
+  };
+
   const contagens = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -765,6 +786,9 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     return pacientesExistentes.has(`nome:${nomeNorm}|${docNorm}`);
   };
 
+  // ============================================================
+  // ✅ Substitui um campo na ficha do paciente
+  // ============================================================
   const substituirCampo = async (pacId, campo, valor) => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -781,6 +805,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           atualizadoEm: new Date().toISOString(),
         }
       );
+
+      onCampoSubstituido?.(pacId, campo, valor);
     } catch (e) {
       console.error('Erro ao substituir campo:', e);
       alert('Erro ao salvar. Tente novamente.');
@@ -790,11 +816,38 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   };
 
   // ============================================================
+  // ✅ Limpa um campo (emailContato ou telefone) na ficha do paciente
+  // ============================================================
+  const limparCampo = async (pacId, campo) => {
+    const user = getAuth().currentUser;
+    if (!user) return;
+
+    const chave = `${pacId}|${campo}`;
+    setSubstituindo(chave);
+
+    try {
+      await updateDoc(
+        doc(db, `usuarios/${user.uid}/pacientes`, pacId),
+        {
+          [campo]: '',
+          [`anamnese.${campo}`]: '',
+          atualizadoEm: new Date().toISOString(),
+        }
+      );
+
+      onCampoSubstituido?.(pacId, campo, '');
+    } catch (e) {
+      console.error('Erro ao limpar campo:', e);
+      alert('Erro ao limpar. Tente novamente.');
+    } finally {
+      setSubstituindo(null);
+    }
+  };
+
+  // ============================================================
   // ✅ Divergências — lê email/telefone dos 2 lugares (raiz ou anamnese)
-  //    E usa fallback por nome+doc pra pegar agendamentos públicos
   // ============================================================
   const divergenciasDoAgendamento = (ag) => {
-    // ✅ Usa o helper que acha por ID OU por nome+doc
     const pac = acharPacienteDoAgendamento(ag);
     if (!pac) return [];
 
@@ -1134,7 +1187,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                       )}
                     </div>
 
-                    {/* ✅ E-MAIL (ÚNICA VEZ) — lê dos 2 lugares */}
+                    {/* ✅ E-MAIL — lê dos 2 lugares */}
                     {(() => {
                       const pac = acharPacienteDoAgendamento(ag);
                       const emailContato =
@@ -1275,15 +1328,43 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                                     background: '#f5f5f5',
                                     color: '#555',
                                     border: '1.5px solid #ddd',
-                                    padding: '8px 12px',
+                                    padding: '8px 6px',
                                     borderRadius: 12,
-                                    fontSize: 10.5,
+                                    fontSize: 10,
                                     fontWeight: 700,
-                                    cursor: 'pointer',
+                                    cursor: carregandoEste ? 'not-allowed' : 'pointer',
                                     fontFamily: "'Cinzel', serif",
+                                    opacity: carregandoEste ? 0.6 : 1,
                                   }}
                                 >
-                                  MANTER CADASTRO
+                                  MANTER
+                                </button>
+
+                                {/* ✅ NOVO — Limpar campo */}
+                                <button
+                                  type="button"
+                                  disabled={carregandoEste}
+                                  onClick={() => limparCampo(d.pacId, d.campo)}
+                                  title={`Limpar ${d.label.toLowerCase()} da ficha`}
+                                  style={{
+                                    flex: 1,
+                                    background: '#fff',
+                                    color: '#c62828',
+                                    border: '1.5px solid #ef9a9a',
+                                    padding: '8px 6px',
+                                    borderRadius: 12,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    cursor: carregandoEste ? 'wait' : 'pointer',
+                                    fontFamily: "'Cinzel', serif",
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 3,
+                                    opacity: carregandoEste ? 0.7 : 1,
+                                  }}
+                                >
+                                  <MdDelete size={11} /> LIMPAR
                                 </button>
 
                                 <button
@@ -1291,20 +1372,20 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                                   disabled={carregandoEste}
                                   onClick={() => substituirCampo(d.pacId, d.campo, d.novo)}
                                   style={{
-                                    flex: 1,
+                                    flex: 1.2,
                                     background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
                                     color: '#fff',
                                     border: '1.5px solid #9c7826',
-                                    padding: '8px 12px',
+                                    padding: '8px 6px',
                                     borderRadius: 12,
-                                    fontSize: 10.5,
+                                    fontSize: 10,
                                     fontWeight: 700,
                                     cursor: carregandoEste ? 'wait' : 'pointer',
                                     fontFamily: "'Cinzel', serif",
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: 4,
+                                    gap: 3,
                                     boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
                                     opacity: carregandoEste ? 0.7 : 1,
                                   }}
@@ -1412,6 +1493,37 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                         </button>
                       </>
                     )}
+
+                    {/* ✅ Botão "Excluir da lista" — só pra finalizados */}
+                    {(ag.status === 'cancelado' ||
+                      ag.status === 'faltou' ||
+                      ag.status === 'concluido') && (
+                      <button
+                        type="button"
+                        onClick={() => solicitarExclusaoAgendamento(ag)}
+                        title="Excluir permanentemente da lista"
+                        style={{
+                          flex: '1 1 100%',
+                          background: '#ffebee',
+                          color: '#c62828',
+                          border: '1.5px solid #ef9a9a',
+                          padding: '8px 12px',
+                          borderRadius: 16,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: "'Cinzel', serif",
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          minHeight: 36,
+                          marginTop: 4,
+                        }}
+                      >
+                        <MdDelete size={13} /> EXCLUIR DA LISTA
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1440,6 +1552,151 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           onFechar={() => setAgendamentoParaConfirmar(null)}
           onConfirmado={() => setAgendamentoParaConfirmar(null)}
         />
+      )}
+
+      {/* ✅ Modal de confirmação de exclusão de agendamento */}
+      {agendamentoParaExcluir && (
+        <div
+          onClick={excluindoAg ? undefined : () => setAgendamentoParaExcluir(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(44, 22, 58, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2147483647,
+            padding: 20,
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: 20,
+              padding: '28px 24px 24px 24px',
+              maxWidth: 420,
+              width: '100%',
+              boxShadow: '0 25px 70px rgba(44, 22, 58, 0.4)',
+              border: '1.5px solid #e2d2f5',
+              fontFamily: "'Montserrat', sans-serif",
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: 68,
+                height: 68,
+                margin: '0 auto 16px auto',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #ffebee 0%, #fde8e8 100%)',
+                border: '2px solid #ef9a9a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 6px 18px rgba(198, 40, 40, 0.18)',
+              }}
+            >
+              <MdDelete size={30} color="#c62828" />
+            </div>
+
+            <h3
+              style={{
+                fontFamily: "'Cinzel', serif",
+                color: '#c62828',
+                fontSize: 17,
+                fontWeight: 700,
+                margin: '0 0 10px 0',
+              }}
+            >
+              Excluir da lista?
+            </h3>
+
+            <p
+              style={{
+                fontSize: 13,
+                color: '#2c163a',
+                margin: '0 0 6px 0',
+                fontWeight: 600,
+                lineHeight: 1.5,
+              }}
+            >
+              {agendamentoParaExcluir.nome}
+            </p>
+
+            <p
+              style={{
+                fontSize: 12,
+                color: '#555',
+                margin: '0 0 18px 0',
+                lineHeight: 1.6,
+              }}
+            >
+              {formatarDataBR(agendamentoParaExcluir.data)} às {agendamentoParaExcluir.horaInicio}
+              <br />
+              <span style={{ fontSize: 11, color: '#888', display: 'block', marginTop: 6 }}>
+                Esta ação não pode ser desfeita.
+              </span>
+            </p>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => setAgendamentoParaExcluir(null)}
+                disabled={excluindoAg}
+                style={{
+                  flex: 1,
+                  background: '#f0f0f0',
+                  color: '#333',
+                  border: 'none',
+                  padding: '12px 16px',
+                  borderRadius: 22,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: excluindoAg ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Cinzel', serif",
+                  opacity: excluindoAg ? 0.6 : 1,
+                  minHeight: 44,
+                }}
+              >
+                CANCELAR
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmarExclusaoAgendamento}
+                disabled={excluindoAg}
+                style={{
+                  flex: 1,
+                  background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '12px 16px',
+                  borderRadius: 22,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: excluindoAg ? 'wait' : 'pointer',
+                  fontFamily: "'Cinzel', serif",
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  boxShadow: '0 4px 14px rgba(198, 40, 40, 0.35)',
+                  opacity: excluindoAg ? 0.7 : 1,
+                  minHeight: 44,
+                }}
+              >
+                {excluindoAg ? 'EXCLUINDO…' : (
+                  <>
+                    <MdDelete size={14} /> EXCLUIR
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal de reagendamento */}
