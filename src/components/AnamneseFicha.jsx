@@ -118,6 +118,7 @@ const [uidDaURL, setUidDaURL] = useState(() => {
 
   const emLogoutRef = useRef(false);
   const ultimoUidRef = useRef(null);
+  const jaTeveUserRef = useRef(false); 
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -126,7 +127,7 @@ const [uidDaURL, setUidDaURL] = useState(() => {
   }, []);
   // ✅ Rede de segurança: garante que a URL do PACIENTE sempre tenha #id
 //    (não mexe na URL do esteticista nem na tela de agendamento)
-const jaTeveUserRef = useRef(false);
+
 useEffect(() => {
   try {
     // ✅ NÃO persiste enquanto o auth ainda não foi verificado.
@@ -348,6 +349,7 @@ useEffect(() => {
     }
 
     if (user) {
+       jaTeveUserRef.current = true;  
       if (ultimoUidRef.current === user.uid) {
         setAuthVerificado(true);
         return;
@@ -468,15 +470,42 @@ if (uidAtual && String(user.uid) !== String(uidAtual)) {
       }
 
       await handleLoginSucesso(user, { veioDeRefresh: true });
-    } else {
-      ultimoUidRef.current = null;
-      setAutenticado(false);
-      setUsuarioLogado(null);
-      setDadosPaciente(null);
-      setPacienteDocPath(null);
-      setAbaAtiva('telainicial');
-    }
-    setAuthVerificado(true);
+   } else {
+  // ✅ Se temos sessão salva e ainda não recebemos nenhum user real,
+  //    ignoramos este null prematuro (o Firebase vai re-emitir em breve)
+  const temSessaoSalva = (() => {
+    try {
+      return (
+        localStorage.getItem('af_autenticado') === '1' ||
+        sessionStorage.getItem('af_autenticado') === '1'
+      );
+    } catch { return false; }
+  })();
+
+  if (!jaTeveUserRef.current && temSessaoSalva) {
+    setTimeout(() => {
+      if (!auth.currentUser) {
+        ultimoUidRef.current = null;
+        setAutenticado(false);
+        setUsuarioLogado(null);
+        setDadosPaciente(null);
+        setPacienteDocPath(null);
+        setAbaAtiva('telainicial');
+        setAuthVerificado(true);
+      }
+    }, 4000);
+    return;   // ⬅️ Não zera agora
+  }
+
+  // Fluxo normal
+  ultimoUidRef.current = null;
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setPacienteDocPath(null);
+  setAbaAtiva('telainicial');
+}
+setAuthVerificado(true);
   });
   return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -520,24 +549,25 @@ useEffect(() => {
   // ============================================================
   // OBSERVER — FICHAS (esteticista)
   // ============================================================
-  useEffect(() => {
-    if (autenticado && usuarioLogado && abaAtiva !== 'painelPaciente' && abaAtiva !== 'telainicial') {
-      setCarregandoNuvem(true);
-      const colRef = collection(db, `usuarios/${usuarioLogado.uid}/pacientes`);
-      const unsubscribe = onSnapshot(colRef, (querySnapshot) => {
-        const listaFichas = querySnapshot.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }));
-        setFichasSalvas(listaFichas);
-        setCarregandoNuvem(false);
-      }, (error) => {
-        console.error("Erro ao sincronizar:", error);
-        setCarregandoNuvem(false);
-      });
-      return () => unsubscribe();
-    }
-  }, [autenticado, usuarioLogado, abaAtiva]);
+ useEffect(() => {
+  // ✅ Só exige estar autenticado como esteta (não importa a aba)
+  if (autenticado && usuarioLogado) {
+    setCarregandoNuvem(true);
+    const colRef = collection(db, `usuarios/${usuarioLogado.uid}/pacientes`);
+    const unsubscribe = onSnapshot(colRef, (querySnapshot) => {
+      const listaFichas = querySnapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      }));
+      setFichasSalvas(listaFichas);
+      setCarregandoNuvem(false);
+    }, (error) => {
+      console.error("Erro ao sincronizar:", error);
+      setCarregandoNuvem(false);
+    });
+    return () => unsubscribe();
+  }
+}, [autenticado, usuarioLogado]);   // ⬅️ Só esses 2
 
   // ============================================================
   // LOGIN

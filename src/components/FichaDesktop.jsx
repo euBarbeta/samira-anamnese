@@ -69,9 +69,7 @@ const [salvoSucesso, setSalvoSucesso] = useState(false);
   const habitosInputsRef = useRef([]);
   const observacoesRef = useRef(null);
 
- const [lembretes, setLembretes] = useState([
-  { titulo: '', tipo: 'intervalo', valor: '', intervaloNumero: '8', intervaloUnidade: 'horas' }
-]);
+const [lembretes, setLembretes] = useState([]);
 
   // Catálogo expandido com mais opções de ícones vetoriais em roxo (#9333ea)
   const iconesDisponiveis = [
@@ -279,9 +277,12 @@ const [salvoSucesso, setSalvoSucesso] = useState(false);
         });
         setHabitosComIcones(habitosMapeados);
       }
-      if (Array.isArray(fichaSelecionada.lembretes)) {
-  setLembretes(fichaSelecionada.lembretes);
-}
+  // ✅ Sempre seta — se não for array, fica vazio
+setLembretes(
+  Array.isArray(fichaSelecionada.lembretes)
+    ? fichaSelecionada.lembretes
+    : []
+);
 
     }
   }, [fichaSelecionada]);

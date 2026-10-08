@@ -85,9 +85,7 @@ const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
   const [dropdownNovoAberto, setDropdownNovoAberto] = useState(false);
   const [novoValorOpcaoPele, setNovoValorOpcaoPele] = useState({});
 
-  const [lembretes, setLembretes] = useState([
-  { titulo: '', tipo: 'intervalo', valor: '', intervaloNumero: '8', intervaloUnidade: 'horas' }
-]);
+const [lembretes, setLembretes] = useState([]);
 
   // Ícones disponíveis
   const iconesDisponiveis = [
@@ -304,9 +302,11 @@ useEffect(() => {
         });
         setHabitosComIcones(habitosMapeados);
       }
-      if (Array.isArray(fichaSelecionada.lembretes)) {
-  setLembretes(fichaSelecionada.lembretes);
-}
+ setLembretes(
+  Array.isArray(fichaSelecionada.lembretes)
+    ? fichaSelecionada.lembretes
+    : []
+);
     }
   }, [fichaSelecionada]);
 

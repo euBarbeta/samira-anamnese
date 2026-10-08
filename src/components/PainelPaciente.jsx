@@ -2100,25 +2100,27 @@ const podeRemover = (ag) =>
                 }}
               >
                 <MdArrowBack size={15} color="#C8A24A" />
-                Voltar para o menu da pasta
-              </button>
-              <div style={{ opacity: 0.98 }}>
-                {isMobile ? (
-                  <FichaMobile
-                    mode="view"
-                    fichaSelecionada={pacienteData.anamnese || pacienteData}
-                    onVoltar={() => window.history.back()}
-                  />
-                ) : (
-                  <FichaDesktop
-                    mode="view"
-                    fichaSelecionada={pacienteData.anamnese || pacienteData}
-                    onVoltar={() => window.history.back()}
-                  />
-                )}
-              </div>
-            </div>
-          )}
+      Voltar para o menu da pasta
+    </button>
+    <div style={{ opacity: 0.98 }}>
+      {isMobile ? (
+        <FichaMobile
+          key={`ficha-mobile-${pacienteData.anamnese?.dataModificacao || pacienteData.dataUltimaEdicao || 'init'}`}
+          mode="view"
+          fichaSelecionada={pacienteData.anamnese || pacienteData}
+          onVoltar={() => window.history.back()}
+        />
+      ) : (
+        <FichaDesktop
+          key={`ficha-desktop-${pacienteData.anamnese?.dataModificacao || pacienteData.dataUltimaEdicao || 'init'}`}
+          mode="view"
+          fichaSelecionada={pacienteData.anamnese || pacienteData}
+          onVoltar={() => window.history.back()}
+        />
+      )}
+    </div>
+  </div>
+)}
         </div>
       </div>
 
