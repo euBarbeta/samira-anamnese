@@ -63,9 +63,6 @@ function getTelefoneDoPaciente(pac) {
   return (pac.anamnese?.telefone || '').trim();
 }
 
-// ============================================================
-// ✅ Normaliza nome pra comparação (lowercase + remove acentos)
-// ============================================================
 function normalizarNome(str) {
   return (str || '')
     .trim()
@@ -155,6 +152,24 @@ function ModalConfirmarCancelamento({
   onConfirmar,
   onFechar,
 }) {
+  // ✅ Atalhos de teclado: Enter = confirmar | Esc = cancelar
+  useEffect(() => {
+    if (carregando) return;
+
+    const handler = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onConfirmar?.();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onFechar?.();
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [carregando, onConfirmar, onFechar]);
+
   return (
     <div
       onClick={carregando ? undefined : onFechar}
@@ -706,6 +721,27 @@ export default function PainelAgendamentosEsteticista({
     }
   };
 
+  // ============================================================
+  // ✅ Atalhos de teclado do modal de exclusão: Enter / Esc
+  // ============================================================
+  useEffect(() => {
+    if (!agendamentoParaExcluir || excluindoAg) return;
+
+    const handler = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmarExclusaoAgendamento();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setAgendamentoParaExcluir(null);
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendamentoParaExcluir, excluindoAg]);
+
   const contagens = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -802,32 +838,6 @@ export default function PainelAgendamentosEsteticista({
     } catch (e) {
       console.error('Erro ao substituir campo:', e);
       alert('Erro ao salvar. Tente novamente.');
-    } finally {
-      setSubstituindo(null);
-    }
-  };
-
-  const limparCampo = async (pacId, campo) => {
-    const user = getAuth().currentUser;
-    if (!user) return;
-
-    const chave = `${pacId}|${campo}`;
-    setSubstituindo(chave);
-
-    try {
-      await updateDoc(
-        doc(db, `usuarios/${user.uid}/pacientes`, pacId),
-        {
-          [campo]: '',
-          [`anamnese.${campo}`]: '',
-          atualizadoEm: new Date().toISOString(),
-        }
-      );
-
-      onCampoSubstituido?.(pacId, campo, '');
-    } catch (e) {
-      console.error('Erro ao limpar campo:', e);
-      alert('Erro ao limpar. Tente novamente.');
     } finally {
       setSubstituindo(null);
     }
@@ -1028,7 +1038,6 @@ export default function PainelAgendamentosEsteticista({
               aria-hidden="true"
             />
 
-            {/* Label invisível pra acessibilidade */}
             <label
               htmlFor="busca-agendamentos"
               style={{
@@ -1144,7 +1153,6 @@ export default function PainelAgendamentosEsteticista({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {filtrados.map((ag) => (
                 <div key={ag.id} style={cardAg}>
-                  {/* ✅ NOME */}
                   <h4 style={{
                     fontFamily: "'Cinzel', serif",
                     margin: '0 0 8px 0',
@@ -1157,7 +1165,6 @@ export default function PainelAgendamentosEsteticista({
                     {ag.nome}
                   </h4>
 
-                  {/* ✅ INFO */}
                   <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
@@ -1201,7 +1208,6 @@ export default function PainelAgendamentosEsteticista({
                       )}
                     </div>
 
-                    {/* ✅ E-MAIL — lê dos 2 lugares */}
                     {(() => {
                       const pac = acharPacienteDoAgendamento(ag);
                       const emailContato =
@@ -1236,7 +1242,6 @@ export default function PainelAgendamentosEsteticista({
                     )}
                   </div>
 
-                  {/* ✅ BADGES */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                     {ag.aguardandoConsentimento && (
                       <span style={badgeAguardando}>
@@ -1263,7 +1268,7 @@ export default function PainelAgendamentosEsteticista({
                     )}
                   </div>
 
-                  {/* ✅ Painel de divergências */}
+                  {/* ✅ Painel de divergências — só MANTER + SUBSTITUIR */}
                   {(() => {
                     const divs = divergenciasDoAgendamento(ag);
                     if (divs.length === 0) return null;
@@ -1330,7 +1335,7 @@ export default function PainelAgendamentosEsteticista({
                                 </div>
                               </div>
 
-                              <div style={{ display: 'flex', gap: 6 }}>
+                              <div style={{ display: 'flex', gap: 8 }}>
                                 <button
                                   type="button"
                                   disabled={carregandoEste}
@@ -1342,13 +1347,14 @@ export default function PainelAgendamentosEsteticista({
                                     background: '#f5f5f5',
                                     color: '#555',
                                     border: '1.5px solid #ddd',
-                                    padding: '8px 6px',
+                                    padding: '10px 12px',
                                     borderRadius: 12,
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     fontWeight: 700,
                                     cursor: carregandoEste ? 'not-allowed' : 'pointer',
                                     fontFamily: "'Cinzel', serif",
                                     opacity: carregandoEste ? 0.6 : 1,
+                                    minHeight: 40,
                                   }}
                                 >
                                   MANTER
@@ -1357,50 +1363,25 @@ export default function PainelAgendamentosEsteticista({
                                 <button
                                   type="button"
                                   disabled={carregandoEste}
-                                  onClick={() => limparCampo(d.pacId, d.campo)}
-                                  title={`Limpar ${d.label.toLowerCase()} da ficha`}
-                                  style={{
-                                    flex: 1,
-                                    background: '#fff',
-                                    color: '#c62828',
-                                    border: '1.5px solid #ef9a9a',
-                                    padding: '8px 6px',
-                                    borderRadius: 12,
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    cursor: carregandoEste ? 'wait' : 'pointer',
-                                    fontFamily: "'Cinzel', serif",
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 3,
-                                    opacity: carregandoEste ? 0.7 : 1,
-                                  }}
-                                >
-                                  <MdDelete size={11} /> LIMPAR
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={carregandoEste}
                                   onClick={() => substituirCampo(d.pacId, d.campo, d.novo)}
                                   style={{
-                                    flex: 1.2,
+                                    flex: 1,
                                     background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
                                     color: '#fff',
                                     border: '1.5px solid #9c7826',
-                                    padding: '8px 6px',
+                                    padding: '10px 12px',
                                     borderRadius: 12,
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     fontWeight: 700,
                                     cursor: carregandoEste ? 'wait' : 'pointer',
                                     fontFamily: "'Cinzel', serif",
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: 3,
+                                    gap: 4,
                                     boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
                                     opacity: carregandoEste ? 0.7 : 1,
+                                    minHeight: 40,
                                   }}
                                 >
                                   {carregandoEste ? 'SALVANDO…' : 'SUBSTITUIR'}
