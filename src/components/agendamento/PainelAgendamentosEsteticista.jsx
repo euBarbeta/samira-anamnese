@@ -1698,6 +1698,7 @@ export default function PainelAgendamentosEsteticista({
           paciente={pacienteReagendar}
           uidEsteticista={uidEsteticista}
           origem="esteticista"
+          tipoNotificacao="remarcado"
           onFechar={fecharReagendamento}
           onSucesso={async (novoAg) => {
             try {

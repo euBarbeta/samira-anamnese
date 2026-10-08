@@ -53,12 +53,18 @@ exports.handler = async (event) => {
         corpo: `Sua consulta em ${agendamento.data} às ${agendamento.horaInicio} foi confirmada.`,
         tipoData: 'agendamento_confirmado',
       },
+      remarcado: {
+  titulo: '🔄 Consulta remarcada',
+  corpo: `Sua consulta foi remarcada para ${agendamento.data} às ${agendamento.horaInicio}.`,
+  tipoData: 'agendamento_remarcado',
+},
       cancelado: {
         titulo: '❌ Agendamento cancelado',
         corpo: `Sua consulta em ${agendamento.data} às ${agendamento.horaInicio} foi cancelada.`,
         tipoData: 'agendamento_cancelado',
       },
     };
+
 
     const info = mapa[tipoEvento] || mapa.criado;
 

@@ -16,7 +16,8 @@ import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 export default function ModalAgendarParaPaciente({
   paciente,
   uidEsteticista,
-  origem = 'esteticista',   // 'esteticista' | 'paciente'
+  origem = 'esteticista',
+   tipoNotificacao = 'criado',
   onFechar,
   onSucesso,
 }) {
@@ -287,6 +288,7 @@ export default function ModalAgendarParaPaciente({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             pacienteId: paciente.id,
+             tipoEvento: tipoNotificacao, 
             agendamento: {
               id: docRef.id,
               data: slotSelecionado.data,

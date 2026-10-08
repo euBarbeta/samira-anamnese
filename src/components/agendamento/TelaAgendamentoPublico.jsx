@@ -392,7 +392,21 @@ useEffect(() => {
         criadoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
       });
-
+try {
+  await fetch('/.netlify/functions/vincular-paciente-agendamento', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      uidEsteticista,
+      agendamentoId: docRef.id,
+      nome: nome.trim(),
+      documento: documento.trim(),
+    }),
+  });
+} catch (e) {
+  console.warn('Falha ao vincular paciente automaticamente:', e);
+  // não quebra o fluxo do agendamento — ele já foi criado com sucesso
+}
       notificarAgendamento({
         tipoEvento: 'novo',
         uidEsteticista,

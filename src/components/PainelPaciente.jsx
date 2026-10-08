@@ -1229,8 +1229,10 @@ const confirmarRemocaoAgendamento = async () => {
   }
 };
 
-  const podeRemover = (ag) =>
-    ag.status === 'cancelado' || ag.status === 'concluido';
+const podeRemover = (ag) =>
+    ag.status === 'cancelado' ||
+    ag.status === 'concluido' ||
+    ag.status === 'faltou';
 
   if (consentimentoRecusado) {
     return (
