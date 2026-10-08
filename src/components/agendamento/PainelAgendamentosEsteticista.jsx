@@ -308,22 +308,11 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
   const [cancelando, setCancelando] = useState(false);
 
-  // ✅ Set com IDs e nome+doc dos pacientes que existem no Firestore
-  //    Usado pra esconder o botão "Ficha de Anamnese" de quem já tem pasta
   const [pacientesExistentes, setPacientesExistentes] = useState(new Set());
-
-  // ✅ Map com dados COMPLETOS dos pacientes (por ID) — usado pra
-  //    comparar email/telefone da ficha com os do agendamento
   const [pacientesPorId, setPacientesPorId] = useState({});
-
-  // ✅ Rastreia qual campo está sendo substituído (feedback visual)
-  //    Formato: 'pacId|campo'
   const [substituindo, setSubstituindo] = useState(null);
-
-  // ✅ Ref pra não rodar o auto-sync 2x no mesmo campo
   const autoSyncRef = useRef(new Set());
 
-  // Reagendamento (funciona pra COM e SEM pasta)
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
@@ -353,9 +342,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [uidEsteticista]);
 
   // ============================================================
-  // ✅ Listener 2 — PACIENTES existentes (para esconder botão "Ficha")
-  //    Guarda `id:<uid>` E `nome:<nome>|<doc>` no Set
-  //    E também guarda o objeto completo no map pacientesPorId
+  // ✅ Listener 2 — PACIENTES existentes
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
@@ -366,10 +353,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         const set = new Set();
         const map = {};
         snap.docs.forEach((d) => {
-          // ✅ Guarda o ID real que existe no Firestore
           set.add(`id:${d.id}`);
 
-          // ✅ Guarda também nome+doc (fallback caso o ID mude)
           const p = d.data();
           const nomeNorm = (p.nome || '').trim().toLowerCase();
           const docNorm = (p.documento || '').replace(/\D/g, '');
@@ -377,7 +362,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             set.add(`nome:${nomeNorm}|${docNorm}`);
           }
 
-          // ✅ Mapa completo por ID (dados usados pra comparar)
           map[d.id] = { id: d.id, ...p };
         });
         setPacientesExistentes(set);
@@ -390,10 +374,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [uidEsteticista]);
 
   // ============================================================
-  // ✅ AUTO-SYNC — se a ficha do paciente tem e-mail ou telefone VAZIO
-  //    e o agendamento trouxe um valor, copia automaticamente pra ficha
-  //    (só quando o campo está vazio — se já tem valor, mostra o painel
-  //     de divergências pra esteta decidir)
+  // ✅ AUTO-SYNC
   // ============================================================
   useEffect(() => {
     const user = getAuth().currentUser;
@@ -405,10 +386,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       );
       if (agsDoPaciente.length === 0) return;
 
-      // Pega o mais recente (agendamentos vêm ordenados por data desc)
       const ag = agsDoPaciente[0];
 
-      // ----- E-mail -----
       const emailFicha = (pac.emailContato || '').trim();
       const emailRealAg = emailContatoDoAgendamento(ag.email);
       const chaveEmail = `${pac.id}|email|${emailRealAg}`;
@@ -429,7 +408,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         ).catch((e) => console.warn('Auto-sync email falhou:', e));
       }
 
-      // ----- Telefone -----
       const telFicha = (pac.telefone || '').trim();
       const telAg = (ag.telefone || '').trim();
       const chaveTel = `${pac.id}|tel|${telAg}`;
@@ -467,7 +445,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         atualizadoEm: new Date().toISOString(),
       });
 
-      // Só notifica se o paciente tiver app (tem pacienteId)
       if (ag.pacienteId) {
         fetch('/.netlify/functions/notificar-paciente-agendamento', {
           method: 'POST',
@@ -490,13 +467,11 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
   // ============================================================
   // ✅ Cria ficha automaticamente ao concluir consulta
-  //    (definida ANTES de concluirManual para evitar ReferenceError)
   // ============================================================
   const criarFichaAutomatica = async (ag) => {
     const user = getAuth().currentUser;
     if (!user) return;
 
-    // Já existe pasta?
     if (ag.pacienteId) {
       try {
         const snap = await getDoc(
@@ -540,7 +515,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     const agora = new Date();
     const dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-    // ✅ Filtra o e-mail de contato (remove @sistema.local / vazio)
     const emailContatoReal = emailContatoDoAgendamento(ag.email);
 
     const novaFicha = {
@@ -584,7 +558,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         atualizadoEm: new Date().toISOString(),
       });
 
-      // ✅ Cria ficha automaticamente se ainda não existir
       await criarFichaAutomatica(ag);
     } catch (e) {
       alert('Erro ao concluir: ' + e.message);
@@ -604,9 +577,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
   };
 
-  // ============================================================
-  // ✅ REAGENDAR — funciona COM e SEM pasta
-  // ============================================================
   const abrirReagendamento = async (ag) => {
     if (ag.pacienteId) {
       setBuscandoPaciente(true);
@@ -708,9 +678,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     });
   }, [agendamentos, filtroStatus, busca]);
 
-  // ============================================================
-  // ✅ Verifica se o agendamento já corresponde a um paciente existente
-  // ============================================================
   const pacienteJaExiste = (ag) => {
     if (ag.pacienteId && pacientesExistentes.has(`id:${ag.pacienteId}`)) {
       return true;
@@ -723,10 +690,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     return pacientesExistentes.has(`nome:${nomeNorm}|${docNorm}`);
   };
 
-  // ============================================================
-  // ✅ Substitui um campo (emailContato ou telefone) na ficha do paciente
-  //    com o valor vindo do agendamento público
-  // ============================================================
   const substituirCampo = async (pacId, campo, valor) => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -751,10 +714,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
   };
 
-  // ============================================================
-  // ✅ Calcula quais campos estão divergentes entre ficha e agendamento
-  //    Retorna array: [{ campo, label, atual, novo, pacId }]
-  // ============================================================
   const divergenciasDoAgendamento = (ag) => {
     if (!ag.pacienteId) return [];
     const pac = pacientesPorId[ag.pacienteId];
@@ -762,7 +721,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
     const lista = [];
 
-    // E-mail
     const emailFicha = (pac.emailContato || '').trim().toLowerCase();
     const emailRealAg = emailContatoDoAgendamento(ag.email);
     if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
@@ -775,7 +733,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       });
     }
 
-    // Telefone
     const telFicha = (pac.telefone || '').trim();
     const telAg = (ag.telefone || '').trim();
     if (telFicha && telAg && telFicha !== telAg) {
@@ -791,9 +748,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     return lista;
   };
 
-  // ============================================================
-  // ✅ Abre uma ficha de anamnese pré-preenchida com dados do agendamento
-  // ============================================================
   const abrirFichaPreenchida = (ag) => {
     setFichaPreenchida({
       _agendamentoOrigemId: ag.id,
@@ -809,9 +763,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     });
   };
 
-  // ============================================================
-  // ✅ Salva a ficha criada a partir do agendamento e vincula
-  // ============================================================
   const handleSalvarFichaDoAgendamento = async (dadosAnamnese) => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -875,7 +826,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         atualizadoEm: new Date().toISOString(),
       };
 
-      // ✅ Se o agendamento estava CONFIRMADO, ao salvar a ficha ele vira CONCLUÍDO
       if (fichaPreenchida._agendamentoStatusOriginal === 'confirmado') {
         patch.status = 'concluido';
         patch.concluidoPor = 'esteticista';
@@ -891,7 +841,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     setFichaPreenchida(null);
   };
 
-  // ✅ Se há uma ficha aberta, mostra ela em tela cheia (create mode)
   if (fichaPreenchida) {
     const isMobileView = window.innerWidth <= 768;
     const Comp = isMobileView ? FichaMobile : FichaDesktop;
@@ -1046,7 +995,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {filtrados.map((ag) => (
                 <div key={ag.id} style={cardAg}>
-                  {/* ✅ NOME primeiro (sempre em cima) */}
+                  {/* ✅ NOME */}
                   <h4 style={{
                     fontFamily: "'Cinzel', serif",
                     margin: '0 0 8px 0',
@@ -1059,7 +1008,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                     {ag.nome}
                   </h4>
 
-                  {/* ✅ INFO no meio (uma coisa por linha) */}
+                  {/* ✅ INFO */}
                   <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
@@ -1103,24 +1052,25 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                       )}
                     </div>
 
-{(() => {
-  const pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
-  const emailContato =
-    (pac?.emailContato || '').trim() ||
-    emailContatoDoAgendamento(ag.email);
+                    {/* ✅ E-MAIL (ÚNICA VEZ) */}
+                    {(() => {
+                      const pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
+                      const emailContato =
+                        (pac?.emailContato || '').trim() ||
+                        emailContatoDoAgendamento(ag.email);
 
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-      <span style={{ wordBreak: 'break-all' }}>
-        {emailContato || '—'}
-      </span>
-      {emailContato && (
-        <BotaoCopiar valor={emailContato} rotulo="e-mail" title="Copiar e-mail" />
-      )}
-    </div>
-  );
-})()}
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                          <span style={{ wordBreak: 'break-all' }}>
+                            {emailContato || '—'}
+                          </span>
+                          {emailContato && (
+                            <BotaoCopiar valor={emailContato} rotulo="e-mail" title="Copiar e-mail" />
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {ag.observacoes && (
                       <div style={{
@@ -1164,30 +1114,130 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                     )}
                   </div>
 
-                 {(() => {
-  // ✅ E-mail de contato vem prioritariamente da FICHA do paciente.
-  //    Se não tiver na ficha, usa o do agendamento (só se for real,
-  //    ou seja, não pode ser @sistema.local).
-  const pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
-  const emailContato =
-    (pac?.emailContato || '').trim() ||
-    emailContatoDoAgendamento(ag.email);
+                  {/* ✅ Painel de divergências */}
+                  {(() => {
+                    const divs = divergenciasDoAgendamento(ag);
+                    if (divs.length === 0) return null;
 
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-      <span style={{ wordBreak: 'break-all' }}>
-        {emailContato || '—'}
-      </span>
-      {emailContato && (
-        <BotaoCopiar valor={emailContato} rotulo="e-mail" title="Copiar e-mail" />
-      )}
-    </div>
-  );
-})()}
-                 
+                    return (
+                      <div style={{
+                        marginTop: 12,
+                        background: 'linear-gradient(135deg, #fff8e1 0%, #fef3c7 100%)',
+                        border: '1.5px solid #fcd34d',
+                        borderRadius: 12,
+                        padding: '12px 14px',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginBottom: 10,
+                        }}>
+                          <MdWarning size={16} color="#92400e" />
+                          <span style={{
+                            fontFamily: "'Cinzel', serif",
+                            color: '#92400e',
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}>
+                            Dados diferentes do cadastro do paciente
+                          </span>
+                        </div>
 
-                  {/* ✅ BOTÕES sempre embaixo, na linha toda */}
+                        {divs.map((d) => {
+                          const chave = `${d.pacId}|${d.campo}`;
+                          const carregandoEste = substituindo === chave;
+
+                          return (
+                            <div
+                              key={d.campo}
+                              style={{
+                                background: '#fff',
+                                border: '1px solid #fcd34d',
+                                borderRadius: 8,
+                                padding: '10px 12px',
+                                marginBottom: 8,
+                              }}
+                            >
+                              <div style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: '#2c163a',
+                                marginBottom: 6,
+                              }}>
+                                {d.label}
+                              </div>
+
+                              <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6, marginBottom: 8 }}>
+                                <div>
+                                  <strong style={{ color: '#888' }}>Cadastro:</strong>{' '}
+                                  <span style={{ wordBreak: 'break-all' }}>{d.atual}</span>
+                                </div>
+                                <div>
+                                  <strong style={{ color: '#7e22ce' }}>Agendamento:</strong>{' '}
+                                  <span style={{ wordBreak: 'break-all', color: '#7e22ce', fontWeight: 600 }}>
+                                    {d.novo}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  disabled={carregandoEste}
+                                  onClick={() => {
+                                    alert(`Mantido o ${d.label.toLowerCase()} do cadastro.`);
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    background: '#f5f5f5',
+                                    color: '#555',
+                                    border: '1.5px solid #ddd',
+                                    padding: '8px 12px',
+                                    borderRadius: 12,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    fontFamily: "'Cinzel', serif",
+                                  }}
+                                >
+                                  MANTER CADASTRO
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={carregandoEste}
+                                  onClick={() => substituirCampo(d.pacId, d.campo, d.novo)}
+                                  style={{
+                                    flex: 1,
+                                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                                    color: '#fff',
+                                    border: '1.5px solid #9c7826',
+                                    padding: '8px 12px',
+                                    borderRadius: 12,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    cursor: carregandoEste ? 'wait' : 'pointer',
+                                    fontFamily: "'Cinzel', serif",
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 4,
+                                    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
+                                    opacity: carregandoEste ? 0.7 : 1,
+                                  }}
+                                >
+                                  {carregandoEste ? 'SALVANDO…' : 'SUBSTITUIR'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ✅ BOTÕES */}
                   <div style={{
                     display: 'flex',
                     gap: 8,
@@ -1196,9 +1246,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                     paddingTop: 12,
                     borderTop: '1px dashed #f0e6fa',
                   }}>
-                    {/* ✅ Botão Ficha de Anamnese — só se:
-                        - status confirmado ou concluído E
-                        - paciente ainda NÃO existe (nome+doc não bateram) */}
                     {(ag.status === 'confirmado' || ag.status === 'concluido') && !pacienteJaExiste(ag) && (
                       <button
                         type="button"
