@@ -126,8 +126,7 @@ export default function AvisoNotificacoes({ pacienteId, appInstalado = false }) 
               </>
             ) : (
               <>
-                <strong>Notificações bloqueadas.</strong> Para ativar, toque no cadeado 🔒 da
-                barra de endereço → <strong>Notificações → Permitir</strong>.
+                <strong>Notificações bloqueadas.</strong> Para ativar, toque no cadeado da barra de endereço → <strong>Notificações → Permitir</strong>.
               </>
             )}
           </div>
