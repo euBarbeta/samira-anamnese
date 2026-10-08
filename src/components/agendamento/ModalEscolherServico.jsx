@@ -5,8 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
-  MdClose, MdCheckCircle, MdWarning, MdEvent,
-} from 'react-icons/md';
+  MdClose, MdCheckCircle, MdWarning, MdEvent, MdCalendarMonth, MdEventAvailable,} from 'react-icons/md';
 
 // ============================================================
 // Helpers
@@ -85,6 +84,7 @@ export default function ModalEscolherServico({
   const [agendamentosDoDia, setAgendamentosDoDia] = useState([]);
   const [config, setConfig] = useState(null);
   const [carregando, setCarregando] = useState(true);
+  const [passoSobrou, setPassoSobrou] = useState(null);
 
   const [servicoSelecionado, setServicoSelecionado] = useState(null);
   const [observacao, setObservacao] = useState('');
@@ -182,61 +182,109 @@ export default function ModalEscolherServico({
   // ============================================================
   // 5) Confirmar
   // ============================================================
-  const confirmar = async () => {
-    if (!servicoSelecionado) {
-      setErro('Escolha um serviço para confirmar.');
-      return;
-    }
+const confirmar = async () => {
+  if (!servicoSelecionado) {
+    setErro('Escolha um serviço para confirmar.');
+    return;
+  }
 
-    const info = previews[servicoSelecionado.id];
-    if (!info?.cabe) {
-      setErro(info?.motivo || 'Este serviço não cabe neste horário.');
-      return;
-    }
+  const info = previews[servicoSelecionado.id];
+  if (!info?.cabe) {
+    setErro(info?.motivo || 'Este serviço não cabe neste horário.');
+    return;
+  }
 
-    setEnviando(true);
+  // ============================================================
+  // ✅ Detecta se sobrou tempo no bloco padrão
+  // ============================================================
+  const bloco = acharBlocoDoDia(config, agendamento.data, agendamento.horaInicio);
+  const fimBloco = bloco?.fim || info.novaFim; // fallback: sem sobra
+
+  const fimBlocoMin = toMin(fimBloco);
+  const fimServicoMin = toMin(info.novaFim);
+
+  const sobraMin = fimBlocoMin - fimServicoMin;
+
+  // ✅ Se sobrou pelo menos 10min, pergunta antes de salvar
+  if (sobraMin >= 10) {
+    setPassoSobrou({
+      inicio: info.novaFim,
+      fim: fimBloco,
+      duracaoMin: sobraMin,
+    });
     setErro('');
+    return; // aguarda a decisão no 2º passo
+  }
 
-    try {
-      await updateDoc(doc(db, 'agendamentos', agendamento.id), {
-        servicoId: servicoSelecionado.id,
-        servicoNome: servicoSelecionado.nome,
-        duracaoMin: servicoSelecionado.duracaoMin,
-        horaFim: info.novaFim,
-        status: 'confirmado',
-        aguardandoConsentimento: false,
-        observacoesConfirmacao: observacao.trim() || null,
-        confirmadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-      });
+  // Sem sobra → salva direto
+  await salvarConfirmacao({ liberarSobra: false });
+};
 
-      // Notifica o paciente
-      if (agendamento.pacienteId) {
-        fetch('/.netlify/functions/notificar-paciente-agendamento', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pacienteId: agendamento.pacienteId,
-            tipoEvento: 'confirmado',
-            agendamento: {
-              id: agendamento.id,
-              data: agendamento.data,
-              horaInicio: agendamento.horaInicio,
-              horaFim: info.novaFim,
-              servicoNome: servicoSelecionado.nome,
-              nome: agendamento.nome,
-            },
-          }),
-        }).catch((e) => console.warn('Falha ao notificar paciente:', e));
-      }
+// ============================================================
+// ✅ Salva o agendamento confirmado (com ou sem liberação da sobra)
+// ============================================================
+const salvarConfirmacao = async ({ liberarSobra }) => {
+  if (!servicoSelecionado) return;
+  const info = previews[servicoSelecionado.id];
 
-      onConfirmado?.();
-    } catch (e) {
-      console.error('Erro ao confirmar:', e);
-      setErro('Erro ao confirmar. Tente novamente.');
-      setEnviando(false);
+  setEnviando(true);
+  setErro('');
+
+  try {
+    const patch = {
+      servicoId: servicoSelecionado.id,
+      servicoNome: servicoSelecionado.nome,
+      duracaoMin: servicoSelecionado.duracaoMin,
+      horaFim: info.novaFim,
+      status: 'confirmado',
+      aguardandoConsentimento: false,
+      observacoesConfirmacao: observacao.trim() || null,
+      confirmadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    };
+
+    // ✅ Se decidiu liberar, grava as liberações no agendamento
+    if (liberarSobra && passoSobrou) {
+      patch.liberacoesExtras = [{
+        inicio: passoSobrou.inicio,
+        fim: passoSobrou.fim,
+        duracaoMin: passoSobrou.duracaoMin,
+        criadoEm: new Date().toISOString(),
+      }];
+    } else {
+      patch.liberacoesExtras = [];
     }
-  };
+
+    await updateDoc(doc(db, 'agendamentos', agendamento.id), patch);
+
+    // Notifica o paciente
+    if (agendamento.pacienteId) {
+      fetch('/.netlify/functions/notificar-paciente-agendamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pacienteId: agendamento.pacienteId,
+          tipoEvento: 'confirmado',
+          agendamento: {
+            id: agendamento.id,
+            data: agendamento.data,
+            horaInicio: agendamento.horaInicio,
+            horaFim: info.novaFim,
+            servicoNome: servicoSelecionado.nome,
+            nome: agendamento.nome,
+          },
+        }),
+      }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+    }
+
+    setPassoSobrou(null);
+    onConfirmado?.();
+  } catch (e) {
+    console.error('Erro ao confirmar:', e);
+    setErro('Erro ao confirmar. Tente novamente.');
+    setEnviando(false);
+  }
+};
 
   // ============================================================
   // RENDER
@@ -509,6 +557,141 @@ export default function ModalEscolherServico({
           </button>
         </div>
       </div>
+      {/* ============================================================ */}
+{/* ✅ 2º PASSO — Pergunta se quer liberar a sobra do bloco       */}
+{/* ============================================================ */}
+{passoSobrou && (
+  <div
+    onClick={enviando ? undefined : () => setPassoSobrou(null)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(44, 22, 58, 0.75)',
+      backdropFilter: 'blur(6px)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 2147483647,
+      padding: 20,
+      boxSizing: 'border-box',
+    }}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        background: '#fff',
+        borderRadius: 20,
+        padding: '28px 24px 22px',
+        maxWidth: 440,
+        width: '100%',
+        boxShadow: '0 25px 70px rgba(44, 22, 58, 0.5)',
+        border: '1.5px solid #C8A24A',
+        fontFamily: "'Montserrat', sans-serif",
+        textAlign: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: 68,
+          height: 68,
+          margin: '0 auto 16px auto',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+          border: '2px solid #86efac',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <MdEventAvailable size={34} color="#16a34a" />
+      </div>
+
+      <h3
+        style={{
+          fontFamily: "'Cinzel', serif",
+          color: '#2c163a',
+          fontSize: 17,
+          fontWeight: 700,
+          margin: '0 0 12px 0',
+        }}
+      >
+        Sobrou {passoSobrou.duracaoMin} min livres
+      </h3>
+
+      <p
+        style={{
+          fontSize: 13,
+          color: '#2c163a',
+          margin: '0 0 6px 0',
+          lineHeight: 1.6,
+        }}
+      >
+        O bloco original ia até <strong>{passoSobrou.fim}</strong>, mas o serviço
+        termina em <strong>{passoSobrou.inicio}</strong>.
+      </p>
+
+      <p
+        style={{
+          fontSize: 12,
+          color: '#555',
+          margin: '0 0 20px 0',
+          lineHeight: 1.6,
+        }}
+      >
+        Quer <strong>liberar esse tempo</strong> ({passoSobrou.inicio} – {passoSobrou.fim})
+        para outro paciente agendar?
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button
+          type="button"
+          onClick={() => salvarConfirmacao({ liberarSobra: true })}
+          disabled={enviando}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+            color: '#fff',
+            border: '1.5px solid #15803d',
+            padding: '14px 20px',
+            borderRadius: 24,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: enviando ? 'wait' : 'pointer',
+            fontFamily: "'Cinzel', serif",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
+          }}
+        >
+          <MdCheckCircle size={16} />
+          {enviando ? 'SALVANDO…' : 'SIM, LIBERAR ESSE TEMPO'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => salvarConfirmacao({ liberarSobra: false })}
+          disabled={enviando}
+          style={{
+            width: '100%',
+            background: '#f5f5f5',
+            color: '#555',
+            border: '1.5px solid #ddd',
+            padding: '14px 20px',
+            borderRadius: 24,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: enviando ? 'wait' : 'pointer',
+            fontFamily: "'Cinzel', serif",
+          }}
+        >
+          NÃO, DEIXAR BLOQUEADO
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

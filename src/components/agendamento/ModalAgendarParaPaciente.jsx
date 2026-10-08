@@ -644,33 +644,14 @@ export default function ModalAgendarParaPaciente({
                         slotSelecionado?.data === s.data &&
                         slotSelecionado?.horaInicio === s.horaInicio;
                       return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setSlotSelecionado(s)}
-                          className={`map-slot-btn${ativo ? ' ativo' : ''}`}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 2,
-                            lineHeight: 1.1,
-                          }}
-                        >
-                          <span style={{ fontSize: 13, fontWeight: 700 }}>
-                            {s.horaInicio}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 9.5,
-                              fontWeight: 500,
-                              opacity: 0.7,
-                            }}
-                          >
-                            às {s.horaFim}
-                          </span>
-                        </button>
+                       <button
+  key={i}
+  type="button"
+  onClick={() => setSlotSelecionado(s)}
+  className={`map-slot-btn${ativo ? ' ativo' : ''}`}
+>
+  {s.horaInicio}
+</button>
                       );
                     })}
                   </div>

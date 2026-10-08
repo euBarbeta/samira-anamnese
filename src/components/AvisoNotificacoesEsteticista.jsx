@@ -86,7 +86,7 @@ export default function AvisoNotificacoesEsteticista({ uidEsteticista }) {
         <p style={estilos.titulo}>
           {permissao === 'denied'
             ? '⚠️ Notificações bloqueadas'
-            : '🔔 Ativar notificações?'}
+            : 'Ativar notificações?'}
         </p>
         <p style={estilos.descricao}>
           {permissao === 'denied'

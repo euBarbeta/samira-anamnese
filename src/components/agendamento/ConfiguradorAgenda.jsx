@@ -306,7 +306,7 @@ useEffect(() => {
                         onChange={(e) => atualizarBlocoPadrao(b.idx, 'duracaoMin', e.target.value)}
                         style={{ ...inputTempo, width: 55 }}
                       />
-                      <span style={{ fontSize: 11, color: '#888' }}>min</span>
+                     <span style={{ fontSize: 11, color: '#888' }}>min (intervalo)</span>
                       <button
                         type="button"
                         onClick={() => removerBlocoPadrao(b.idx)}
@@ -511,7 +511,7 @@ useEffect(() => {
           />
           dias à frente
         </label>
-        <label htmlFor="cfg-antecedencia" style={labelStyle}>
+       <label htmlFor="cfg-antecedencia" style={labelStyle}>
           Antecedência mínima
           <input
             id="cfg-antecedencia"
@@ -522,7 +522,13 @@ useEffect(() => {
             style={{ ...inputTempo, marginLeft: 8, width: 60 }}
           />
           horas
+
         </label>
+        <p style={{ fontSize: 11, color: '#7e22ce', margin: '0 0 12px 0', fontStyle: 'italic' }}>
+  O campo <strong>min</strong> define de quanto em quanto tempo os horários
+  aparecem para o paciente (ex: 30 → 08:00, 08:30, 09:00…). A duração real do
+  atendimento é definida em <strong>Meus Serviços</strong>.
+</p>
       </div>
 
       {/* Botão salvar */}

@@ -998,6 +998,7 @@ export default function PainelPaciente({
       (snap) => {
         const lista = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((a) => !a.ocultoParaPaciente) 
           .sort((a, b) => {
             const ka = `${a.data} ${a.horaInicio}`;
             const kb = `${b.data} ${b.horaInicio}`;
@@ -1206,22 +1207,27 @@ export default function PainelPaciente({
   };
 
   // ✅ Confirma e apaga o documento
-  const confirmarRemocaoAgendamento = async () => {
-    if (!agendamentoParaRemover) return;
-    try {
-      await deleteDoc(doc(db, 'agendamentos', agendamentoParaRemover.id));
-      setAgendamentoParaRemover(null);
-    } catch (e) {
-      setAgendamentoParaRemover(null);
-      setAviso({
-        tipo: 'erro',
-        titulo: 'Erro ao remover',
-        mensagem: e?.message || 'Não foi possível remover. Tente novamente.',
-        textoConfirmar: 'OK',
-        onConfirmar: () => setAviso(null),
-      });
-    }
-  };
+const confirmarRemocaoAgendamento = async () => {
+  if (!agendamentoParaRemover) return;
+  try {
+    // ✅ NÃO deleta — apenas marca como oculto pro paciente.
+    //    Assim o agendamento continua aparecendo no painel da esteticista.
+    await updateDoc(doc(db, 'agendamentos', agendamentoParaRemover.id), {
+      ocultoParaPaciente: true,
+      ocultadoPacienteEm: new Date().toISOString(),
+    });
+    setAgendamentoParaRemover(null);
+  } catch (e) {
+    setAgendamentoParaRemover(null);
+    setAviso({
+      tipo: 'erro',
+      titulo: 'Erro ao remover',
+      mensagem: e?.message || 'Não foi possível remover. Tente novamente.',
+      textoConfirmar: 'OK',
+      onConfirmar: () => setAviso(null),
+    });
+  }
+};
 
   const podeRemover = (ag) =>
     ag.status === 'cancelado' || ag.status === 'concluido';

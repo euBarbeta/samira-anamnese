@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import { exportarParaPDF } from '../utils/gerarPdf';
 import { 
   MdFace, 
@@ -48,6 +50,7 @@ const [salvoSucesso, setSalvoSucesso] = useState(false);
   const [respostasRadio, setRespostasRadio] = useState({});
   const [habitosTextos, setHabitosTextos] = useState({});
   const [checkboxesAlt, setCheckboxesAlt] = useState({});
+  const [emailContato, setEmailContato] = useState('');
 
   // Estados para modo de edição das seções customizáveis
   const [editandoHabitos, setEditandoHabitos] = useState(false);
@@ -243,6 +246,7 @@ const [salvoSucesso, setSalvoSucesso] = useState(false);
       setNumeroDocumento(fichaSelecionada.numeroDocumento || '');
       setTelefone(fichaSelecionada.telefone || '');
       setEndereco(fichaSelecionada.endereco || '');
+      setEmailContato(fichaSelecionada.emailContato || '');
       setDataNasc(fichaSelecionada.dataNascimento || '');
       setDataRealizacao(fichaSelecionada.dataRealizacao || '');
       setObservacoes(fichaSelecionada.observacoes || '');
@@ -541,6 +545,7 @@ const converterBRParaISO = (valorBR) => {
       dataModificacao,
       nome: nome.trim(),
       numeroDocumento: numeroDocumento.trim(),
+      emailContato: emailContato.trim(),
       telefone: telefone.trim(),
       endereco: endereco.trim(),
       dataNascimento: dataNasc,
@@ -790,6 +795,54 @@ const converterBRParaISO = (valorBR) => {
           min-height: 17px;
           width: 100%;
         }
+          .phone-input-ficha .PhoneInput {
+  display: flex;
+  align-items: center;
+  border: none;
+  border-bottom: 1px solid #C8A24A;
+  background: transparent;
+  height: 18px;
+  padding: 0;
+  width: 100%;
+}
+.phone-input-ficha .PhoneInputInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #1A1A1A;
+  -webkit-text-fill-color: #1A1A1A;
+  font-family: 'Montserrat', sans-serif;
+  width: 100%;
+  padding: 0;
+  height: 18px;
+}
+.phone-input-ficha .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.phone-input-ficha .PhoneInputCountrySelect {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: #1A1A1A;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+}
+.phone-input-ficha .PhoneInputCountrySelectArrow {
+  opacity: 0.5;
+  margin-left: 2px;
+}
+.phone-input-ficha .PhoneInput--disabled,
+.phone-input-ficha .PhoneInputInput:disabled {
+  opacity: 1;
+  cursor: default;
+  color: #1A1A1A;
+  -webkit-text-fill-color: #1A1A1A;
+}
       `}</style>
 
       <div 
@@ -819,196 +872,184 @@ const converterBRParaISO = (valorBR) => {
           zIndex: 3,
           position: 'relative',
           boxSizing: 'border-box',
-          padding: '330px 95px 0 95px',
+          padding: '290px 95px 0 95px',
           pointerEvents: 'auto'
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'auto' }}>
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</span>
-                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
-                  <input 
-                    type="text" 
-                    id="nome_cliente" 
-                    name="nome_cliente" 
-                    autoComplete="name" 
-                    className="input-line" 
-                    value={nome}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => setNome(e.target.value)}
-                  />
-                </div>
-              </div>
-              
-              <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</span>
-                <div style={{ width: '100px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input 
-                    type="text" 
-                    id="data_nascimento"
-                    name="data_nascimento"
-                    autoComplete="bday-day"
-                    value={dataNasc}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => setDataNasc(mascaraData(e.target.value))}
-                    className="input-line"
-                    style={{ paddingRight: mode === 'view' ? '0px' : '22px' }}
-                  />
-                  {mode !== 'view' && (
-                    <>
-                      <input 
-                        type="date"
-                        id="data_nascimento_picker"
-                        name="data_nascimento_picker"
-                        aria-label="Selecionar data de nascimento"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            const [ano, mes, dia] = e.target.value.split('-');
-                            setDataNasc(`${dia}/${mes}/${ano}`);
-                          }
-                        }}
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          width: '18px',
-                          height: '18px',
-                          opacity: 0,
-                          cursor: 'pointer',
-                          zIndex: 3
-                        }}
-                      />
-                      <svg 
-                        style={{ position: 'absolute', right: 0, pointerEvents: 'none', zIndex: 2 }} 
-                        width="16" 
-                        height="16" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="#C8A24A" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'auto' }}>
 
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Telefone:</span>
-                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
-                  <input 
-                    type="tel" 
-                    id="telefone_cliente" 
-                    name="telefone_cliente" 
-                    autoComplete="tel" 
-                    className="input-line" 
-                    value={telefone}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => setTelefone(e.target.value)}
-                  />
-                </div>
-              </div>
+  {/* ============ LINHA 1: NOME + DATA NASC ============ */}
+  <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</span>
+      <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+        <input
+          type="text"
+          id="nome_cliente"
+          name="nome_cliente"
+          autoComplete="name"
+          className="input-line"
+          value={nome}
+          readOnly={mode === 'view'}
+          onChange={(e) => setNome(e.target.value)}
+        />
+      </div>
+    </div>
 
-              <div style={{ width: '300px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</span>
-                <div style={{ width: '100px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input 
-                    type="text" 
-                    id="data_realizacao"
-                    name="data_realizacao"
-                    autoComplete="off"
-                    value={dataRealizacao}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => setDataRealizacao(mascaraData(e.target.value))}
-                    className="input-line"
-                    style={{ paddingRight: mode === 'view' ? '0px' : '22px' }}
-                  />
-                  {mode !== 'view' && (
-                    <>
-                      <input 
-                        type="date"
-                        id="data_realizacao_picker"
-                        name="data_realizacao_picker"
-                        aria-label="Selecionar data de realização"
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            const [ano, mes, dia] = e.target.value.split('-');
-                            setDataRealizacao(`${dia}/${mes}/${ano}`);
-                          }
-                        }}
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          width: '18px',
-                          height: '18px',
-                          opacity: 0,
-                          cursor: 'pointer',
-                          zIndex: 3
-                        }}
-                      />
-                      <svg 
-                        style={{ position: 'absolute', right: 0, pointerEvents: 'none', zIndex: 2 }} 
-                        width="16" 
-                        height="16" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="#C8A24A" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                      </svg>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+    <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</span>
+      <div style={{ width: '100px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input
+          type="text"
+          id="data_nascimento"
+          name="data_nascimento"
+          autoComplete="bday-day"
+          value={dataNasc}
+          readOnly={mode === 'view'}
+          onChange={(e) => setDataNasc(mascaraData(e.target.value))}
+          className="input-line"
+          style={{ paddingRight: mode === 'view' ? '0px' : '22px' }}
+        />
+        {mode !== 'view' && (
+          <>
+            <input
+              type="date"
+              id="data_nascimento_picker"
+              name="data_nascimento_picker"
+              aria-label="Selecionar data de nascimento"
+              onChange={(e) => {
+                if (e.target.value) {
+                  const [ano, mes, dia] = e.target.value.split('-');
+                  setDataNasc(`${dia}/${mes}/${ano}`);
+                }
+              }}
+              style={{ position: 'absolute', right: 0, width: '18px', height: '18px', opacity: 0, cursor: 'pointer', zIndex: 3 }}
+            />
+            <svg style={{ position: 'absolute', right: 0, pointerEvents: 'none', zIndex: 2 }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C8A24A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
 
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Endereço:</span>
-                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
-                  <input 
-                    type="text" 
-                    id="endereco_cliente" 
-                    name="endereco_cliente" 
-                    autoComplete="street-address" 
-                    className="input-line" 
-                    value={endereco}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => setEndereco(e.target.value)}
-                  />
-                </div>
-              </div>
+  {/* ============ LINHA 2: TELEFONE (PhoneInput) + DATA REALIZAÇÃO ============ */}
+  <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Telefone:</span>
+      <div className="phone-input-ficha" style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+        <PhoneInput
+          international
+          defaultCountry="BR"
+          value={telefone || undefined}
+          onChange={(v) => setTelefone(v || '')}
+          disabled={mode === 'view'}
+          placeholder=""
+          autoComplete="tel"
+        />
+      </div>
+    </div>
 
-              <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</span>
-                <div style={{ flexGrow: 1, display: 'flex' }}>
-                  <input 
-                    type="text" 
-                    id="numero_documento" 
-                    name="numero_documento" 
-                    autoComplete="off" 
-                    className="input-line" 
-                    value={numeroDocumento}
-                    readOnly={mode === 'view'}
-                    onChange={(e) => setNumeroDocumento(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+    <div style={{ width: '300px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</span>
+      <div style={{ width: '100px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input
+          type="text"
+          id="data_realizacao"
+          name="data_realizacao"
+          autoComplete="off"
+          value={dataRealizacao}
+          readOnly={mode === 'view'}
+          onChange={(e) => setDataRealizacao(mascaraData(e.target.value))}
+          className="input-line"
+          style={{ paddingRight: mode === 'view' ? '0px' : '22px' }}
+        />
+        {mode !== 'view' && (
+          <>
+            <input
+              type="date"
+              id="data_realizacao_picker"
+              name="data_realizacao_picker"
+              aria-label="Selecionar data de realização"
+              onChange={(e) => {
+                if (e.target.value) {
+                  const [ano, mes, dia] = e.target.value.split('-');
+                  setDataRealizacao(`${dia}/${mes}/${ano}`);
+                }
+              }}
+              style={{ position: 'absolute', right: 0, width: '18px', height: '18px', opacity: 0, cursor: 'pointer', zIndex: 3 }}
+            />
+            <svg style={{ position: 'absolute', right: 0, pointerEvents: 'none', zIndex: 2 }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C8A24A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+
+  {/* ============ LINHA 3: ENDEREÇO + Nº DOCUMENTO ============ */}
+  <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Endereço:</span>
+      <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+        <input
+          type="text"
+          id="endereco_cliente"
+          name="endereco_cliente"
+          autoComplete="street-address"
+          className="input-line"
+          value={endereco}
+          readOnly={mode === 'view'}
+          onChange={(e) => setEndereco(e.target.value)}
+        />
+      </div>
+    </div>
+
+    <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</span>
+      <div style={{ flexGrow: 1, display: 'flex' }}>
+        <input
+          type="text"
+          id="numero_documento"
+          name="numero_documento"
+          autoComplete="off"
+          className="input-line"
+          value={numeroDocumento}
+          readOnly={mode === 'view'}
+          onChange={(e) => setNumeroDocumento(e.target.value)}
+        />
+      </div>
+    </div>
+  </div>
+
+  {/* ============ LINHA 4: E-MAIL DE CONTATO ============ */}
+  <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>E-mail de contato:</span>
+      <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+        <input
+          type="email"
+          id="email_contato"
+          name="email_contato"
+          autoComplete="email"
+          className="input-line"
+          value={emailContato}
+          readOnly={mode === 'view'}
+          onChange={(e) => setEmailContato(e.target.value)}
+        />
+      </div>
+    </div>
+  </div>
+
+</div>
+          
         </div>
 
         {/* 2. CORPO DA MOLDURA */}

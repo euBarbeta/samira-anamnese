@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import FichaDesktop from './FichaDesktop';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import { exportarParaPDF } from '../utils/gerarPdf';
 import { 
   MdFace, 
@@ -48,6 +50,7 @@ const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
   const [dataNasc, setDataNasc] = useState('');
   const [dataRealizacao, setDataRealizacao] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [emailContato, setEmailContato] = useState('');
 
   // Referência para gerenciar a altura do textarea de observações
   const observacoesRef = React.useRef(null);
@@ -267,6 +270,7 @@ useEffect(() => {
       setNome(fichaSelecionada.nome || '');
       setNumeroDocumento(fichaSelecionada.numeroDocumento || '');
       setTelefone(fichaSelecionada.telefone || '');
+      setEmailContato(fichaSelecionada.emailContato || '');
       setEndereco(fichaSelecionada.endereco || '');
       setDataNasc(fichaSelecionada.dataNascimento || '');
       setDataRealizacao(fichaSelecionada.dataRealizacao || '');
@@ -577,6 +581,7 @@ const converterBRParaISO = (valorBR) => {
       dataModificacao,
       nome: nome.trim(),
       numeroDocumento: numeroDocumento.trim(),
+      emailContato: emailContato.trim(),
       telefone: telefone.trim(),
       endereco: endereco.trim(),
       dataNascimento: dataNasc,
@@ -775,6 +780,56 @@ const converterBRParaISO = (valorBR) => {
           color: #1A1A1A !important;
           -webkit-text-fill-color: #1A1A1A !important;
         }
+       .phone-input-ficha .PhoneInput {
+  display: flex;
+  align-items: center;
+  border: none;
+  border-bottom: 1.5px solid #D4AF37;
+  background: transparent;
+  height: 24px;
+  padding: 0;
+  width: 100%;
+  margin-top: 2px;
+}
+.phone-input-ficha .PhoneInputInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1A1A1A;
+  -webkit-text-fill-color: #1A1A1A;
+  font-family: 'Montserrat', sans-serif;
+  width: 100%;
+  padding: 0;
+  height: 24px;
+}
+.phone-input-ficha .PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.phone-input-ficha .PhoneInputCountrySelect {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: #1A1A1A;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+}
+.phone-input-ficha .PhoneInputCountrySelectArrow {
+  opacity: 0.5;
+  margin-left: 2px;
+}
+.phone-input-ficha .PhoneInput--disabled,
+.phone-input-ficha .PhoneInputInput:disabled {
+  opacity: 1;
+  cursor: default;
+  color: #1A1A1A;
+  -webkit-text-fill-color: #1A1A1A;
+}
       `}</style>
 
       <div 
@@ -1035,16 +1090,39 @@ const converterBRParaISO = (valorBR) => {
                   <label htmlFor="input-documento" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Documento:</label>
                   <input id="input-documento" name="numeroDocumento" type="text" className="input-line" value={numeroDocumento} readOnly={mode === 'view'} onChange={(e) => setNumeroDocumento(e.target.value)} autoComplete="off" />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label htmlFor="input-telefone" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Telefone:</label>
-                  <input id="input-telefone" name="telefone" type="tel" className="input-line" value={telefone} readOnly={mode === 'view'} onChange={(e) => setTelefone(e.target.value)} autoComplete="tel" />
-                </div>
+               <div style={{ flex: 1 }}>
+  <label style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Telefone:</label>
+  <div className="phone-input-ficha" style={{ marginTop: 4 }}>
+    <PhoneInput
+      international
+      defaultCountry="BR"
+      value={telefone || undefined}
+      onChange={(v) => setTelefone(v || '')}
+      disabled={mode === 'view'}
+      placeholder=""
+    />
+  </div>
+</div>
               </div>
 
               <div>
                 <label htmlFor="input-endereco" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Endereço:</label>
                 <input id="input-endereco" name="endereco" type="text" className="input-line" value={endereco} readOnly={mode === 'view'} onChange={(e) => setEndereco(e.target.value)} autoComplete="street-address" />
               </div>
+              <div>
+  <label htmlFor="input-email-contato" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>E-mail de contato:</label>
+  <input 
+    id="input-email-contato" 
+    name="email_contato" 
+    type="email" 
+    className="input-line" 
+    value={emailContato} 
+    readOnly={mode === 'view'} 
+    onChange={(e) => setEmailContato(e.target.value)} 
+    autoComplete="email" 
+    placeholder="(opcional)"
+  />
+</div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>

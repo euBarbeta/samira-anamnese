@@ -23,13 +23,19 @@ function pad(n) {
  *   - bloqueios         → lista de folgas { data, motivo }
  *   - liberacoesAvulsas → horários extras { data, inicio, fim }
  *   - antecedenciaMinimaHoras
+ *
+ *   ✅ Colisão por SOBREPOSIÇÃO de intervalo (não só igualdade)
+ *      → bloqueia qualquer slot que caia dentro da duração de um serviço confirmado
+ *
+ *   ✅ Processa `liberacoesExtras` de cada agendamento
+ *      → quando a esteta libera a sobra de um bloco, aquele tempo vira slot avulso
  */
 export function gerarSlotsDisponiveis(
   config,
   agendamentosOcupados = [],
   dataInicioISO,
   dataFimISO,
-  duracaoMinOverride = null   // 
+  duracaoMinOverride = null
 ) {
   if (!config?.blocosSemanais?.length && !config?.datasEspecificas) {
     return [];
@@ -39,11 +45,29 @@ export function gerarSlotsDisponiveis(
     (config.bloqueios || []).map((b) => b.data)
   );
 
-  const ocupadosSet = new Set(
-    agendamentosOcupados
-      .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
-      .map((a) => `${a.data}|${a.horaInicio}`)
-  );
+  // ✅ Agrupa os agendamentos por data, guardando o INTERVALO ocupado
+  //    (para bloquear qualquer slot que colida com a duração do serviço)
+  const ocupadosPorData = {};
+  agendamentosOcupados
+    .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
+    .forEach((a) => {
+      if (!a.data || !a.horaInicio) return;
+
+      const [hI, mI] = a.horaInicio.split(':').map(Number);
+      const inicioMin = hI * 60 + mI;
+
+      let fimMin;
+      if (a.horaFim) {
+        const [hF, mF] = a.horaFim.split(':').map(Number);
+        fimMin = hF * 60 + mF;
+      } else {
+        // Pendente (sem serviço definido) → assume 60min como reserva
+        fimMin = inicioMin + (a.duracaoMin || 60);
+      }
+
+      if (!ocupadosPorData[a.data]) ocupadosPorData[a.data] = [];
+      ocupadosPorData[a.data].push({ inicioMin, fimMin });
+    });
 
   const agora = new Date();
   const minAntecedencia = new Date(
@@ -77,15 +101,18 @@ export function gerarSlotsDisponiveis(
       );
     }
 
-    // Liberações avulsas (extras)
+    // Liberações avulsas (extras) da CONFIG (fora do fluxo de agendamento)
     const avulsos = (config.liberacoesAvulsas || [])
       .filter((l) => l.data === iso)
       .map((l) => ({ inicio: l.inicio, fim: l.fim, duracaoMin: 60 }));
 
-  for (const bloco of [...blocos, ...avulsos]) {
-  const [hI, mI] = bloco.inicio.split(':').map(Number);
-  const [hF, mF] = bloco.fim.split(':').map(Number);
-  const duracao = duracaoMinOverride || bloco.duracaoMin || 60;
+    // ============================================================
+    // ✅ PERCORRE OS BLOCOS E GERA OS SLOTS
+    // ============================================================
+    for (const bloco of [...blocos, ...avulsos]) {
+      const [hI, mI] = bloco.inicio.split(':').map(Number);
+      const [hF, mF] = bloco.fim.split(':').map(Number);
+      const duracao = duracaoMinOverride || bloco.duracaoMin || 60;
 
       let cursor = new Date(d);
       cursor.setHours(hI, mI, 0, 0);
@@ -99,13 +126,65 @@ export function gerarSlotsDisponiveis(
         const horaInicio = `${pad(cursor.getHours())}:${pad(cursor.getMinutes())}`;
         const horaFim = `${pad(proximo.getHours())}:${pad(proximo.getMinutes())}`;
 
-        const jaOcupado = ocupadosSet.has(`${iso}|${horaInicio}`);
+        const inicioSlotMin = cursor.getHours() * 60 + cursor.getMinutes();
+        const fimSlotMin = inicioSlotMin + duracao;
+
+        // ✅ Colisão por sobreposição de intervalo
+        const jaOcupado = (ocupadosPorData[iso] || []).some(
+          (o) => inicioSlotMin < o.fimMin && o.inicioMin < fimSlotMin
+        );
+
         const dentroAntecedencia = cursor < minAntecedencia;
 
         if (!jaOcupado && !dentroAntecedencia) {
           slots.push({ data: iso, horaInicio, horaFim });
         }
         cursor = proximo;
+      }
+    }
+
+    // ============================================================
+    // ✅ LIBERAÇÕES EXTRAS — sobrou tempo do bloco padrão e a esteta
+    //    autorizou liberar pra outro paciente. Vira slot avulso.
+    // ============================================================
+    const agsDoDia = agendamentosOcupados.filter((a) => a.data === iso);
+    for (const a of agsDoDia) {
+      if (!Array.isArray(a.liberacoesExtras)) continue;
+
+      for (const lib of a.liberacoesExtras) {
+        if (!lib.inicio || !lib.fim) continue;
+
+        const [lI, lM] = lib.inicio.split(':').map(Number);
+        const [lF, lM2] = lib.fim.split(':').map(Number);
+        const libInicioMin = lI * 60 + lM;
+        const libFimMin = lF * 60 + lM2;
+
+        // Já passou? Pula
+        const cursorLib = new Date(d);
+        cursorLib.setHours(lI, lM, 0, 0);
+        if (cursorLib < minAntecedencia) continue;
+
+        // Colide com outro agendamento? Pula
+        const colideComOutro = (ocupadosPorData[iso] || []).some(
+          (o) => libInicioMin < o.fimMin && o.inicioMin < libFimMin
+        );
+        if (colideComOutro) continue;
+
+        // ✅ Já existe um slot idêntico gerado pelo bloco? Pula (evita duplicata)
+        const jaExiste = slots.some(
+          (s) =>
+            s.data === iso &&
+            s.horaInicio === lib.inicio &&
+            s.horaFim === lib.fim
+        );
+        if (jaExiste) continue;
+
+        slots.push({
+          data: iso,
+          horaInicio: lib.inicio,
+          horaFim: lib.fim,
+          _liberado: true,
+        });
       }
     }
   }

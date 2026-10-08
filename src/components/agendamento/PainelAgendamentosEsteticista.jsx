@@ -2,13 +2,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import GerenciarServicos from './GerenciarServicos';
 import ModalAgendarParaPaciente from './ModalAgendarParaPaciente';
+import ModalEscolherServico from './ModalEscolherServico';
+import ConfiguradorAgenda from './ConfiguradorAgenda';
+import FichaDesktop from '../FichaDesktop';
+import FichaMobile from '../FichaMobile';
+
 import {
-  collection, query, where, onSnapshot, doc,
-  updateDoc, orderBy, getDoc,
+  collection, query, where, onSnapshot, doc, getDoc, setDoc,
+  updateDoc, orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import ModalEscolherServico from './ModalEscolherServico';
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+
+import { secondaryAuth } from '../firebaseSecondary';
+import { registrarLinkPaciente } from '../../utils/validarUID';
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
+
 import {
   MdCheckCircle, MdCancel, MdWarning, MdSearch,
   MdCalendarMonth, MdSettings, MdPhone, MdBadge,
@@ -16,7 +31,6 @@ import {
   MdContentCopy, MdCheck, MdDelete, MdAssignment, MdEvent,
   MdPersonOff, MdRefresh,
 } from 'react-icons/md';
-import ConfiguradorAgenda from './ConfiguradorAgenda';
 
 const DIAS_HISTORICO = 30;
 
@@ -277,6 +291,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   const [filtroStatus, setFiltroStatus] = useState('pendente');
   const [busca, setBusca] = useState('');
   const [carregando, setCarregando] = useState(true);
+  const [fichaPreenchida, setFichaPreenchida] = useState(null);
 
   const [agendamentoParaConfirmar, setAgendamentoParaConfirmar] = useState(null);
   const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
@@ -351,6 +366,90 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
   };
 
+  // ============================================================
+  // ✅ Cria ficha automaticamente ao concluir consulta
+  //    (definida ANTES de concluirManual para evitar ReferenceError)
+  // ============================================================
+  const criarFichaAutomatica = async (ag) => {
+    const user = getAuth().currentUser;
+    if (!user) return;
+
+    // Já existe pasta?
+    if (ag.pacienteId) {
+      try {
+        const snap = await getDoc(
+          doc(db, `usuarios/${user.uid}/pacientes`, String(ag.pacienteId))
+        );
+        if (snap.exists()) return;
+      } catch {}
+    }
+
+    const nome = ag.nome || 'Paciente';
+    const partes = nome.split(/\s+/);
+    const pNome = (partes[0] || 'usuario').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const sNome = (partes[partes.length - 1] || 'paciente').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const emailFicticio = `${pNome}.${sNome}@sistema.local`;
+    const docLimpo = (ag.documento || '').replace(/\D/g, '');
+    const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456').padEnd(6, '0');
+
+    let pacienteUid = '';
+    try {
+      try {
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+        pacienteUid = cred.user.uid;
+        await signOut(secondaryAuth);
+      } catch (e) {
+        if (e.code === 'auth/email-already-in-use') {
+          try {
+            const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+            pacienteUid = cred.user.uid;
+            await signOut(secondaryAuth);
+          } catch {
+            pacienteUid = 'pac_' + (docLimpo || Date.now());
+          }
+        } else {
+          pacienteUid = 'pac_' + (docLimpo || Date.now());
+        }
+      }
+    } catch {
+      pacienteUid = 'pac_' + (docLimpo || Date.now());
+    }
+
+    const agora = new Date();
+    const dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const novaFicha = {
+      id: pacienteUid,
+      nome,
+      documento: ag.documento || '',
+      telefone: ag.telefone || '',
+      email: emailFicticio,
+      emailAcesso: emailFicticio,
+      emailContato: ag.email || '',
+      criadoPorUid: user.uid,
+      dataCriacao: dataHora,
+      dataUltimaEdicao: dataHora,
+      anamnese: {
+        nome,
+        telefone: ag.telefone || '',
+        emailContato: ag.email || '',
+        numeroDocumento: ag.documento || '',
+        dataRealizacao: new Date().toLocaleDateString('pt-BR'),
+        observacoes: `Ficha criada automaticamente ao concluir o agendamento.\nServiço: ${ag.servicoNome || 'Não informado'}${ag.observacoes ? `\nObservações do paciente: ${ag.observacoes}` : ''}`,
+      },
+      evolucoes: [{
+        id: Date.now(),
+        dataCriacao: dataHora,
+        textoLivre: `Atendimento realizado em ${formatarDataBR(ag.data)} às ${ag.horaInicio}.\nServiço: ${ag.servicoNome || 'Não informado'}${ag.observacoes ? `\nObservações: ${ag.observacoes}` : ''}`,
+      }],
+      agendamentoOrigemId: ag.id,
+    };
+
+    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novaFicha);
+    await registrarLinkPaciente(pacienteUid, user.uid);
+    await updateDoc(doc(db, 'agendamentos', ag.id), { pacienteId: pacienteUid });
+  };
+
   const concluirManual = async (ag) => {
     try {
       await updateDoc(doc(db, 'agendamentos', ag.id), {
@@ -359,6 +458,9 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         concluidoEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
       });
+
+      // ✅ Cria ficha automaticamente se ainda não existir
+      await criarFichaAutomatica(ag);
     } catch (e) {
       alert('Erro ao concluir: ' + e.message);
     }
@@ -379,8 +481,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
   // ============================================================
   // ✅ REAGENDAR — funciona COM e SEM pasta
-  //    Se o agendamento veio do público (sem pacienteId), monta
-  //    um objeto temporário com os dados que já temos no agendamento.
   // ============================================================
   const abrirReagendamento = async (ag) => {
     // Tem pasta → busca os dados completos do paciente
@@ -405,7 +505,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
 
     // Sem pasta (público) OU pasta não encontrada → monta objeto temporário
-    // com os dados que já estão no próprio agendamento
     setPacienteReagendar({
       id: ag.pacienteId || null,
       nome: ag.nome,
@@ -485,6 +584,121 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       );
     });
   }, [agendamentos, filtroStatus, busca]);
+
+  // ============================================================
+  // ✅ Abre uma ficha de anamnese pré-preenchida com dados do agendamento
+  // ============================================================
+  const abrirFichaPreenchida = (ag) => {
+  setFichaPreenchida({
+    _agendamentoOrigemId: ag.id,
+    _agendamentoStatusOriginal: ag.status,   // ✅ guarda o status pra decidir depois
+    nome: ag.nome || '',
+    telefone: ag.telefone || '',
+    emailContato: ag.email || '',
+    numeroDocumento: ag.documento || '',
+    dataNascimento: '',
+    endereco: '',
+    dataRealizacao: new Date().toLocaleDateString('pt-BR'),
+    observacoes: '',
+  });
+};
+
+  // ============================================================
+  // ✅ Salva a ficha criada a partir do agendamento e vincula
+  // ============================================================
+  const handleSalvarFichaDoAgendamento = async (dadosAnamnese) => {
+    const user = getAuth().currentUser;
+    if (!user) return;
+
+    const nomeOriginal = (dadosAnamnese.nome || '').trim();
+    const partes = nomeOriginal.split(/\s+/);
+    const pNome = (partes[0] || 'usuario').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const sNome = (partes[partes.length - 1] || 'paciente').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const emailFicticio = `${pNome}.${sNome}@sistema.local`;
+    const docLimpo = (dadosAnamnese.numeroDocumento || '').replace(/\D/g, '');
+    const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456').padEnd(6, '0');
+
+    let pacienteUid = '';
+    try {
+      try {
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+        pacienteUid = cred.user.uid;
+        await signOut(secondaryAuth);
+      } catch (e) {
+        if (e.code === 'auth/email-already-in-use') {
+          try {
+            const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+            pacienteUid = cred.user.uid;
+            await signOut(secondaryAuth);
+          } catch {
+            pacienteUid = 'pac_' + (docLimpo || Date.now());
+          }
+        } else {
+          pacienteUid = 'pac_' + (docLimpo || Date.now());
+        }
+      }
+    } catch {
+      pacienteUid = 'pac_' + (docLimpo || Date.now());
+    }
+
+    const agora = new Date();
+    const dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const novoPaciente = {
+      id: pacienteUid,
+      nome: dadosAnamnese.nome,
+      documento: dadosAnamnese.numeroDocumento || '',
+      telefone: dadosAnamnese.telefone || '',
+      email: emailFicticio,
+      emailAcesso: emailFicticio,
+      emailContato: dadosAnamnese.emailContato || '',
+      criadoPorUid: user.uid,
+      dataCriacao: dataHora,
+      dataUltimaEdicao: dataHora,
+      anamnese: dadosAnamnese,
+      evolucoes: [],
+      agendamentoOrigemId: fichaPreenchida?._agendamentoOrigemId || null,
+    };
+
+    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novoPaciente);
+    await registrarLinkPaciente(pacienteUid, user.uid);
+
+if (fichaPreenchida?._agendamentoOrigemId) {
+  const patch = {
+    pacienteId: pacienteUid,
+    atualizadoEm: new Date().toISOString(),
+  };
+
+  // ✅ Se o agendamento estava CONFIRMADO, ao salvar a ficha ele vira CONCLUÍDO
+  if (fichaPreenchida._agendamentoStatusOriginal === 'confirmado') {
+    patch.status = 'concluido';
+    patch.concluidoPor = 'esteticista';
+    patch.concluidoEm = new Date().toISOString();
+  }
+
+  await updateDoc(
+    doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId),
+    patch
+  );
+}
+
+setFichaPreenchida(null);
+  };
+
+  // ✅ Se há uma ficha aberta, mostra ela em tela cheia (create mode)
+  if (fichaPreenchida) {
+    const isMobileView = window.innerWidth <= 768;
+    const Comp = isMobileView ? FichaMobile : FichaDesktop;
+    return (
+      <Comp
+        mode="create"
+        fichaSelecionada={fichaPreenchida}
+        onSave={handleSalvarFichaDoAgendamento}
+        onVoltar={() => setFichaPreenchida(null)}
+        onSalvarSucesso={() => setFichaPreenchida(null)}
+      />
+    );
+  }
 
   return (
     <div style={{ padding: '20px 0' }}>
@@ -626,192 +840,207 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {filtrados.map((ag) => (
                 <div key={ag.id} style={cardAg}>
+                  {/* ✅ NOME primeiro (sempre em cima) */}
+                  <h4 style={{
+                    fontFamily: "'Cinzel', serif",
+                    margin: '0 0 8px 0',
+                    color: '#2c163a',
+                    fontSize: 15,
+                    lineHeight: 1.3,
+                    overflowWrap: 'break-word',
+                    wordBreak: 'break-word',
+                  }}>
+                    {ag.nome}
+                  </h4>
+
+                  {/* ✅ INFO no meio (uma coisa por linha) */}
+                  <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                      <span>
+                        {formatarDataBR(ag.data)} às {ag.horaInicio}
+                        {ag.horaFim ? `–${ag.horaFim}` : ''}
+                        {ag.duracaoMin ? ` (${ag.duracaoMin}min)` : ''}
+                      </span>
+                      {ag.servicoNome && (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: '#7e22ce',
+                          background: '#faf5ff',
+                          border: '1px solid #d8b4fe',
+                          borderRadius: 10,
+                          padding: '1px 8px',
+                          marginLeft: 2,
+                        }}>
+                          <MdEvent size={11} /> {ag.servicoNome}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <MdPhone size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                      <span>{formatarTelefoneInternacional(ag.telefone)}</span>
+                      {ag.telefone && (
+                        <BotaoCopiar valor={ag.telefone} rotulo="telefone" title="Copiar telefone" />
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <MdBadge size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                      <span>{ag.documento || ag.cpf || '—'}</span>
+                      {(ag.documento || ag.cpf) && (
+                        <BotaoCopiar valor={ag.documento || ag.cpf} rotulo="documento" title="Copiar documento" />
+                      )}
+                    </div>
+
+                    {ag.email && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: 'break-all' }}>{ag.email}</span>
+                        <BotaoCopiar valor={ag.email} rotulo="e-mail" title="Copiar e-mail" />
+                      </div>
+                    )}
+
+                    {ag.observacoes && (
+                      <div style={{
+                        marginTop: 6,
+                        fontStyle: 'italic',
+                        color: '#7e22ce',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 6,
+                      }}>
+                        <MdChatBubbleOutline size={13} style={{ marginTop: 3, flexShrink: 0 }} />
+                        {ag.observacoes}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ✅ BADGES */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                    {ag.aguardandoConsentimento && (
+                      <span style={badgeAguardando}>
+                        <MdHourglassEmpty size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        Aguardando consentimento do paciente
+                      </span>
+                    )}
+                    {ag.consentimentoLGPD?.aceito ? (
+                      <span style={badgeOk}>
+                        <MdCheckCircle size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        LGPD aceito
+                      </span>
+                    ) : (
+                      <span style={badgeWarn}>
+                        <MdWarning size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        Sem LGPD
+                      </span>
+                    )}
+                    {ag.status === 'faltou' && (
+                      <span style={badgeFaltou}>
+                        <MdPersonOff size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        Paciente não compareceu
+                      </span>
+                    )}
+                  </div>
+
+                  {/* ✅ BOTÕES sempre embaixo, na linha toda */}
                   <div style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
+                    gap: 8,
                     flexWrap: 'wrap',
-                    gap: 12,
+                    marginTop: 14,
+                    paddingTop: 12,
+                    borderTop: '1px dashed #f0e6fa',
                   }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <h4 style={{
-                        fontFamily: "'Cinzel', serif",
-                        margin: '0 0 4px 0',
-                        color: '#2c163a',
-                        fontSize: 15,
-                      }}>
-                        {ag.nome}
-                      </h4>
+                    {/* ✅ Botão Ficha de Anamnese — sempre visível em qualquer status */}
+                   {/* ✅ Botão Ficha de Anamnese — só para confirmado e concluído */}
+{(ag.status === 'confirmado' || ag.status === 'concluido') && (
+  <button
+    type="button"
+    onClick={() => abrirFichaPreenchida(ag)}
+    style={{ ...btnFicha, flex: '1 1 140px' }}
+    title="Abrir ficha de anamnese pré-preenchida com os dados deste agendamento"
+  >
+    <MdAssignment size={14} /> Ficha de Anamnese
+  </button>
+)}
+                    {ag.status === 'pendente' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => solicitarEscolhaServico(ag)}
+                          style={{ ...btnOk, flex: '1 1 140px' }}
+                        >
+                          <MdCheckCircle size={14} /> Escolher serviço
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => solicitarCancelamento(ag)}
+                          style={{ ...btnDanger, flex: '1 1 100px' }}
+                        >
+                          <MdCancel size={14} /> Cancelar
+                        </button>
+                      </>
+                    )}
 
-                      <div style={{ fontSize: 12, color: '#555', lineHeight: 1.9 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <MdCalendarMonth size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-                          <span>
-                            {formatarDataBR(ag.data)} às {ag.horaInicio}
-                            {ag.horaFim ? `–${ag.horaFim}` : ''}
-                            {ag.duracaoMin ? ` (${ag.duracaoMin}min)` : ''}
-                          </span>
-                          {ag.servicoNome && (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: '#7e22ce',
-                              background: '#faf5ff',
-                              border: '1px solid #d8b4fe',
-                              borderRadius: 10,
-                              padding: '1px 8px',
-                              marginLeft: 2,
-                            }}>
-                              <MdEvent size={11} /> {ag.servicoNome}
-                            </span>
-                          )}
-                        </div>
+                    {ag.status === 'confirmado' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => concluirManual(ag)}
+                          style={{ ...btnOk, flex: '1 1 100px' }}
+                          title="Paciente veio e foi atendido"
+                        >
+                          <MdCheckCircle size={14} /> Concluir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => marcarFaltou(ag)}
+                          style={{ ...btnFaltou, flex: '1 1 100px' }}
+                          title="Paciente não compareceu"
+                        >
+                          <MdPersonOff size={14} /> Faltou
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => solicitarCancelamento(ag)}
+                          style={{ ...btnDanger, flex: '1 1 100px' }}
+                        >
+                          <MdCancel size={14} /> Cancelar
+                        </button>
+                      </>
+                    )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <MdPhone size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-                          <span>{formatarTelefoneInternacional(ag.telefone)}</span>
-                          {ag.telefone && (
-                            <BotaoCopiar valor={ag.telefone} rotulo="telefone" title="Copiar telefone" />
-                          )}
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <MdBadge size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-                          <span>{ag.documento || ag.cpf || '—'}</span>
-                          {(ag.documento || ag.cpf) && (
-                            <BotaoCopiar valor={ag.documento || ag.cpf} rotulo="documento" title="Copiar documento" />
-                          )}
-                        </div>
-
-                        {ag.email && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-                            <span style={{ wordBreak: 'break-all' }}>{ag.email}</span>
-                            <BotaoCopiar valor={ag.email} rotulo="e-mail" title="Copiar e-mail" />
-                          </div>
-                        )}
-
-                        {ag.observacoes && (
-                          <div style={{
-                            marginTop: 6,
-                            fontStyle: 'italic',
-                            color: '#7e22ce',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 6,
-                          }}>
-                            <MdChatBubbleOutline size={13} style={{ marginTop: 3, flexShrink: 0 }} />
-                            {ag.observacoes}
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                        {ag.aguardandoConsentimento && (
-                          <span style={badgeAguardando}>
-                            <MdHourglassEmpty size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            Aguardando consentimento do paciente
-                          </span>
-                        )}
-                        {ag.consentimentoLGPD?.aceito ? (
-                          <span style={badgeOk}>
-                            <MdCheckCircle size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            LGPD aceito
-                          </span>
-                        ) : (
-                          <span style={badgeWarn}>
-                            <MdWarning size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            Sem LGPD
-                          </span>
-                        )}
-                        {ag.status === 'faltou' && (
-                          <span style={badgeFaltou}>
-                            <MdPersonOff size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            Paciente não compareceu
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* ============ AÇÕES ============ */}
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {ag.status === 'pendente' && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => solicitarEscolhaServico(ag)}
-                            style={btnOk}
-                          >
-                            <MdCheckCircle size={14} /> Escolher serviço
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => solicitarCancelamento(ag)}
-                            style={btnDanger}
-                          >
-                            <MdCancel size={14} /> Cancelar
-                          </button>
-                        </>
-                      )}
-
-                      {ag.status === 'confirmado' && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => concluirManual(ag)}
-                            style={btnOk}
-                            title="Paciente veio e foi atendido"
-                          >
-                            <MdCheckCircle size={14} /> Concluir
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => marcarFaltou(ag)}
-                            style={btnFaltou}
-                            title="Paciente não compareceu"
-                          >
-                            <MdPersonOff size={14} /> Faltou
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => solicitarCancelamento(ag)}
-                            style={btnDanger}
-                          >
-                            <MdCancel size={14} /> Cancelar
-                          </button>
-                        </>
-                      )}
-
-                      {/* FALTOU → Reagendar (funciona COM e SEM pasta) + Cancelar */}
-                      {ag.status === 'faltou' && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => abrirReagendamento(ag)}
-                            disabled={buscandoPaciente}
-                            style={{
-                              ...btnReagendar,
-                              opacity: buscandoPaciente ? 0.6 : 1,
-                              cursor: buscandoPaciente ? 'wait' : 'pointer',
-                            }}
-                            title="Criar novo agendamento para este paciente"
-                          >
-                            <MdRefresh size={14} />
-                            {buscandoPaciente ? 'Carregando…' : 'Reagendar'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => solicitarCancelamento(ag)}
-                            style={btnDanger}
-                          >
-                            <MdCancel size={14} /> Cancelar
-                          </button>
-                        </>
-                      )}
-                    </div>
+                    {ag.status === 'faltou' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => abrirReagendamento(ag)}
+                          disabled={buscandoPaciente}
+                          style={{
+                            ...btnReagendar,
+                            flex: '1 1 140px',
+                            opacity: buscandoPaciente ? 0.6 : 1,
+                            cursor: buscandoPaciente ? 'wait' : 'pointer',
+                          }}
+                          title="Criar novo agendamento para este paciente"
+                        >
+                          <MdRefresh size={14} />
+                          {buscandoPaciente ? 'Carregando…' : 'Reagendar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => solicitarCancelamento(ag)}
+                          style={{ ...btnDanger, flex: '1 1 100px' }}
+                        >
+                          <MdCancel size={14} /> Cancelar
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -851,11 +1080,23 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           onFechar={fecharReagendamento}
           onSucesso={async (novoAg) => {
             try {
+              // 1) Marca o novo com referência ao antigo
               await updateDoc(doc(db, 'agendamentos', novoAg.id), {
                 reagendamentoDe: agendamentoParaReagendar.id,
                 reagendamentoDeData: agendamentoParaReagendar.data,
                 reagendamentoDeHora: agendamentoParaReagendar.horaInicio,
               });
+
+              // 2) ✅ Marca o antigo como "reagendado" → sai do filtro Faltou
+              await updateDoc(
+                doc(db, 'agendamentos', agendamentoParaReagendar.id),
+                {
+                  status: 'reagendado',
+                  reagendadoPara: novoAg.id,
+                  reagendadoEm: new Date().toISOString(),
+                  atualizadoEm: new Date().toISOString(),
+                }
+              );
             } catch (e) {
               console.warn('Falha ao marcar reagendamento:', e);
             }
@@ -906,6 +1147,7 @@ const cardAg = {
   border: '1.5px solid #e2d2f5',
   borderRadius: 12,
   padding: 16,
+  overflow: 'hidden',
 };
 
 const vazio = {
@@ -921,56 +1163,81 @@ const btnOk = {
   background: '#16a34a',
   color: '#fff',
   border: 'none',
-  padding: '8px 14px',
+  padding: '10px 14px',
   borderRadius: 16,
   fontSize: 11,
   fontWeight: 700,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   gap: 4,
+  minHeight: 40,
 };
 
 const btnFaltou = {
   background: '#f97316',
   color: '#fff',
   border: 'none',
-  padding: '8px 14px',
+  padding: '10px 14px',
   borderRadius: 16,
   fontSize: 11,
   fontWeight: 700,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   gap: 4,
+  minHeight: 40,
 };
 
 const btnReagendar = {
   background: '#2563eb',
   color: '#fff',
   border: 'none',
-  padding: '8px 14px',
+  padding: '10px 14px',
   borderRadius: 16,
   fontSize: 11,
   fontWeight: 700,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   gap: 4,
+  minHeight: 40,
 };
 
 const btnDanger = {
   background: '#c62828',
   color: '#fff',
   border: 'none',
-  padding: '8px 14px',
+  padding: '10px 14px',
   borderRadius: 16,
   fontSize: 11,
   fontWeight: 700,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   gap: 4,
+  minHeight: 40,
+};
+
+const btnFicha = {
+  background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+  color: '#fff',
+  border: '1.5px solid #9c7826',
+  padding: '10px 14px',
+  borderRadius: 16,
+  fontSize: 11,
+  fontWeight: 700,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 4,
+  minHeight: 40,
+  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
 };
 
 const badgeOk = {
