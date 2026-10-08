@@ -353,7 +353,6 @@ export default function PainelAgendamentosEsteticista({
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
-  // ✅ Exclusão manual de agendamentos (cancelados / faltou / concluídos)
   const [agendamentoParaExcluir, setAgendamentoParaExcluir] = useState(null);
   const [excluindoAg, setExcluindoAg] = useState(false);
 
@@ -415,7 +414,6 @@ export default function PainelAgendamentosEsteticista({
 
   // ============================================================
   // ✅ Helper — encontra paciente por ID ou por nome+doc
-  //    (agenda pública NÃO salva pacienteId, então precisa fallback)
   // ============================================================
   const acharPacienteDoAgendamento = (ag) => {
     if (ag.pacienteId && pacientesPorId[ag.pacienteId]) {
@@ -690,9 +688,6 @@ export default function PainelAgendamentosEsteticista({
     setAgendamentoParaReagendar(null);
   };
 
-  // ============================================================
-  // ✅ Exclusão manual de agendamento (só cancelado/faltou/concluído)
-  // ============================================================
   const solicitarExclusaoAgendamento = (ag) => {
     setAgendamentoParaExcluir(ag);
   };
@@ -786,9 +781,6 @@ export default function PainelAgendamentosEsteticista({
     return pacientesExistentes.has(`nome:${nomeNorm}|${docNorm}`);
   };
 
-  // ============================================================
-  // ✅ Substitui um campo na ficha do paciente
-  // ============================================================
   const substituirCampo = async (pacId, campo, valor) => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -815,9 +807,6 @@ export default function PainelAgendamentosEsteticista({
     }
   };
 
-  // ============================================================
-  // ✅ Limpa um campo (emailContato ou telefone) na ficha do paciente
-  // ============================================================
   const limparCampo = async (pacId, campo) => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -844,16 +833,12 @@ export default function PainelAgendamentosEsteticista({
     }
   };
 
-  // ============================================================
-  // ✅ Divergências — lê email/telefone dos 2 lugares (raiz ou anamnese)
-  // ============================================================
   const divergenciasDoAgendamento = (ag) => {
     const pac = acharPacienteDoAgendamento(ag);
     if (!pac) return [];
 
     const lista = [];
 
-    // E-mail
     const emailFichaAtual = getEmailContatoDoPaciente(pac);
     const emailFicha = emailFichaAtual.toLowerCase();
     const emailRealAg = emailContatoDoAgendamento(ag.email);
@@ -867,7 +852,6 @@ export default function PainelAgendamentosEsteticista({
       });
     }
 
-    // Telefone
     const telFicha = getTelefoneDoPaciente(pac);
     const telAg = (ag.telefone || '').trim();
     if (telFicha && telAg && telFicha !== telAg) {
@@ -1021,6 +1005,7 @@ export default function PainelAgendamentosEsteticista({
         <>
           {/* Busca */}
           <div style={{
+            position: 'relative',
             background: 'rgba(255, 255, 255, 0.15)',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
@@ -1036,12 +1021,40 @@ export default function PainelAgendamentosEsteticista({
             width: '100%',
             boxSizing: 'border-box',
           }}>
-            <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
+            <MdSearch
+              size={18}
+              color="#C8A24A"
+              style={{ flexShrink: 0 }}
+              aria-hidden="true"
+            />
+
+            {/* Label invisível pra acessibilidade */}
+            <label
+              htmlFor="busca-agendamentos"
+              style={{
+                position: 'absolute',
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: 'hidden',
+                clip: 'rect(0,0,0,0)',
+                whiteSpace: 'nowrap',
+                border: 0,
+              }}
+            >
+              Buscar agendamentos por nome, documento ou data
+            </label>
+
             <input
+              id="busca-agendamentos"
+              name="busca_agendamentos"
               type="text"
               placeholder="Buscar por nome, documento ou data (DD/MM/AAAA)…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
+              autoComplete="off"
+              aria-label="Buscar agendamentos por nome, documento ou data"
               style={{
                 flex: 1,
                 border: 'none',
@@ -1057,6 +1070,7 @@ export default function PainelAgendamentosEsteticista({
               <button
                 type="button"
                 onClick={() => setBusca('')}
+                aria-label="Limpar busca"
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -1340,7 +1354,6 @@ export default function PainelAgendamentosEsteticista({
                                   MANTER
                                 </button>
 
-                                {/* ✅ NOVO — Limpar campo */}
                                 <button
                                   type="button"
                                   disabled={carregandoEste}
@@ -1494,7 +1507,6 @@ export default function PainelAgendamentosEsteticista({
                       </>
                     )}
 
-                    {/* ✅ Botão "Excluir da lista" — só pra finalizados */}
                     {(ag.status === 'cancelado' ||
                       ag.status === 'faltou' ||
                       ag.status === 'concluido') && (
