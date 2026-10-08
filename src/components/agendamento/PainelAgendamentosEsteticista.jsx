@@ -1,5 +1,5 @@
 // src/components/agendamento/PainelAgendamentosEsteticista.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import GerenciarServicos from './GerenciarServicos';
 import ModalAgendarParaPaciente from './ModalAgendarParaPaciente';
 import ModalEscolherServico from './ModalEscolherServico';
@@ -312,6 +312,17 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   //    Usado pra esconder o botão "Ficha de Anamnese" de quem já tem pasta
   const [pacientesExistentes, setPacientesExistentes] = useState(new Set());
 
+  // ✅ Map com dados COMPLETOS dos pacientes (por ID) — usado pra
+  //    comparar email/telefone da ficha com os do agendamento
+  const [pacientesPorId, setPacientesPorId] = useState({});
+
+  // ✅ Rastreia qual campo está sendo substituído (feedback visual)
+  //    Formato: 'pacId|campo'
+  const [substituindo, setSubstituindo] = useState(null);
+
+  // ✅ Ref pra não rodar o auto-sync 2x no mesmo campo
+  const autoSyncRef = useRef(new Set());
+
   // Reagendamento (funciona pra COM e SEM pasta)
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
@@ -344,6 +355,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   // ============================================================
   // ✅ Listener 2 — PACIENTES existentes (para esconder botão "Ficha")
   //    Guarda `id:<uid>` E `nome:<nome>|<doc>` no Set
+  //    E também guarda o objeto completo no map pacientesPorId
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
@@ -352,6 +364,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       collection(db, `usuarios/${uidEsteticista}/pacientes`),
       (snap) => {
         const set = new Set();
+        const map = {};
         snap.docs.forEach((d) => {
           // ✅ Guarda o ID real que existe no Firestore
           set.add(`id:${d.id}`);
@@ -363,14 +376,77 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           if (nomeNorm && docNorm) {
             set.add(`nome:${nomeNorm}|${docNorm}`);
           }
+
+          // ✅ Mapa completo por ID (dados usados pra comparar)
+          map[d.id] = { id: d.id, ...p };
         });
         setPacientesExistentes(set);
+        setPacientesPorId(map);
       },
       (err) => console.warn('Erro listener pacientes:', err)
     );
 
     return () => unsub();
   }, [uidEsteticista]);
+
+  // ============================================================
+  // ✅ AUTO-SYNC — se a ficha do paciente tem e-mail ou telefone VAZIO
+  //    e o agendamento trouxe um valor, copia automaticamente pra ficha
+  //    (só quando o campo está vazio — se já tem valor, mostra o painel
+  //     de divergências pra esteta decidir)
+  // ============================================================
+  useEffect(() => {
+    const user = getAuth().currentUser;
+    if (!user) return;
+
+    Object.values(pacientesPorId).forEach((pac) => {
+      const agsDoPaciente = agendamentos.filter(
+        (a) => a.pacienteId === pac.id
+      );
+      if (agsDoPaciente.length === 0) return;
+
+      // Pega o mais recente (agendamentos vêm ordenados por data desc)
+      const ag = agsDoPaciente[0];
+
+      // ----- E-mail -----
+      const emailFicha = (pac.emailContato || '').trim();
+      const emailRealAg = emailContatoDoAgendamento(ag.email);
+      const chaveEmail = `${pac.id}|email|${emailRealAg}`;
+
+      if (
+        !emailFicha &&
+        emailRealAg &&
+        !autoSyncRef.current.has(chaveEmail)
+      ) {
+        autoSyncRef.current.add(chaveEmail);
+        updateDoc(
+          doc(db, `usuarios/${user.uid}/pacientes`, pac.id),
+          {
+            emailContato: emailRealAg,
+            'anamnese.emailContato': emailRealAg,
+            atualizadoEm: new Date().toISOString(),
+          }
+        ).catch((e) => console.warn('Auto-sync email falhou:', e));
+      }
+
+      // ----- Telefone -----
+      const telFicha = (pac.telefone || '').trim();
+      const telAg = (ag.telefone || '').trim();
+      const chaveTel = `${pac.id}|tel|${telAg}`;
+
+      if (!telFicha && telAg && !autoSyncRef.current.has(chaveTel)) {
+        autoSyncRef.current.add(chaveTel);
+        updateDoc(
+          doc(db, `usuarios/${user.uid}/pacientes`, pac.id),
+          {
+            telefone: telAg,
+            'anamnese.telefone': telAg,
+            atualizadoEm: new Date().toISOString(),
+          }
+        ).catch((e) => console.warn('Auto-sync tel falhou:', e));
+      }
+    });
+  }, [pacientesPorId, agendamentos]);
 
   const solicitarEscolhaServico = (ag) => {
     setAgendamentoParaConfirmar(ag);
@@ -474,14 +550,14 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       telefone: ag.telefone || '',
       email: emailFicticio,
       emailAcesso: emailFicticio,
-      emailContato: emailContatoReal,     // ✅ filtrado
+      emailContato: emailContatoReal,
       criadoPorUid: user.uid,
       dataCriacao: dataHora,
       dataUltimaEdicao: dataHora,
       anamnese: {
         nome,
         telefone: ag.telefone || '',
-        emailContato: emailContatoReal,   // ✅ filtrado
+        emailContato: emailContatoReal,
         numeroDocumento: ag.documento || '',
         dataRealizacao: new Date().toLocaleDateString('pt-BR'),
         observacoes: `Ficha criada automaticamente ao concluir o agendamento.\nServiço: ${ag.servicoNome || 'Não informado'}${ag.observacoes ? `\nObservações do paciente: ${ag.observacoes}` : ''}`,
@@ -532,7 +608,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   // ✅ REAGENDAR — funciona COM e SEM pasta
   // ============================================================
   const abrirReagendamento = async (ag) => {
-    // Tem pasta → busca os dados completos do paciente
     if (ag.pacienteId) {
       setBuscandoPaciente(true);
       try {
@@ -553,7 +628,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       }
     }
 
-    // Sem pasta (público) OU pasta não encontrada → monta objeto temporário
     setPacienteReagendar({
       id: ag.pacienteId || null,
       nome: ag.nome,
@@ -636,9 +710,6 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
 
   // ============================================================
   // ✅ Verifica se o agendamento já corresponde a um paciente existente
-  //    Só esconde o botão se:
-  //      - pacienteId AINDA existe no Firestore (não foi excluído), OU
-  //      - nome + documento batem com algum cadastro ativo
   // ============================================================
   const pacienteJaExiste = (ag) => {
     if (ag.pacienteId && pacientesExistentes.has(`id:${ag.pacienteId}`)) {
@@ -653,6 +724,74 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   };
 
   // ============================================================
+  // ✅ Substitui um campo (emailContato ou telefone) na ficha do paciente
+  //    com o valor vindo do agendamento público
+  // ============================================================
+  const substituirCampo = async (pacId, campo, valor) => {
+    const user = getAuth().currentUser;
+    if (!user) return;
+
+    const chave = `${pacId}|${campo}`;
+    setSubstituindo(chave);
+
+    try {
+      await updateDoc(
+        doc(db, `usuarios/${user.uid}/pacientes`, pacId),
+        {
+          [campo]: valor,
+          [`anamnese.${campo}`]: valor,
+          atualizadoEm: new Date().toISOString(),
+        }
+      );
+    } catch (e) {
+      console.error('Erro ao substituir campo:', e);
+      alert('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSubstituindo(null);
+    }
+  };
+
+  // ============================================================
+  // ✅ Calcula quais campos estão divergentes entre ficha e agendamento
+  //    Retorna array: [{ campo, label, atual, novo, pacId }]
+  // ============================================================
+  const divergenciasDoAgendamento = (ag) => {
+    if (!ag.pacienteId) return [];
+    const pac = pacientesPorId[ag.pacienteId];
+    if (!pac) return [];
+
+    const lista = [];
+
+    // E-mail
+    const emailFicha = (pac.emailContato || '').trim().toLowerCase();
+    const emailRealAg = emailContatoDoAgendamento(ag.email);
+    if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
+      lista.push({
+        campo: 'emailContato',
+        label: 'E-mail',
+        atual: pac.emailContato,
+        novo: emailRealAg,
+        pacId: pac.id,
+      });
+    }
+
+    // Telefone
+    const telFicha = (pac.telefone || '').trim();
+    const telAg = (ag.telefone || '').trim();
+    if (telFicha && telAg && telFicha !== telAg) {
+      lista.push({
+        campo: 'telefone',
+        label: 'Telefone',
+        atual: pac.telefone,
+        novo: telAg,
+        pacId: pac.id,
+      });
+    }
+
+    return lista;
+  };
+
+  // ============================================================
   // ✅ Abre uma ficha de anamnese pré-preenchida com dados do agendamento
   // ============================================================
   const abrirFichaPreenchida = (ag) => {
@@ -661,7 +800,7 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       _agendamentoStatusOriginal: ag.status,
       nome: ag.nome || '',
       telefone: ag.telefone || '',
-      emailContato: emailContatoDoAgendamento(ag.email),  // ✅ filtra @sistema.local
+      emailContato: emailContatoDoAgendamento(ag.email),
       numeroDocumento: ag.documento || '',
       dataNascimento: '',
       endereco: '',
@@ -1014,6 +1153,129 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                     )}
                   </div>
 
+                  {/* ✅ Painel de divergências — email/telefone diferentes do cadastro */}
+                  {(() => {
+                    const divs = divergenciasDoAgendamento(ag);
+                    if (divs.length === 0) return null;
+
+                    return (
+                      <div style={{
+                        marginTop: 12,
+                        background: 'linear-gradient(135deg, #fff8e1 0%, #fef3c7 100%)',
+                        border: '1.5px solid #fcd34d',
+                        borderRadius: 12,
+                        padding: '12px 14px',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginBottom: 10,
+                        }}>
+                          <MdWarning size={16} color="#92400e" />
+                          <span style={{
+                            fontFamily: "'Cinzel', serif",
+                            color: '#92400e',
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}>
+                            Dados diferentes do cadastro do paciente
+                          </span>
+                        </div>
+
+                        {divs.map((d) => {
+                          const chave = `${d.pacId}|${d.campo}`;
+                          const carregandoEste = substituindo === chave;
+
+                          return (
+                            <div
+                              key={d.campo}
+                              style={{
+                                background: '#fff',
+                                border: '1px solid #fcd34d',
+                                borderRadius: 8,
+                                padding: '10px 12px',
+                                marginBottom: 8,
+                              }}
+                            >
+                              <div style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: '#2c163a',
+                                marginBottom: 6,
+                              }}>
+                                {d.label}
+                              </div>
+
+                              <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6, marginBottom: 8 }}>
+                                <div>
+                                  <strong style={{ color: '#888' }}>Cadastro:</strong>{' '}
+                                  <span style={{ wordBreak: 'break-all' }}>{d.atual}</span>
+                                </div>
+                                <div>
+                                  <strong style={{ color: '#7e22ce' }}>Agendamento:</strong>{' '}
+                                  <span style={{ wordBreak: 'break-all', color: '#7e22ce', fontWeight: 600 }}>
+                                    {d.novo}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  disabled={carregandoEste}
+                                  onClick={() => {
+                                    alert(`Mantido o ${d.label.toLowerCase()} do cadastro.`);
+                                  }}
+                                  style={{
+                                    flex: 1,
+                                    background: '#f5f5f5',
+                                    color: '#555',
+                                    border: '1.5px solid #ddd',
+                                    padding: '8px 12px',
+                                    borderRadius: 12,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    fontFamily: "'Cinzel', serif",
+                                  }}
+                                >
+                                  MANTER CADASTRO
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={carregandoEste}
+                                  onClick={() => substituirCampo(d.pacId, d.campo, d.novo)}
+                                  style={{
+                                    flex: 1,
+                                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                                    color: '#fff',
+                                    border: '1.5px solid #9c7826',
+                                    padding: '8px 12px',
+                                    borderRadius: 12,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    cursor: carregandoEste ? 'wait' : 'pointer',
+                                    fontFamily: "'Cinzel', serif",
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 4,
+                                    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
+                                    opacity: carregandoEste ? 0.7 : 1,
+                                  }}
+                                >
+                                  {carregandoEste ? 'SALVANDO…' : 'SUBSTITUIR'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
                   {/* ✅ BOTÕES sempre embaixo, na linha toda */}
                   <div style={{
                     display: 'flex',
@@ -1149,14 +1411,12 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           onFechar={fecharReagendamento}
           onSucesso={async (novoAg) => {
             try {
-              // 1) Marca o novo com referência ao antigo
               await updateDoc(doc(db, 'agendamentos', novoAg.id), {
                 reagendamentoDe: agendamentoParaReagendar.id,
                 reagendamentoDeData: agendamentoParaReagendar.data,
                 reagendamentoDeHora: agendamentoParaReagendar.horaInicio,
               });
 
-              // 2) ✅ Marca o antigo como "reagendado" → sai do filtro Faltou
               await updateDoc(
                 doc(db, 'agendamentos', agendamentoParaReagendar.id),
                 {
