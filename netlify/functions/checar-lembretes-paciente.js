@@ -13,7 +13,15 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST' && event.httpMethod !== 'GET') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
-
+ // ✅ ADICIONE ESTE BLOCO AQUI
+  let secret = event.queryStringParameters?.secret;
+  if (!secret && event.body) {
+    try { secret = JSON.parse(event.body).secret; } catch (e) {}
+  }
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+  // ✅ FIM DO BLOCO
   try {
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
