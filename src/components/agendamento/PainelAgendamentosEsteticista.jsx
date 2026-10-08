@@ -34,6 +34,17 @@ import {
 
 const DIAS_HISTORICO = 30;
 
+// ============================================================
+// ✅ O e-mail do agendamento pode ser @sistema.local (login) ou vazio.
+//    Só devolve como e-mail de CONTATO se for um e-mail real.
+// ============================================================
+function emailContatoDoAgendamento(emailBruto) {
+  const email = (emailBruto || '').trim().toLowerCase();
+  if (!email) return '';
+  if (email.endsWith('@sistema.local')) return '';
+  return email;
+}
+
 function formatarTelefoneInternacional(tel) {
   if (!tel) return '—';
   try {
@@ -297,13 +308,17 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
   const [cancelando, setCancelando] = useState(false);
 
+  // ✅ Set com IDs e nome+doc dos pacientes que existem no Firestore
+  //    Usado pra esconder o botão "Ficha de Anamnese" de quem já tem pasta
+  const [pacientesExistentes, setPacientesExistentes] = useState(new Set());
+
   // Reagendamento (funciona pra COM e SEM pasta)
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
   // ============================================================
-  // Listener em tempo real
+  // Listener 1 — AGENDAMENTOS em tempo real
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
@@ -322,6 +337,37 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       console.error('Erro agendamentos:', err);
       setCarregando(false);
     });
+
+    return () => unsub();
+  }, [uidEsteticista]);
+
+  // ============================================================
+  // ✅ Listener 2 — PACIENTES existentes (para esconder botão "Ficha")
+  //    Guarda `id:<uid>` E `nome:<nome>|<doc>` no Set
+  // ============================================================
+  useEffect(() => {
+    if (!uidEsteticista) return;
+
+    const unsub = onSnapshot(
+      collection(db, `usuarios/${uidEsteticista}/pacientes`),
+      (snap) => {
+        const set = new Set();
+        snap.docs.forEach((d) => {
+          // ✅ Guarda o ID real que existe no Firestore
+          set.add(`id:${d.id}`);
+
+          // ✅ Guarda também nome+doc (fallback caso o ID mude)
+          const p = d.data();
+          const nomeNorm = (p.nome || '').trim().toLowerCase();
+          const docNorm = (p.documento || '').replace(/\D/g, '');
+          if (nomeNorm && docNorm) {
+            set.add(`nome:${nomeNorm}|${docNorm}`);
+          }
+        });
+        setPacientesExistentes(set);
+      },
+      (err) => console.warn('Erro listener pacientes:', err)
+    );
 
     return () => unsub();
   }, [uidEsteticista]);
@@ -418,6 +464,9 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     const agora = new Date();
     const dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
+    // ✅ Filtra o e-mail de contato (remove @sistema.local / vazio)
+    const emailContatoReal = emailContatoDoAgendamento(ag.email);
+
     const novaFicha = {
       id: pacienteUid,
       nome,
@@ -425,14 +474,14 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       telefone: ag.telefone || '',
       email: emailFicticio,
       emailAcesso: emailFicticio,
-      emailContato: ag.email || '',
+      emailContato: emailContatoReal,     // ✅ filtrado
       criadoPorUid: user.uid,
       dataCriacao: dataHora,
       dataUltimaEdicao: dataHora,
       anamnese: {
         nome,
         telefone: ag.telefone || '',
-        emailContato: ag.email || '',
+        emailContato: emailContatoReal,   // ✅ filtrado
         numeroDocumento: ag.documento || '',
         dataRealizacao: new Date().toLocaleDateString('pt-BR'),
         observacoes: `Ficha criada automaticamente ao concluir o agendamento.\nServiço: ${ag.servicoNome || 'Não informado'}${ag.observacoes ? `\nObservações do paciente: ${ag.observacoes}` : ''}`,
@@ -586,22 +635,40 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [agendamentos, filtroStatus, busca]);
 
   // ============================================================
+  // ✅ Verifica se o agendamento já corresponde a um paciente existente
+  //    Só esconde o botão se:
+  //      - pacienteId AINDA existe no Firestore (não foi excluído), OU
+  //      - nome + documento batem com algum cadastro ativo
+  // ============================================================
+  const pacienteJaExiste = (ag) => {
+    if (ag.pacienteId && pacientesExistentes.has(`id:${ag.pacienteId}`)) {
+      return true;
+    }
+
+    const nomeNorm = (ag.nome || '').trim().toLowerCase();
+    const docNorm = (ag.documento || '').replace(/\D/g, '');
+    if (!nomeNorm || !docNorm) return false;
+
+    return pacientesExistentes.has(`nome:${nomeNorm}|${docNorm}`);
+  };
+
+  // ============================================================
   // ✅ Abre uma ficha de anamnese pré-preenchida com dados do agendamento
   // ============================================================
   const abrirFichaPreenchida = (ag) => {
-  setFichaPreenchida({
-    _agendamentoOrigemId: ag.id,
-    _agendamentoStatusOriginal: ag.status,   // ✅ guarda o status pra decidir depois
-    nome: ag.nome || '',
-    telefone: ag.telefone || '',
-    emailContato: ag.email || '',
-    numeroDocumento: ag.documento || '',
-    dataNascimento: '',
-    endereco: '',
-    dataRealizacao: new Date().toLocaleDateString('pt-BR'),
-    observacoes: '',
-  });
-};
+    setFichaPreenchida({
+      _agendamentoOrigemId: ag.id,
+      _agendamentoStatusOriginal: ag.status,
+      nome: ag.nome || '',
+      telefone: ag.telefone || '',
+      emailContato: emailContatoDoAgendamento(ag.email),  // ✅ filtra @sistema.local
+      numeroDocumento: ag.documento || '',
+      dataNascimento: '',
+      endereco: '',
+      dataRealizacao: new Date().toLocaleDateString('pt-BR'),
+      observacoes: '',
+    });
+  };
 
   // ============================================================
   // ✅ Salva a ficha criada a partir do agendamento e vincula
@@ -663,26 +730,26 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novoPaciente);
     await registrarLinkPaciente(pacienteUid, user.uid);
 
-if (fichaPreenchida?._agendamentoOrigemId) {
-  const patch = {
-    pacienteId: pacienteUid,
-    atualizadoEm: new Date().toISOString(),
-  };
+    if (fichaPreenchida?._agendamentoOrigemId) {
+      const patch = {
+        pacienteId: pacienteUid,
+        atualizadoEm: new Date().toISOString(),
+      };
 
-  // ✅ Se o agendamento estava CONFIRMADO, ao salvar a ficha ele vira CONCLUÍDO
-  if (fichaPreenchida._agendamentoStatusOriginal === 'confirmado') {
-    patch.status = 'concluido';
-    patch.concluidoPor = 'esteticista';
-    patch.concluidoEm = new Date().toISOString();
-  }
+      // ✅ Se o agendamento estava CONFIRMADO, ao salvar a ficha ele vira CONCLUÍDO
+      if (fichaPreenchida._agendamentoStatusOriginal === 'confirmado') {
+        patch.status = 'concluido';
+        patch.concluidoPor = 'esteticista';
+        patch.concluidoEm = new Date().toISOString();
+      }
 
-  await updateDoc(
-    doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId),
-    patch
-  );
-}
+      await updateDoc(
+        doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId),
+        patch
+      );
+    }
 
-setFichaPreenchida(null);
+    setFichaPreenchida(null);
   };
 
   // ✅ Se há uma ficha aberta, mostra ela em tela cheia (create mode)
@@ -956,18 +1023,20 @@ setFichaPreenchida(null);
                     paddingTop: 12,
                     borderTop: '1px dashed #f0e6fa',
                   }}>
-                    {/* ✅ Botão Ficha de Anamnese — sempre visível em qualquer status */}
-                   {/* ✅ Botão Ficha de Anamnese — só para confirmado e concluído */}
-{(ag.status === 'confirmado' || ag.status === 'concluido') && (
-  <button
-    type="button"
-    onClick={() => abrirFichaPreenchida(ag)}
-    style={{ ...btnFicha, flex: '1 1 140px' }}
-    title="Abrir ficha de anamnese pré-preenchida com os dados deste agendamento"
-  >
-    <MdAssignment size={14} /> Ficha de Anamnese
-  </button>
-)}
+                    {/* ✅ Botão Ficha de Anamnese — só se:
+                        - status confirmado ou concluído E
+                        - paciente ainda NÃO existe (nome+doc não bateram) */}
+                    {(ag.status === 'confirmado' || ag.status === 'concluido') && !pacienteJaExiste(ag) && (
+                      <button
+                        type="button"
+                        onClick={() => abrirFichaPreenchida(ag)}
+                        style={{ ...btnFicha, flex: '1 1 140px' }}
+                        title="Abrir ficha de anamnese pré-preenchida com os dados deste agendamento"
+                      >
+                        <MdAssignment size={14} /> Ficha de Anamnese
+                      </button>
+                    )}
+
                     {ag.status === 'pendente' && (
                       <>
                         <button
