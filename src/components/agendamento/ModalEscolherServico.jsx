@@ -306,257 +306,157 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#fff',
-          borderRadius: 20,
-          padding: '22px 22px 20px',
-          maxWidth: 520,
-          width: '100%',
-          maxHeight: '92vh',
-          overflowY: 'auto',
-          boxShadow: '0 25px 70px rgba(44, 22, 58, 0.4)',
-          border: '1.5px solid #C8A24A',
-          fontFamily: "'Montserrat', sans-serif",
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 14,
-          gap: 10,
-        }}>
-          <div style={{ minWidth: 0 }}>
-            <h3 style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#2c163a',
-              fontSize: 16,
-              margin: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              Escolher serviço
-            </h3>
-            <span style={{ fontSize: 11, color: '#666' }}>
-              {agendamento?.nome} — {formatarDataBR(agendamento?.data)} às {agendamento?.horaInicio}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={enviando}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              padding: 4, borderRadius: '50%',
-            }}
-          >
-            <MdClose size={22} color="#2c163a" />
-          </button>
-        </div>
+  onClick={(e) => e.stopPropagation()}
+  style={{
+    background: '#fff',
+    borderRadius: 20,
+    padding: '28px 24px 22px',
+    maxWidth: 440,
+    width: '100%',
+    boxShadow: '0 25px 70px rgba(44, 22, 58, 0.5)',
+    border: '1.5px solid #C8A24A',
+    fontFamily: "'Montserrat', sans-serif",
+    textAlign: 'center',
+    position: 'relative',       // ✅ NOVO — pra posicionar o X
+  }}
+>
+  {/* ✅ NOVO — Botão X de fechar */}
+  <button
+    type="button"
+    onClick={() => setPassoSobrou(null)}
+    disabled={enviando}
+    aria-label="Fechar"
+    title="Fechar"
+    style={{
+      position: 'absolute',
+      top: 14,
+      right: 14,
+      width: 36,
+      height: 36,
+      borderRadius: '50%',
+      background: 'transparent',
+      border: 'none',
+      cursor: enviando ? 'not-allowed' : 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#888',
+      transition: 'all 0.2s ease',
+      opacity: enviando ? 0.5 : 1,
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.background = 'rgba(198, 40, 40, 0.08)';
+      e.currentTarget.style.color = '#c62828';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.background = 'transparent';
+      e.currentTarget.style.color = '#888';
+    }}
+  >
+    <MdClose size={20} />
+  </button>
 
-        {/* Corpo */}
-        {carregando ? (
-          <div style={{ textAlign: 'center', padding: 30, color: '#666', fontSize: 13 }}>
-            Carregando…
-          </div>
-        ) : servicos.length === 0 ? (
-          <div style={{
-            background: '#fff8e1',
-            border: '1px solid #fcd34d',
-            borderRadius: 10,
-            padding: 14,
-            fontSize: 12,
-            color: '#92400e',
-            lineHeight: 1.5,
-          }}>
-            <MdWarning size={20} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Você ainda não cadastrou nenhum serviço. Vá em <strong>Agendamentos → Meus Serviços</strong>.
-          </div>
-        ) : (
-          <>
-            {/* Lista de serviços */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-              {servicos.map((s) => {
-                const info = previews[s.id];
-                const ativo = servicoSelecionado?.id === s.id;
-                const cabe = info?.cabe;
+  {/* Ícone */}
+  <div
+    style={{
+      width: 68,
+      height: 68,
+      margin: '0 auto 16px auto',
+      borderRadius: '50%',
+      background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+      border: '2px solid #86efac',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <MdEventAvailable size={34} color="#16a34a" />
+  </div>
 
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      if (!cabe) return;
-                      setServicoSelecionado(s);
-                      setErro('');
-                    }}
-                    disabled={!cabe || enviando}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: '12px 14px',
-                      background: ativo ? '#faf5ff' : cabe ? '#fff' : '#fafafa',
-                      border: ativo
-                        ? '2px solid #7e22ce'
-                        : cabe
-                          ? '1.5px solid #d8b4fe'
-                          : '1.5px solid #eee',
-                      borderRadius: 12,
-                      cursor: cabe ? 'pointer' : 'not-allowed',
-                      opacity: cabe ? 1 : 0.55,
-                      textAlign: 'left',
-                      fontFamily: 'inherit',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <span style={{
-                      width: 12, height: 12, borderRadius: '50%',
-                      background: s.cor || '#a855f7',
-                      flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: "'Cinzel', serif",
-                        color: '#2c163a',
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}>
-                        {s.nome}
-                      </div>
-                      <div style={{
-                        fontSize: 11,
-                        color: cabe ? '#666' : '#c62828',
-                        marginTop: 2,
-                      }}>
-                        {agendamento?.horaInicio} às {info?.novaFim} ({s.duracaoMin} min)
-                        {!cabe && info?.motivo && (
-                          <>
-                            {' · '}
-                            <span style={{ fontStyle: 'italic' }}>{info.motivo}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {ativo && cabe && (
-                      <MdCheckCircle size={20} color="#16a34a" style={{ flexShrink: 0 }} />
-                    )}
-                    {!cabe && (
-                      <MdWarning size={18} color="#c62828" style={{ flexShrink: 0 }} />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+  <h3
+    style={{
+      fontFamily: "'Cinzel', serif",
+      color: '#2c163a',
+      fontSize: 17,
+      fontWeight: 700,
+      margin: '0 0 12px 0',
+    }}
+  >
+    Sobrou {passoSobrou.duracaoMin} min livres
+  </h3>
 
-            {/* Observação opcional */}
-            {servicoSelecionado && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#2c163a',
-                  marginBottom: 6,
-                }}>
-                  Observação (opcional)
-                </label>
-                <textarea
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  rows={2}
-                  placeholder="Ex: paciente pediu pra avisar quando chegar…"
-                  disabled={enviando}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1.5px solid #d8b4fe',
-                    borderRadius: 10,
-                    fontSize: 13,
-                    outline: 'none',
-                    resize: 'vertical',
-                    boxSizing: 'border-box',
-                    fontFamily: "'Montserrat', sans-serif",
-                    color: '#2c163a',
-                    minHeight: 60,
-                  }}
-                />
-              </div>
-            )}
+  <p
+    style={{
+      fontSize: 13,
+      color: '#2c163a',
+      margin: '0 0 6px 0',
+      lineHeight: 1.6,
+    }}
+  >
+    O bloco original ia até <strong>{passoSobrou.fim}</strong>, mas o serviço
+    termina em <strong>{passoSobrou.inicio}</strong>.
+  </p>
 
-            {erro && (
-              <div style={{
-                background: '#fde8e8',
-                border: '1px solid #f98080',
-                color: '#c81e1e',
-                padding: '9px 12px',
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                marginBottom: 12,
-              }}>
-                {erro}
-              </div>
-            )}
-          </>
-        )}
+  <p
+    style={{
+      fontSize: 12,
+      color: '#555',
+      margin: '0 0 20px 0',
+      lineHeight: 1.6,
+    }}
+  >
+    Quer <strong>liberar esse tempo</strong> ({passoSobrou.inicio} – {passoSobrou.fim})
+    para outro paciente agendar?
+  </p>
 
-        {/* Footer */}
-        <div style={{
-          display: 'flex',
-          gap: 10,
-          justifyContent: 'flex-end',
-          marginTop: 4,
-        }}>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={enviando}
-            style={{
-              background: '#f0f0f0',
-              color: '#333',
-              border: 'none',
-              padding: '12px 20px',
-              borderRadius: 20,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: enviando ? 'not-allowed' : 'pointer',
-              fontFamily: "'Cinzel', serif",
-              opacity: enviando ? 0.6 : 1,
-            }}
-          >
-            CANCELAR
-          </button>
-          <button
-            type="button"
-            onClick={confirmar}
-            disabled={!servicoSelecionado || enviando || servicos.length === 0}
-            style={{
-              background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-              color: '#fff',
-              border: '1.5px solid #9c7826',
-              padding: '12px 22px',
-              borderRadius: 20,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor:
-                !servicoSelecionado || enviando ? 'not-allowed' : 'pointer',
-              fontFamily: "'Cinzel', serif",
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
-              opacity: !servicoSelecionado || enviando ? 0.55 : 1,
-            }}
-          >
-            <MdCheckCircle size={16} />
-            {enviando ? 'CONFIRMANDO…' : 'CONFIRMAR SERVIÇO'}
-          </button>
-        </div>
-      </div>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <button
+      type="button"
+      onClick={() => salvarConfirmacao({ liberarSobra: true })}
+      disabled={enviando}
+      style={{
+        width: '100%',
+        background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+        color: '#fff',
+        border: '1.5px solid #15803d',
+        padding: '14px 20px',
+        borderRadius: 24,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: enviando ? 'wait' : 'pointer',
+        fontFamily: "'Cinzel', serif",
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
+      }}
+    >
+      <MdCheckCircle size={16} />
+      {enviando ? 'SALVANDO…' : 'SIM, LIBERAR ESSE TEMPO'}
+    </button>
+
+    <button
+      type="button"
+      onClick={() => salvarConfirmacao({ liberarSobra: false })}
+      disabled={enviando}
+      style={{
+        width: '100%',
+        background: '#f5f5f5',
+        color: '#555',
+        border: '1.5px solid #ddd',
+        padding: '14px 20px',
+        borderRadius: 24,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: enviando ? 'wait' : 'pointer',
+        fontFamily: "'Cinzel', serif",
+      }}
+    >
+      NÃO, DEIXAR BLOQUEADO
+    </button>
+  </div>
+</div>
       {/* ============================================================ */}
 {/* ✅ 2º PASSO — Pergunta se quer liberar a sobra do bloco       */}
 {/* ============================================================ */}
