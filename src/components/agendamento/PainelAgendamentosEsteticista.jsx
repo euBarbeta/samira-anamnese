@@ -1103,22 +1103,21 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                       )}
                     </div>
 
-                    {(() => {
-  // ✅ E-mail de contato vem prioritariamente da FICHA do paciente.
-  //    Se não tiver na ficha, usa o do agendamento (só se for real,
-  //    ou seja, não pode ser @sistema.local).
+{(() => {
   const pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
   const emailContato =
     (pac?.emailContato || '').trim() ||
     emailContatoDoAgendamento(ag.email);
 
-  if (!emailContato) return null;
-
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
-      <span style={{ wordBreak: 'break-all' }}>{emailContato}</span>
-      <BotaoCopiar valor={emailContato} rotulo="e-mail" title="Copiar e-mail" />
+      <span style={{ wordBreak: 'break-all' }}>
+        {emailContato || '—'}
+      </span>
+      {emailContato && (
+        <BotaoCopiar valor={emailContato} rotulo="e-mail" title="Copiar e-mail" />
+      )}
     </div>
   );
 })()}
