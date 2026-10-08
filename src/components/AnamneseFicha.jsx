@@ -16,6 +16,7 @@ import { EMAILS_ESTETICISTAS, UID_ESTETICISTA_PADRAO } from './constantes';
 import { secondaryAuth } from './firebaseSecondary';
 import { Preferences } from '@capacitor/preferences';
 import { isNativo } from './push-notifications-native';
+import LoadingElegante from './LoadingElegante';
 import ConsultaAgendamento from './agendamento/ConsultaAgendamento';
 import {
   doc, getDoc, getDocs, setDoc, deleteDoc, collection,
@@ -1060,18 +1061,20 @@ if (!autenticado) {
 }
 
   // 4. Autenticado → painéis
-  if (buscandoPaciente) {
-    return (
-      <div style={{
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        height: '100vh', backgroundColor: '#d7cee0',
-        fontFamily: "'Cinzel', serif", color: '#4a2e7a',
-        fontSize: '16px', fontWeight: 700,
-      }}>
-        Carregando seu prontuário...
-      </div>
-    );
-  }
+ // 4. Autenticado → painéis
+if (buscandoPaciente) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      backgroundColor: '#d7cee0',
+    }}>
+      <LoadingElegante texto="Carregando painel do paciente..." />
+    </div>
+  );
+}
 
   if (abaAtiva === 'painelPaciente') {
     return (
