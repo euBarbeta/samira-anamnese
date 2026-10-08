@@ -54,9 +54,176 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
 
-</head>
-  <body style="background-color: #f3eef8; margin: 0; padding: 0;">
-    <div id="root"></div>
+  </head>
+  <body style="background-color: #d7cee0; margin: 0; padding: 0;">
+    <div id="root">
+      <!-- ============================================================ -->
+      <!-- LOADING INICIAL — puro HTML/CSS                              -->
+      <!-- Aparece INSTANTANEAMENTE enquanto o JS bundle baixa          -->
+      <!-- O React substitui isso quando monta                          -->
+      <!-- ============================================================ -->
+      <div id="loading-inicial">
+        <style>
+          #loading-inicial {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 60px 24px;
+            gap: 22px;
+            box-sizing: border-box;
+            background: #d7cee0;
+          }
+          .li-orbe {
+            position: relative;
+            width: 110px;
+            height: 110px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .li-anel {
+            position: absolute;
+            border-radius: 50%;
+            border-style: solid;
+            border-color: transparent;
+          }
+          .li-anel-1 {
+            inset: 0;
+            border-width: 3px;
+            border-top-color: #a855f7;
+            border-right-color: #a855f7;
+            animation: liSpin 1.4s linear infinite;
+            filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.6));
+          }
+          .li-anel-2 {
+            inset: 12px;
+            border-width: 2.5px;
+            border-bottom-color: #C8A24A;
+            border-left-color: #C8A24A;
+            animation: liSpinReverse 2s linear infinite;
+            filter: drop-shadow(0 0 6px rgba(200, 162, 74, 0.6));
+          }
+          .li-anel-3 {
+            inset: 24px;
+            border-width: 2px;
+            border-top-color: rgba(126, 34, 206, 0.7);
+            border-left-color: rgba(126, 34, 206, 0.7);
+            animation: liSpin 2.6s linear infinite;
+          }
+          .li-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            opacity: 0.9;
+            animation: liPulseLogo 1.8s ease-in-out infinite;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.35);
+          }
+          .li-texto {
+            font-family: 'Cinzel', serif;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #55286f;
+            background: linear-gradient(90deg, #55286f 0%, #a855f7 30%, #C8A24A 50%, #a855f7 70%, #55286f 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: liShimmerText 3s linear infinite;
+            text-align: center;
+            padding: 0 16px;
+            line-height: 1.5;
+          }
+          .li-pontos {
+            display: flex;
+            gap: 8px;
+            margin-top: -6px;
+          }
+          .li-pontos span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #a855f7, #C8A24A);
+            animation: liBounce 1.2s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+          }
+          .li-pontos span:nth-child(2) { animation-delay: 0.15s; }
+          .li-pontos span:nth-child(3) { animation-delay: 0.30s; }
+
+          @keyframes liSpin { to { transform: rotate(360deg); } }
+          @keyframes liSpinReverse { to { transform: rotate(-360deg); } }
+          @keyframes liPulseLogo {
+            0%, 100% { transform: scale(1);    opacity: 0.9; }
+            50%      { transform: scale(1.12); opacity: 1;   }
+          }
+          @keyframes liShimmerText {
+            0%   { background-position: 200% center; }
+            100% { background-position: -200% center; }
+          }
+          @keyframes liBounce {
+            0%, 80%, 100% { transform: scale(1)   translateY(0);    opacity: 0.55; }
+            40%           { transform: scale(1.4) translateY(-4px); opacity: 1;    }
+          }
+
+          @media (max-width: 640px) {
+            .li-orbe { width: 92px; height: 92px; }
+            .li-logo { width: 38px; height: 38px; }
+            .li-texto { font-size: 12px; letter-spacing: 1px; }
+          }
+        </style>
+
+        <div class="li-orbe">
+          <div class="li-anel li-anel-1"></div>
+          <div class="li-anel li-anel-2"></div>
+          <div class="li-anel li-anel-3"></div>
+          <img src="/imagens/logo-telainicial.jpeg" alt="" class="li-logo" />
+        </div>
+
+        <div class="li-texto" id="loading-texto">Carregando...</div>
+
+        <div class="li-pontos">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+
+      <!-- ✅ Script inline: define o texto do loading conforme a URL -->
+      <!-- Roda ANTES do bundle React porque é síncrono -->
+      <script>
+        (function () {
+          try {
+            var path = window.location.pathname || '/';
+            var hash = (window.location.hash || '').slice(1);
+            var texto = 'Carregando...';
+
+            // Painel da esteticista
+            if (path === '/admin' || path.indexOf('/admin/') === 0) {
+              texto = 'Carregando painel...';
+            }
+            // Painel do paciente (URL tem #<uid>)
+            else if (
+              hash &&
+              hash !== 'agendar' &&
+              hash !== 'consultar' &&
+              hash.indexOf('agendar/') !== 0
+            ) {
+              texto = 'Carregando painel do paciente...';
+            }
+
+            var el = document.getElementById('loading-texto');
+            if (el) el.textContent = texto;
+          } catch (e) {
+            // Se falhar, mantém o texto padrão "Carregando..."
+          }
+        })();
+      </script>
+    </div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
