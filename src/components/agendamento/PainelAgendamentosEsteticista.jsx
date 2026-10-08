@@ -1165,128 +1165,28 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                     )}
                   </div>
 
-                  {/* ✅ Painel de divergências — email/telefone diferentes do cadastro */}
-                  {(() => {
-                    const divs = divergenciasDoAgendamento(ag);
-                    if (divs.length === 0) return null;
+                 {(() => {
+  // ✅ E-mail de contato vem prioritariamente da FICHA do paciente.
+  //    Se não tiver na ficha, usa o do agendamento (só se for real,
+  //    ou seja, não pode ser @sistema.local).
+  const pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
+  const emailContato =
+    (pac?.emailContato || '').trim() ||
+    emailContatoDoAgendamento(ag.email);
 
-                    return (
-                      <div style={{
-                        marginTop: 12,
-                        background: 'linear-gradient(135deg, #fff8e1 0%, #fef3c7 100%)',
-                        border: '1.5px solid #fcd34d',
-                        borderRadius: 12,
-                        padding: '12px 14px',
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          marginBottom: 10,
-                        }}>
-                          <MdWarning size={16} color="#92400e" />
-                          <span style={{
-                            fontFamily: "'Cinzel', serif",
-                            color: '#92400e',
-                            fontSize: 12,
-                            fontWeight: 700,
-                          }}>
-                            Dados diferentes do cadastro do paciente
-                          </span>
-                        </div>
-
-                        {divs.map((d) => {
-                          const chave = `${d.pacId}|${d.campo}`;
-                          const carregandoEste = substituindo === chave;
-
-                          return (
-                            <div
-                              key={d.campo}
-                              style={{
-                                background: '#fff',
-                                border: '1px solid #fcd34d',
-                                borderRadius: 8,
-                                padding: '10px 12px',
-                                marginBottom: 8,
-                              }}
-                            >
-                              <div style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                color: '#2c163a',
-                                marginBottom: 6,
-                              }}>
-                                {d.label}
-                              </div>
-
-                              <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6, marginBottom: 8 }}>
-                                <div>
-                                  <strong style={{ color: '#888' }}>Cadastro:</strong>{' '}
-                                  <span style={{ wordBreak: 'break-all' }}>{d.atual}</span>
-                                </div>
-                                <div>
-                                  <strong style={{ color: '#7e22ce' }}>Agendamento:</strong>{' '}
-                                  <span style={{ wordBreak: 'break-all', color: '#7e22ce', fontWeight: 600 }}>
-                                    {d.novo}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <button
-                                  type="button"
-                                  disabled={carregandoEste}
-                                  onClick={() => {
-                                    alert(`Mantido o ${d.label.toLowerCase()} do cadastro.`);
-                                  }}
-                                  style={{
-                                    flex: 1,
-                                    background: '#f5f5f5',
-                                    color: '#555',
-                                    border: '1.5px solid #ddd',
-                                    padding: '8px 12px',
-                                    borderRadius: 12,
-                                    fontSize: 10.5,
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    fontFamily: "'Cinzel', serif",
-                                  }}
-                                >
-                                  MANTER CADASTRO
-                                </button>
-
-                                <button
-                                  type="button"
-                                  disabled={carregandoEste}
-                                  onClick={() => substituirCampo(d.pacId, d.campo, d.novo)}
-                                  style={{
-                                    flex: 1,
-                                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                                    color: '#fff',
-                                    border: '1.5px solid #9c7826',
-                                    padding: '8px 12px',
-                                    borderRadius: 12,
-                                    fontSize: 10.5,
-                                    fontWeight: 700,
-                                    cursor: carregandoEste ? 'wait' : 'pointer',
-                                    fontFamily: "'Cinzel', serif",
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 4,
-                                    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
-                                    opacity: carregandoEste ? 0.7 : 1,
-                                  }}
-                                >
-                                  {carregandoEste ? 'SALVANDO…' : 'SUBSTITUIR'}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <MdEmail size={13} color="#C8A24A" style={{ flexShrink: 0 }} />
+      <span style={{ wordBreak: 'break-all' }}>
+        {emailContato || '—'}
+      </span>
+      {emailContato && (
+        <BotaoCopiar valor={emailContato} rotulo="e-mail" title="Copiar e-mail" />
+      )}
+    </div>
+  );
+})()}
+                 
 
                   {/* ✅ BOTÕES sempre embaixo, na linha toda */}
                   <div style={{
