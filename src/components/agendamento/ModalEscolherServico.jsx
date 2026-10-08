@@ -5,7 +5,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
-  MdClose, MdCheckCircle, MdWarning, MdEvent, MdCalendarMonth, MdEventAvailable,
+  MdClose, MdCheckCircle, MdWarning, MdEvent, MdCalendarMonth,
+  MdEventAvailable, MdAccessTime, MdLock,
 } from 'react-icons/md';
 
 // ============================================================
@@ -23,10 +24,6 @@ function toHHMM(minutos) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/**
- * Verifica se [novoInicio, novoFim] conflita com outros agendamentos
- * do mesmo dia que não estejam cancelados/concluídos.
- */
 function verificarConflito({
   novoInicio,
   novoFim,
@@ -45,7 +42,6 @@ function verificarConflito({
       ? toMin(a.horaFim)
       : aI + (a.duracaoMin || 60);
 
-    // Sobreposição: A.inicio < B.fim && B.inicio < A.fim
     if (nI < aF && aI < nF) {
       return { conflito: true, com: a };
     }
@@ -54,9 +50,6 @@ function verificarConflito({
   return { conflito: false };
 }
 
-/**
- * Encontra o bloco de disponibilidade que contém o horário do agendamento.
- */
 function acharBlocoDoDia(config, dataISO, horaInicio) {
   if (!config) return null;
 
@@ -103,7 +96,6 @@ export default function ModalEscolherServico({
       const lista = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((s) => s.ativo !== false)
-        // ✅ Garante que todo serviço tenha duracaoMin válido
         .map((s) => ({
           ...s,
           duracaoMin:
@@ -160,7 +152,7 @@ export default function ModalEscolherServico({
 
     const map = {};
     for (const s of servicos) {
-      if (!s || typeof s.duracaoMin !== 'number') continue; // ✅ guard
+      if (!s || typeof s.duracaoMin !== 'number') continue;
 
       const novaFimMin = toMin(agendamento.horaInicio) + s.duracaoMin;
       const novaFim = toHHMM(novaFimMin);
@@ -205,17 +197,48 @@ export default function ModalEscolherServico({
 
     const bloco = acharBlocoDoDia(config, agendamento.data, agendamento.horaInicio);
     const fimBloco = bloco?.fim || info.novaFim;
+    const duracaoPadrao = bloco?.duracaoMin || 60;
+    const inicioBloco = bloco?.inicio || agendamento.horaInicio;
 
     const fimBlocoMin = toMin(fimBloco);
     const fimServicoMin = toMin(info.novaFim);
-
     const sobraMin = fimBlocoMin - fimServicoMin;
 
     if (sobraMin >= 10) {
+      // ✅ Divide a sobra em sub-slots do tamanho padrão
+      const slotsLivres = [];
+      let cur = fimServicoMin;
+
+      while (cur + duracaoPadrao <= fimBlocoMin) {
+        slotsLivres.push({
+          inicio: toHHMM(cur),
+          fim: toHHMM(cur + duracaoPadrao),
+          duracaoMin: duracaoPadrao,
+        });
+        cur += duracaoPadrao;
+      }
+
+      // Fração final (se sobrar)
+      if (cur < fimBlocoMin) {
+        slotsLivres.push({
+          inicio: toHHMM(cur),
+          fim: toHHMM(fimBlocoMin),
+          duracaoMin: fimBlocoMin - cur,
+        });
+      }
+
       setPassoSobrou({
         inicio: info.novaFim,
         fim: fimBloco,
         duracaoMin: sobraMin,
+        blocoInicio: inicioBloco,
+        blocoFim: fimBloco,
+        blocoDuracaoPadrao: duracaoPadrao,
+        servicoNome: servicoSelecionado.nome,
+        servicoDuracao: servicoSelecionado.duracaoMin,
+        atendimentoInicio: agendamento.horaInicio,
+        atendimentoFim: info.novaFim,
+        slotsLivres,
       });
       setErro('');
       return;
@@ -247,13 +270,17 @@ export default function ModalEscolherServico({
         atualizadoEm: new Date().toISOString(),
       };
 
-      if (liberarSobra && passoSobrou) {
-        patch.liberacoesExtras = [{
-          inicio: passoSobrou.inicio,
-          fim: passoSobrou.fim,
-          duracaoMin: passoSobrou.duracaoMin,
+      if (
+        liberarSobra &&
+        passoSobrou?.slotsLivres &&
+        passoSobrou.slotsLivres.length > 0
+      ) {
+        patch.liberacoesExtras = passoSobrou.slotsLivres.map((s) => ({
+          inicio: s.inicio,
+          fim: s.fim,
+          duracaoMin: s.duracaoMin,
           criadoEm: new Date().toISOString(),
-        }];
+        }));
       } else {
         patch.liberacoesExtras = [];
       }
@@ -386,7 +413,7 @@ export default function ModalEscolherServico({
             {/* Lista de serviços */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
               {servicos.map((s) => {
-                if (!s || typeof s.duracaoMin !== 'number') return null; // ✅ guard
+                if (!s || typeof s.duracaoMin !== 'number') return null;
 
                 const info = previews[s.id];
                 const ativo = servicoSelecionado?.id === s.id;
@@ -567,7 +594,7 @@ export default function ModalEscolherServico({
       </div>
 
       {/* ============================================================ */}
-      {/* 2º PASSO — Pergunta se quer liberar a sobra do bloco         */}
+      {/* 2º PASSO — Muito mais explícito                              */}
       {/* ============================================================ */}
       {passoSobrou && (
         <div
@@ -575,7 +602,7 @@ export default function ModalEscolherServico({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(44, 22, 58, 0.75)',
+            background: 'rgba(44, 22, 58, 0.78)',
             backdropFilter: 'blur(6px)',
             display: 'flex',
             justifyContent: 'center',
@@ -590,17 +617,18 @@ export default function ModalEscolherServico({
             style={{
               background: '#fff',
               borderRadius: 20,
-              padding: '28px 24px 22px',
-              maxWidth: 440,
+              padding: '26px 24px 22px',
+              maxWidth: 480,
               width: '100%',
+              maxHeight: '92vh',
+              overflowY: 'auto',
               boxShadow: '0 25px 70px rgba(44, 22, 58, 0.5)',
               border: '1.5px solid #C8A24A',
               fontFamily: "'Montserrat', sans-serif",
-              textAlign: 'center',
               position: 'relative',
             }}
           >
-            {/* ✅ Botão X de fechar do 2º passo */}
+            {/* Botão X */}
             <button
               type="button"
               onClick={() => setPassoSobrou(null)}
@@ -609,10 +637,10 @@ export default function ModalEscolherServico({
               title="Fechar"
               style={{
                 position: 'absolute',
-                top: 14,
-                right: 14,
-                width: 36,
-                height: 36,
+                top: 12,
+                right: 12,
+                width: 34,
+                height: 34,
                 borderRadius: '50%',
                 background: 'transparent',
                 border: 'none',
@@ -636,11 +664,12 @@ export default function ModalEscolherServico({
               <MdClose size={20} />
             </button>
 
+            {/* Ícone */}
             <div
               style={{
-                width: 68,
-                height: 68,
-                margin: '0 auto 16px auto',
+                width: 64,
+                height: 64,
+                margin: '0 auto 14px auto',
                 borderRadius: '50%',
                 background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
                 border: '2px solid #86efac',
@@ -649,7 +678,7 @@ export default function ModalEscolherServico({
                 justifyContent: 'center',
               }}
             >
-              <MdEventAvailable size={34} color="#16a34a" />
+              <MdEventAvailable size={32} color="#16a34a" />
             </div>
 
             <h3
@@ -658,34 +687,203 @@ export default function ModalEscolherServico({
                 color: '#2c163a',
                 fontSize: 17,
                 fontWeight: 700,
-                margin: '0 0 12px 0',
+                margin: '0 0 4px 0',
+                textAlign: 'center',
               }}
             >
-              Sobrou {passoSobrou.duracaoMin} min livres
+              Liberar tempo livre?
             </h3>
 
             <p
               style={{
-                fontSize: 13,
-                color: '#2c163a',
-                margin: '0 0 6px 0',
-                lineHeight: 1.6,
+                fontSize: 12,
+                color: '#666',
+                margin: '0 0 18px 0',
+                textAlign: 'center',
+                lineHeight: 1.5,
               }}
             >
-              O bloco original ia até <strong>{passoSobrou.fim}</strong>, mas o serviço
-              termina em <strong>{passoSobrou.inicio}</strong>.
+              Seu atendimento foi confirmado, mas ainda tem espaço na sua agenda.
+              Veja os detalhes:
             </p>
 
-            <p
-              style={{
-                fontSize: 12,
-                color: '#555',
-                margin: '0 0 20px 0',
-                lineHeight: 1.6,
-              }}
-            >
-              Quer <strong>liberar esse tempo</strong> ({passoSobrou.inicio} – {passoSobrou.fim})
-              para outro paciente agendar?
+            {/* ==== INFO DETALHADA ==== */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* 1) Bloco cadastrado */}
+              <div style={{
+                background: '#faf5ff',
+                border: '1px solid #e2d2f5',
+                borderRadius: 10,
+                padding: '10px 12px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 4,
+                }}>
+                  <MdCalendarMonth size={13} color="#7e22ce" />
+                  <span style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: '#7e22ce',
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}>
+                    Bloco cadastrado
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: 12,
+                  color: '#2c163a',
+                  lineHeight: 1.5,
+                }}>
+                  Das <strong>{passoSobrou.blocoInicio}</strong> às{' '}
+                  <strong>{passoSobrou.blocoFim}</strong>
+                  {' '}com intervalo padrão de{' '}
+                  <strong>{passoSobrou.blocoDuracaoPadrao} min</strong>.
+                </div>
+              </div>
+
+              {/* 2) Serviço escolhido */}
+              <div style={{
+                background: '#f0fdf4',
+                border: '1px solid #86efac',
+                borderRadius: 10,
+                padding: '10px 12px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 4,
+                }}>
+                  <MdAccessTime size={13} color="#16a34a" />
+                  <span style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: '#16a34a',
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}>
+                    Atendimento reservado
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: 12,
+                  color: '#2c163a',
+                  lineHeight: 1.5,
+                }}>
+                  <strong>{passoSobrou.servicoNome}</strong>
+                  {' '}({passoSobrou.servicoDuracao} min){' '}
+                  — das <strong>{passoSobrou.atendimentoInicio}</strong> às{' '}
+                  <strong>{passoSobrou.atendimentoFim}</strong>.
+                </div>
+              </div>
+
+              {/* 3) Horários livres */}
+              <div style={{
+                background: '#fff8e1',
+                border: '1.5px solid #fcd34d',
+                borderRadius: 10,
+                padding: '12px 12px 10px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 8,
+                }}>
+                  <MdEventAvailable size={13} color="#92400e" />
+                  <span style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: '#92400e',
+                    letterSpacing: '0.3px',
+                    textTransform: 'uppercase',
+                  }}>
+                    {passoSobrou.slotsLivres.length === 1
+                      ? 'Horário livre'
+                      : `${passoSobrou.slotsLivres.length} horários livres`}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                }}>
+                  {passoSobrou.slotsLivres.map((s, i) => (
+                    <span
+                      key={`${s.inicio}-${i}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: '#fff',
+                        border: '1px solid #fcd34d',
+                        borderRadius: 20,
+                        padding: '5px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#92400e',
+                        fontFamily: "'Montserrat', sans-serif",
+                      }}
+                    >
+                      {s.inicio} → {s.fim}
+                      <span style={{
+                        fontSize: 9.5,
+                        fontWeight: 500,
+                        color: '#a16207',
+                      }}>
+                        ({s.duracaoMin}min)
+                      </span>
+                    </span>
+                  ))}
+                </div>
+
+                <div style={{
+                  fontSize: 10.5,
+                  color: '#78350f',
+                  marginTop: 8,
+                  lineHeight: 1.5,
+                }}>
+                  Esses horários vão aparecer pra outros pacientes agendarem na sua agenda pública.
+                </div>
+              </div>
+
+              {/* 4) O que acontece se NÃO liberar */}
+              <div style={{
+                background: 'rgba(215, 206, 224, 0.3)',
+                border: '1px dashed #c4b5d4',
+                borderRadius: 10,
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+              }}>
+                <MdLock size={13} color="#665078" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{
+                  fontSize: 11,
+                  color: '#55286f',
+                  lineHeight: 1.5,
+                }}>
+                  Se escolher <strong>“Não liberar”</strong>, esses horários continuam{' '}
+                  <strong>bloqueados</strong> e não vão aparecer pra ninguém.
+                </div>
+              </div>
+            </div>
+
+            {/* ==== PERGUNTA + BOTÕES ==== */}
+            <p style={{
+              fontSize: 12.5,
+              color: '#2c163a',
+              fontWeight: 600,
+              margin: '16px 0 12px 0',
+              textAlign: 'center',
+            }}>
+              Quer liberar {passoSobrou.slotsLivres.length === 1 ? 'esse horário' : 'esses horários'}?
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -712,7 +910,11 @@ export default function ModalEscolherServico({
                 }}
               >
                 <MdCheckCircle size={16} />
-                {enviando ? 'SALVANDO…' : 'SIM, LIBERAR ESSE TEMPO'}
+                {enviando
+                  ? 'SALVANDO…'
+                  : passoSobrou.slotsLivres.length === 1
+                    ? 'SIM, LIBERAR ESSE HORÁRIO'
+                    : 'SIM, LIBERAR OS HORÁRIOS'}
               </button>
 
               <button
