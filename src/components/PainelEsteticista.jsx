@@ -14,6 +14,7 @@ import TermoConsentimentoPDF from './TermoConsentimentoPDF';
 import { registrarLinkPaciente } from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
+import ModalEscolherServico from './agendamento/ModalEscolherServico';
 
 
 const MODAL_FECHADO = {
@@ -187,6 +188,7 @@ export default function PainelEsteticista({ onLogout }) {
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
   const [modalFeedback, setModalFeedback] = useState(null);
+  const [agendamentoRecemCriado, setAgendamentoRecemCriado] = useState(null);
 
   const [modalExclusao, setModalExclusao] = useState(MODAL_FECHADO);
 
@@ -1956,19 +1958,34 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
           )}
         </div>
       </div>
-    {mostrarModalAgendar && pacienteSelecionado && (
+{mostrarModalAgendar && pacienteSelecionado && (
   <ModalAgendarParaPaciente
     paciente={pacienteSelecionado}
     uidEsteticista={auth.currentUser?.uid}
     onFechar={() => setMostrarModalAgendar(false)}
     onSucesso={(ag) => {
       setMostrarModalAgendar(false);
+      // ✅ Abre direto o seletor de serviço
+      setAgendamentoRecemCriado(ag);
+    }}
+  />
+)}
+
+{/* ✅ NOVO: seletor de serviço automático após criar o agendamento */}
+{agendamentoRecemCriado && (
+  <ModalEscolherServico
+    agendamento={agendamentoRecemCriado}
+    uidEsteticista={auth.currentUser?.uid}
+    onFechar={() => setAgendamentoRecemCriado(null)}
+    onConfirmado={() => {
+      const ag = agendamentoRecemCriado;
+      setAgendamentoRecemCriado(null);
       const [a, m, d] = (ag.data || '').split('-');
       const dataBR = d && m && a ? `${d}/${m}/${a}` : ag.data;
       setModalFeedback({
         tipo: 'sucesso',
-        titulo: 'Agendamento criado!',
-        mensagem: `${pacienteSelecionado.nome}\n${dataBR} às ${ag.horaInicio}`,
+        titulo: 'Agendamento confirmado!',
+        mensagem: `${pacienteSelecionado?.nome || ''}\n${dataBR} às ${ag.horaInicio}`,
       });
     }}
   />

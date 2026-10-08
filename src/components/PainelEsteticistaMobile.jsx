@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdCalendarMonth, MdAssignment } from 'react-icons/md';
+import ModalEscolherServico from './agendamento/ModalEscolherServico';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -177,9 +178,11 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const [ultimoDoc, setUltimoDoc] = useState(null);
   const [temMais, setTemMais] = useState(true);
   const [carregandoMais, setCarregandoMais] = useState(false);
+  const [agendamentoRecemCriado, setAgendamentoRecemCriado] = useState(null);
 
   // ✅ Busca global
   const [resultadosBusca, setResultadosBusca] = useState(null);
+
   const [buscandoGlobal, setBuscandoGlobal] = useState(false);
   const cacheBuscaRef = useRef(null);
 
@@ -2110,12 +2113,25 @@ if (!jaCarregou) {
     onFechar={() => setMostrarModalAgendar(false)}
     onSucesso={(ag) => {
       setMostrarModalAgendar(false);
+      setAgendamentoRecemCriado(ag);
+    }}
+  />
+)}
+
+{agendamentoRecemCriado && (
+  <ModalEscolherServico
+    agendamento={agendamentoRecemCriado}
+    uidEsteticista={auth.currentUser?.uid}
+    onFechar={() => setAgendamentoRecemCriado(null)}
+    onConfirmado={() => {
+      const ag = agendamentoRecemCriado;
+      setAgendamentoRecemCriado(null);
       const [a, m, d] = (ag.data || '').split('-');
       const dataBR = d && m && a ? `${d}/${m}/${a}` : ag.data;
       setModalFeedback({
         tipo: 'sucesso',
-        titulo: 'Agendamento criado!',
-        mensagem: `${pacienteSelecionado.nome}\n${dataBR} às ${ag.horaInicio}`,
+        titulo: 'Agendamento confirmado!',
+        mensagem: `${pacienteSelecionado?.nome || ''}\n${dataBR} às ${ag.horaInicio}`,
       });
     }}
   />

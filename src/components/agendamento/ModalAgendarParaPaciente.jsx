@@ -301,10 +301,25 @@ export default function ModalAgendarParaPaciente({
       // else: reagendamento público → nada a notificar (não tem app)
 
       onSucesso?.({
-        id: docRef.id,
-        data: slotSelecionado.data,
-        horaInicio: slotSelecionado.horaInicio,
-      });
+  id: docRef.id,
+  data: slotSelecionado.data,
+  horaInicio: slotSelecionado.horaInicio,
+  horaFim: slotSelecionado.horaFim,
+  duracaoMin: calcularDuracao(slotSelecionado),
+  nome: paciente?.nome || 'Paciente',
+  documento: paciente?.documento || '',
+  telefone: paciente?.telefone || '',
+  email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
+  observacoes: observacoes.trim(),
+  status: novoStatus,
+  pacienteId: temPacienteNoSistema ? String(paciente.id) : null,
+  uidEsteticista,
+  servicoId: null,
+  servicoNome: null,
+  aguardandoConsentimento: isPaciente
+    ? false
+    : !paciente?.consentimentoLGPD?.aceito,
+});
     } catch (e) {
       console.error('Erro ao criar agendamento:', e);
       setErro(
