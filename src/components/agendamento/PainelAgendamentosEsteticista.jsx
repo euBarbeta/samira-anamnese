@@ -45,6 +45,39 @@ function emailContatoDoAgendamento(emailBruto) {
   return email;
 }
 
+// ============================================================
+// ✅ A ficha pode salvar emailContato/telefone na RAIZ do doc OU
+//    dentro de `anamnese`. Estes helpers leem dos dois.
+// ============================================================
+function getEmailContatoDoPaciente(pac) {
+  if (!pac) return '';
+  const emailRaiz = (pac.emailContato || '').trim();
+  if (emailRaiz) return emailRaiz;
+  return (pac.anamnese?.emailContato || '').trim();
+}
+
+function getTelefoneDoPaciente(pac) {
+  if (!pac) return '';
+  const telRaiz = (pac.telefone || '').trim();
+  if (telRaiz) return telRaiz;
+  return (pac.anamnese?.telefone || '').trim();
+}
+
+// ============================================================
+// ✅ Normaliza nome pra comparação (lowercase + remove acentos)
+// ============================================================
+function normalizarNome(str) {
+  return (str || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function normalizarDoc(str) {
+  return (str || '').replace(/\D/g, '');
+}
+
 function formatarTelefoneInternacional(tel) {
   if (!tel) return '—';
   try {
@@ -356,8 +389,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
           set.add(`id:${d.id}`);
 
           const p = d.data();
-          const nomeNorm = (p.nome || '').trim().toLowerCase();
-          const docNorm = (p.documento || '').replace(/\D/g, '');
+          const nomeNorm = normalizarNome(p.nome);
+          const docNorm = normalizarDoc(p.documento);
           if (nomeNorm && docNorm) {
             set.add(`nome:${nomeNorm}|${docNorm}`);
           }
@@ -374,21 +407,62 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
   }, [uidEsteticista]);
 
   // ============================================================
-  // ✅ AUTO-SYNC
+  // ✅ Helper — encontra paciente por ID ou por nome+doc
+  //    (agenda pública NÃO salva pacienteId, então precisa fallback)
+  // ============================================================
+  const acharPacienteDoAgendamento = (ag) => {
+    // 1) Por ID
+    if (ag.pacienteId && pacientesPorId[ag.pacienteId]) {
+      return pacientesPorId[ag.pacienteId];
+    }
+
+    // 2) Fallback: nome + documento
+    const agNome = normalizarNome(ag.nome);
+    const agDoc = normalizarDoc(ag.documento);
+    if (!agNome || !agDoc) return null;
+
+    return (
+      Object.values(pacientesPorId).find((p) => {
+        return (
+          normalizarNome(p.nome) === agNome &&
+          normalizarDoc(p.documento) === agDoc
+        );
+      }) || null
+    );
+  };
+
+  // ============================================================
+  // ✅ AUTO-SYNC — copia email/tel vazios da ficha a partir do agendamento
+  //    Usa fallback por nome+doc pra pegar agendamentos da agenda pública
   // ============================================================
   useEffect(() => {
     const user = getAuth().currentUser;
     if (!user) return;
 
     Object.values(pacientesPorId).forEach((pac) => {
-      const agsDoPaciente = agendamentos.filter(
-        (a) => a.pacienteId === pac.id
-      );
+      const pacNomeNorm = normalizarNome(pac.nome);
+      const pacDocNorm = normalizarDoc(pac.documento);
+
+      const agsDoPaciente = agendamentos.filter((a) => {
+        // 1) Por pacienteId
+        if (a.pacienteId && a.pacienteId === pac.id) return true;
+
+        // 2) Fallback: nome+doc (agenda pública sem pacienteId)
+        if (!a.pacienteId) {
+          return (
+            normalizarNome(a.nome) === pacNomeNorm &&
+            normalizarDoc(a.documento) === pacDocNorm
+          );
+        }
+        return false;
+      });
+
       if (agsDoPaciente.length === 0) return;
 
       const ag = agsDoPaciente[0];
 
-      const emailFicha = (pac.emailContato || '').trim();
+      // ----- E-mail -----
+      const emailFicha = getEmailContatoDoPaciente(pac);
       const emailRealAg = emailContatoDoAgendamento(ag.email);
       const chaveEmail = `${pac.id}|email|${emailRealAg}`;
 
@@ -408,7 +482,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
         ).catch((e) => console.warn('Auto-sync email falhou:', e));
       }
 
-      const telFicha = (pac.telefone || '').trim();
+      // ----- Telefone -----
+      const telFicha = getTelefoneDoPaciente(pac);
       const telAg = (ag.telefone || '').trim();
       const chaveTel = `${pac.id}|tel|${telAg}`;
 
@@ -683,8 +758,8 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
       return true;
     }
 
-    const nomeNorm = (ag.nome || '').trim().toLowerCase();
-    const docNorm = (ag.documento || '').replace(/\D/g, '');
+    const nomeNorm = normalizarNome(ag.nome);
+    const docNorm = normalizarDoc(ag.documento);
     if (!nomeNorm || !docNorm) return false;
 
     return pacientesExistentes.has(`nome:${nomeNorm}|${docNorm}`);
@@ -714,32 +789,39 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
     }
   };
 
+  // ============================================================
+  // ✅ Divergências — lê email/telefone dos 2 lugares (raiz ou anamnese)
+  //    E usa fallback por nome+doc pra pegar agendamentos públicos
+  // ============================================================
   const divergenciasDoAgendamento = (ag) => {
-    if (!ag.pacienteId) return [];
-    const pac = pacientesPorId[ag.pacienteId];
+    // ✅ Usa o helper que acha por ID OU por nome+doc
+    const pac = acharPacienteDoAgendamento(ag);
     if (!pac) return [];
 
     const lista = [];
 
-    const emailFicha = (pac.emailContato || '').trim().toLowerCase();
+    // E-mail
+    const emailFichaAtual = getEmailContatoDoPaciente(pac);
+    const emailFicha = emailFichaAtual.toLowerCase();
     const emailRealAg = emailContatoDoAgendamento(ag.email);
     if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
       lista.push({
         campo: 'emailContato',
         label: 'E-mail',
-        atual: pac.emailContato,
+        atual: emailFichaAtual,
         novo: emailRealAg,
         pacId: pac.id,
       });
     }
 
-    const telFicha = (pac.telefone || '').trim();
+    // Telefone
+    const telFicha = getTelefoneDoPaciente(pac);
     const telAg = (ag.telefone || '').trim();
     if (telFicha && telAg && telFicha !== telAg) {
       lista.push({
         campo: 'telefone',
         label: 'Telefone',
-        atual: pac.telefone,
+        atual: telFicha,
         novo: telAg,
         pacId: pac.id,
       });
@@ -1052,11 +1134,11 @@ export default function PainelAgendamentosEsteticista({ uidEsteticista }) {
                       )}
                     </div>
 
-                    {/* ✅ E-MAIL (ÚNICA VEZ) */}
+                    {/* ✅ E-MAIL (ÚNICA VEZ) — lê dos 2 lugares */}
                     {(() => {
-                      const pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
+                      const pac = acharPacienteDoAgendamento(ag);
                       const emailContato =
-                        (pac?.emailContato || '').trim() ||
+                        getEmailContatoDoPaciente(pac) ||
                         emailContatoDoAgendamento(ag.email);
 
                       return (

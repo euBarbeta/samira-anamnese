@@ -663,20 +663,22 @@ const carregarMais = async () => {
       // 5. Montagem do objeto e salvamento no Firestore
       const agora = new Date();
       const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
       const novoPaciente = {
         id: pacienteUid,
         nome: dadosAnamnese.nome || 'Paciente sem nome',
         documento: docFormatado,
-        email: emailFicticio,        // Adicionado para padronizar buscas por 'email'
-        emailAcesso: emailFicticio,  // Mantido para compatibilidade
+        email: emailFicticio,
+        emailAcesso: emailFicticio,
+        // ✅ Espelha telefone e emailContato pra RAIZ
+        //    (a ficha salva dentro de anamnese, mas o painel lê da raiz)
+        telefone: dadosAnamnese.telefone || '',
+        emailContato: dadosAnamnese.emailContato || '',
         criadoPorUid: userEsteticista.uid,
         dataCriacao: dataHoraFormatada,
         dataUltimaEdicao: dataHoraFormatada,
         anamnese: dadosAnamnese,
         evolucoes: []
       };
-
       const novaLista = [novoPaciente, ...pacientes].sort((a, b) => 
         (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
       );
@@ -705,10 +707,13 @@ const carregarMais = async () => {
 
     const atualizados = pacientes.map(p => {
       if (p.id === pacienteSelecionado.id) {
-        pacienteAtualizadoSalvar = {
+            pacienteAtualizadoSalvar = {
           ...p,
           nome: dadosAtualizados.nome || p.nome,
           documento: novoDoc !== 'Não informado' ? novoDoc : p.documento,
+          // ✅ Espelha telefone e emailContato pra RAIZ
+          telefone: dadosAtualizados.telefone || p.telefone || '',
+          emailContato: dadosAtualizados.emailContato || p.emailContato || '',
           dataUltimaEdicao: dataHoraFormatada,
           anamnese: dadosAtualizados
         };

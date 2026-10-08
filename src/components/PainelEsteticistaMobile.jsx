@@ -664,11 +664,14 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
       const agora = new Date();
       const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      const novoPaciente = {
+         const novoPaciente = {
         id: pacienteUid,
         nome: dadosAnamnese.nome || 'Paciente sem nome',
         documento: docFormatado,
         emailAcesso: emailFicticio,
+        // ✅ Espelha telefone e emailContato pra RAIZ
+        telefone: dadosAnamnese.telefone || '',
+        emailContato: dadosAnamnese.emailContato || '',
         criadoPorUid: userEsteticista.uid,
         dataCriacao: dataHoraFormatada,
         dataUltimaEdicao: dataHoraFormatada,
@@ -708,10 +711,13 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
 
     const atualizados = pacientes.map(p => {
       if (p.id === pacienteSelecionado.id) {
-        pacienteAtualizadoSalvar = {
+             pacienteAtualizadoSalvar = {
           ...p,
           nome: dadosAtualizados.nome || p.nome,
           documento: novoDoc !== 'Não informado' ? novoDoc : p.documento,
+          // ✅ Espelha telefone e emailContato pra RAIZ
+          telefone: dadosAtualizados.telefone || p.telefone || '',
+          emailContato: dadosAtualizados.emailContato || p.emailContato || '',
           dataUltimaEdicao: dataHoraFormatada,
           anamnese: dadosAtualizados
         };
