@@ -851,7 +851,14 @@ try {
                   disabled={enviando}
                   className="tap-btn-confirmar tap-target"
                 >
-                  {enviando ? 'ENVIANDO…' : 'CONFIRMAR AGENDAMENTO'}
+                 {enviando ? (
+  <>
+    <span className="spinner-salvar" />
+    ENVIANDO
+  </>
+) : (
+  'CONFIRMAR AGENDAMENTO'
+)}
                 </button>
               </div>
             )}

@@ -293,7 +293,14 @@ if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)
                   opacity: carregando ? 0.7 : 1
                 }}
               >
-                {carregando ? 'ENTRANDO...' : <>ENTRAR <MdArrowForward size={12} /></>}
+              {carregando ? (
+  <>
+    <span className="spinner-salvar" />
+    ENTRANDO
+  </>
+) : (
+  <>ENTRAR <MdArrowForward size={12} /></>
+)}
               </button>
             </div>
 

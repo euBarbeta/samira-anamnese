@@ -484,7 +484,17 @@ try {
               style={{ marginTop: 12 }}
             >
               <MdSearch size={16} style={{ marginRight: 6 }} />
-              {buscando ? 'CONSULTANDO…' : 'CONSULTAR'}
+             {buscando ? (
+  <>
+    <span className="spinner-salvar" />
+    CONSULTANDO
+  </>
+) : (
+  <>
+    <MdSearch size={16} style={{ marginRight: 6 }} />
+    CONSULTAR
+  </>
+)}
             </button>
 
             {/* ===== Resultados ===== */}

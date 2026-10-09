@@ -79,8 +79,9 @@ function normalizarDoc(str) {
 // ✅ Chave única por agendamento + campo.
 //    E-mail e telefone são resolvidos INDEPENDENTEMENTE.
 //    Ex: "abc123|emailContato"  /  "abc123|telefone"
+//    String() defensivo contra IDs numéricos.
 // ============================================================
-const chaveDivergencia = (agId, campo) => `${agId}|${campo}`;
+const chaveDivergencia = (agId, campo) => `${String(agId)}|${campo}`;
 
 function formatarTelefoneInternacional(tel) {
   if (!tel) return '—';
@@ -372,12 +373,30 @@ export default function PainelAgendamentosEsteticista({
   const [divergenciasMantidas, setDivergenciasMantidas] = useState(new Set());
   const autoSyncRef = useRef(new Set());
 
+  // ✅ Contador que FORÇA re-render depois de marcar/limpar uma divergência.
+  //    Garante que o painel desapareça mesmo se o React batching segurar o Set.
+  const [divergenciasVersion, setDivergenciasVersion] = useState(0);
+
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
   const [agendamentoParaExcluir, setAgendamentoParaExcluir] = useState(null);
   const [excluindoAg, setExcluindoAg] = useState(false);
+
+  // ============================================================
+  // ✅ Resolve uma divergência: adiciona a chave ao Set E força
+  //    re-render via contador. Uma única função para os 2 botões.
+  // ============================================================
+  const resolverDivergencia = (agId, campo) => {
+    const chave = chaveDivergencia(agId, campo);
+    setDivergenciasMantidas((prev) => {
+      const novo = new Set(prev);
+      novo.add(chave);
+      return novo;
+    });
+    setDivergenciasVersion((v) => v + 1);
+  };
 
   // ============================================================
   // Listener 1 — AGENDAMENTOS em tempo real
@@ -888,8 +907,13 @@ export default function PainelAgendamentosEsteticista({
   // ✅ DIVERGÊNCIAS — cada campo resolvido de forma INDEPENDENTE.
   //    Se a esteta clica MANTER/SUBSTITUIR no e-mail, isso NÃO
   //    esconde o bloco do telefone (e vice-versa).
+  //    O `divergenciasVersion` é lido para garantir que o React
+  //    recalcule este bloco a cada clique.
   // ============================================================
   const divergenciasDoAgendamento = (ag) => {
+    // eslint-disable-next-line no-unused-vars
+    const _v = divergenciasVersion; // <- dependência de re-render
+
     const pac = acharPacienteDoAgendamento(ag);
     if (!pac) return [];
 
@@ -1439,11 +1463,8 @@ export default function PainelAgendamentosEsteticista({
                                   disabled={carregandoEste}
                                   onClick={() => {
                                     // ✅ Resolve SÓ este campo (ag.id + campo)
-                                    setDivergenciasMantidas((prev) => {
-                                      const novo = new Set(prev);
-                                      novo.add(chaveDivergencia(ag.id, d.campo));
-                                      return novo;
-                                    });
+                                    //    e força re-render via contador
+                                    resolverDivergencia(ag.id, d.campo);
                                   }}
                                   style={{
                                     flex: 1,
@@ -1468,12 +1489,8 @@ export default function PainelAgendamentosEsteticista({
                                   disabled={carregandoEste}
                                   onClick={async () => {
                                     await substituirCampo(d.pacId, d.campo, d.novo);
-                                    // ✅ Resolve SÓ este campo (ag.id + campo)
-                                    setDivergenciasMantidas((prev) => {
-                                      const novo = new Set(prev);
-                                      novo.add(chaveDivergencia(ag.id, d.campo));
-                                      return novo;
-                                    });
+                                    // ✅ Resolve SÓ este campo + força re-render
+                                    resolverDivergencia(ag.id, d.campo);
                                   }}
                                   style={{
                                     flex: 1,

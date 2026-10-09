@@ -708,7 +708,6 @@ if (isNativo()) {
             )
           );
         }
-
         const idPaciente = String(pacienteEncontrado.id);
         window.history.replaceState(
           { abaAtiva: 'painelPaciente', pacienteId: idPaciente },
@@ -718,6 +717,7 @@ if (isNativo()) {
         setUidDaURL(idPaciente);
         setAbaAtiva('painelPaciente');
         setAutenticado(true);
+        setBuscandoPaciente(false);   // ✅ ADICIONE ESTA LINHA
      } else {
   // ✅ Conta inexistente → PaginaNaoEncontrada (comportamento "404"
   //    estilo Google). NÃO cai em tela de login com "senha incorreta".
