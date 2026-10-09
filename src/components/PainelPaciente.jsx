@@ -975,19 +975,31 @@ export default function PainelPaciente({
     setMostrarConsentimento(true);
   }, [pacienteData]);
 
-  useEffect(() => {
-    const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
+useEffect(() => {
+  const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
 
-    const hashAtual = window.location.hash || '';
-    const urlCompleta = window.location.pathname + hashAtual;
+  const hashAtual = window.location.hash || '';
+  const urlCompleta = window.location.pathname + hashAtual;
 
-    window.history.replaceState(
+  // ✅ 1) Sempre empilha "detalhe_pasta" como RAIZ do histórico.
+  //    Assim o botão voltar nativo (Android/navegador) sempre
+  //    tem pra onde ir, mesmo se o app foi fechado e reaberto.
+  window.history.replaceState(
+    { ...(window.history.state || {}), painelPacienteTela: 'detalhe_pasta' },
+    '',
+    urlCompleta
+  );
+
+  // ✅ 2) Se a tela inicial NÃO for detalhe_pasta, empilha ela em cima.
+  if (telaInicial !== 'detalhe_pasta') {
+    window.history.pushState(
       { ...(window.history.state || {}), painelPacienteTela: telaInicial },
       '',
       urlCompleta
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   useEffect(() => {
     if (!pacienteData?.id) return;

@@ -42,6 +42,7 @@ export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode
   // Dados básicos
   const [salvando, setSalvando] = useState(false);
 const [salvoSucesso, setSalvoSucesso] = useState(false);
+const [dataAutoPreenchida, setDataAutoPreenchida] = useState(false);
 const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
   const [nome, setNome] = useState('');
   const [numeroDocumento, setNumeroDocumento] = useState('');
@@ -623,7 +624,23 @@ const converterBRParaISO = (valorBR) => {
       window.history.back();
     }
   };
+// ✅ NOVO: preenche a data de realização com a data de hoje
+// ao abrir uma ficha NOVA (modo create) que ainda não tem data.
+useEffect(() => {
+  if (mode !== 'create') return;
+  if (dataAutoPreenchida) return;
+  if (dataRealizacao && dataRealizacao.trim()) {
+    setDataAutoPreenchida(true);
+    return;
+  }
 
+  const hoje = new Date();
+  const dia = String(hoje.getDate()).padStart(2, '0');
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  const ano = hoje.getFullYear();
+  setDataRealizacao(`${dia}/${mes}/${ano}`);
+  setDataAutoPreenchida(true);
+}, [mode, dataRealizacao, dataAutoPreenchida]);
   return (
     <div style={{
       backgroundColor: '#f3eef8',

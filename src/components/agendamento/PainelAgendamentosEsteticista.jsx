@@ -21,7 +21,7 @@ import {
 } from 'firebase/auth';
 
 import { secondaryAuth } from '../firebaseSecondary';
-import { registrarLinkPaciente } from '../../utils/validarUID';
+import { registrarLinkPaciente, gerarUidDeterministico } from '../../utils/validarUID';
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
 
 import {
@@ -577,6 +577,11 @@ export default function PainelAgendamentosEsteticista({
     const docLimpo = (ag.documento || '').replace(/\D/g, '');
     const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456').padEnd(6, '0');
 
+    // ============================================================
+    // ✅ O1: UID determinístico como fallback — nunca mais "pac_".
+    // O mesmo nome+email SEMPRE produz o mesmo UID, então tentar
+    // criar a ficha duas vezes não duplica o paciente.
+    // ============================================================
     let pacienteUid = '';
     try {
       try {
@@ -590,14 +595,14 @@ export default function PainelAgendamentosEsteticista({
             pacienteUid = cred.user.uid;
             await signOut(secondaryAuth);
           } catch {
-            pacienteUid = 'pac_' + (docLimpo || Date.now());
+            pacienteUid = gerarUidDeterministico(`${emailFicticio}|${docLimpo}`);
           }
         } else {
-          pacienteUid = 'pac_' + (docLimpo || Date.now());
+          pacienteUid = gerarUidDeterministico(`${emailFicticio}|${docLimpo}`);
         }
       }
     } catch {
-      pacienteUid = 'pac_' + (docLimpo || Date.now());
+      pacienteUid = gerarUidDeterministico(`${emailFicticio}|${docLimpo}`);
     }
 
     const agora = new Date();
@@ -605,6 +610,12 @@ export default function PainelAgendamentosEsteticista({
 
     const emailContatoReal = emailContatoDoAgendamento(ag.email);
 
+    // ============================================================
+    // ✅ O3: herda o consentimento LGPD do agendamento (quando existir).
+    // - Se o paciente aceitou ao agendar → painel dele abre direto.
+    // - Se não existe (agendamento antigo) → modal de consentimento
+    //   aparece no primeiro login (comportamento correto).
+    // ============================================================
     const novaFicha = {
       id: pacienteUid,
       nome,
@@ -630,10 +641,29 @@ export default function PainelAgendamentosEsteticista({
         textoLivre: `Atendimento realizado em ${formatarDataBR(ag.data)} às ${ag.horaInicio}.\nServiço: ${ag.servicoNome || 'Não informado'}${ag.observacoes ? `\nObservações: ${ag.observacoes}` : ''}`,
       }],
       agendamentoOrigemId: ag.id,
+
+      // ✅ O3: propaga o consentimento do agendamento (se houver)
+      ...(ag.consentimentoLGPD?.aceito
+        ? { consentimentoLGPD: ag.consentimentoLGPD }
+        : {}),
     };
 
     await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novaFicha);
     await registrarLinkPaciente(pacienteUid, user.uid);
+
+    // ✅ O2: escreve o mapa de e-mail → (profissionalUid, pacienteId)
+    // Sem isso, quando o paciente logar pela primeira vez o sistema
+    // precisa cair no fallback (query por emailAcesso).
+    await setDoc(
+      doc(db, 'mapeamento_emails', emailFicticio),
+      {
+        profissionalUid: user.uid,
+        pacienteId: pacienteUid,
+        atualizadoEm: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
     await updateDoc(doc(db, 'agendamentos', ag.id), { pacienteId: pacienteUid });
   };
 
@@ -898,39 +928,64 @@ export default function PainelAgendamentosEsteticista({
 
     const nomeOriginal = (dadosAnamnese.nome || '').trim();
     const partes = nomeOriginal.split(/\s+/);
-    const pNome = (partes[0] || 'usuario').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const sNome = (partes[partes.length - 1] || 'paciente').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const pNome = (partes[0] || 'usuario')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const sNome = (partes[partes.length - 1] || 'paciente')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const emailFicticio = `${pNome}.${sNome}@sistema.local`;
     const docLimpo = (dadosAnamnese.numeroDocumento || '').replace(/\D/g, '');
     const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456').padEnd(6, '0');
 
-    let pacienteUid = '';
-    try {
+    // ============================================================
+    // ✅ PASSO 1: já existe paciente com esse nome+doc?
+    // Se sim, ATUALIZA o existente em vez de criar outro.
+    // Isso evita a duplicação quando a ficha é criada 2x.
+    // ============================================================
+    const nomeNorm = normalizarNome(nomeOriginal);
+    const docNorm = normalizarDoc(dadosAnamnese.numeroDocumento);
+    const existente = Object.values(pacientesPorId).find((p) =>
+      normalizarNome(p.nome || p.anamnese?.nome) === nomeNorm &&
+      normalizarDoc(p.documento || p.anamnese?.numeroDocumento) === docNorm
+    );
+
+    let pacienteUid = existente?.id || '';
+
+    // ============================================================
+    // ✅ PASSO 2: só cria Auth se realmente for novo.
+    // Se falhar, usa UID DETERMINÍSTICO via helper centralizado.
+    // ============================================================
+    if (!pacienteUid) {
       try {
-        const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
-        pacienteUid = cred.user.uid;
-        await signOut(secondaryAuth);
-      } catch (e) {
-        if (e.code === 'auth/email-already-in-use') {
-          try {
-            const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
-            pacienteUid = cred.user.uid;
-            await signOut(secondaryAuth);
-          } catch {
-            pacienteUid = 'pac_' + (docLimpo || Date.now());
+        try {
+          const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+          pacienteUid = cred.user.uid;
+          await signOut(secondaryAuth);
+        } catch (e) {
+          if (e.code === 'auth/email-already-in-use') {
+            try {
+              const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+              pacienteUid = cred.user.uid;
+              await signOut(secondaryAuth);
+            } catch {
+              // Cai no fallback determinístico abaixo
+            }
           }
-        } else {
-          pacienteUid = 'pac_' + (docLimpo || Date.now());
         }
+      } catch { /* cai no fallback */ }
+
+      if (!pacienteUid) {
+        // ✅ O1: helper centralizado (mesmo padrão do criarFichaAutomatica)
+        pacienteUid = gerarUidDeterministico(`${emailFicticio}|${docLimpo}`);
       }
-    } catch {
-      pacienteUid = 'pac_' + (docLimpo || Date.now());
     }
 
     const agora = new Date();
-    const dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dataHora =
+      agora.toLocaleDateString('pt-BR') + ' às ' +
+      agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     const novoPaciente = {
+      ...(existente || {}),
       id: pacienteUid,
       nome: dadosAnamnese.nome,
       documento: dadosAnamnese.numeroDocumento || '',
@@ -939,32 +994,38 @@ export default function PainelAgendamentosEsteticista({
       emailAcesso: emailFicticio,
       emailContato: dadosAnamnese.emailContato || '',
       criadoPorUid: user.uid,
-      dataCriacao: dataHora,
+      dataCriacao: existente?.dataCriacao || dataHora,
       dataUltimaEdicao: dataHora,
       anamnese: dadosAnamnese,
-      evolucoes: [],
-      agendamentoOrigemId: fichaPreenchida?._agendamentoOrigemId || null,
+      evolucoes: existente?.evolucoes || [],
+      agendamentoOrigemId: fichaPreenchida?._agendamentoOrigemId || existente?.agendamentoOrigemId || null,
     };
 
-    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novoPaciente);
+    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novoPaciente, { merge: true });
     await registrarLinkPaciente(pacienteUid, user.uid);
+
+    // ✅ Sempre reescreve o mapeamento de e-mail
+    await setDoc(
+      doc(db, 'mapeamento_emails', emailFicticio),
+      {
+        profissionalUid: user.uid,
+        pacienteId: pacienteUid,
+        atualizadoEm: new Date().toISOString(),
+      },
+      { merge: true }
+    );
 
     if (fichaPreenchida?._agendamentoOrigemId) {
       const patch = {
         pacienteId: pacienteUid,
         atualizadoEm: new Date().toISOString(),
       };
-
       if (fichaPreenchida._agendamentoStatusOriginal === 'confirmado') {
         patch.status = 'concluido';
         patch.concluidoPor = 'esteticista';
         patch.concluidoEm = new Date().toISOString();
       }
-
-      await updateDoc(
-        doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId),
-        patch
-      );
+      await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
     }
 
     setFichaPreenchida(null);

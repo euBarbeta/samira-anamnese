@@ -198,18 +198,22 @@ export default function AnamneseFicha() {
       hash &&
       hash !== 'agendar' &&
       !hash.startsWith('agendar/');
+if (hashEhUID) {
+  setUidDaURL(hash);
+  uidDaURLRef.current = hash;
 
-    if (hashEhUID) {
-      setUidDaURL(hash);
-      uidDaURLRef.current = hash;
-
-      (async () => {
-        const valido = await validarUIDPaciente(hash);
-        if (!valido) setRota('nao-encontrado');
-        else setRota('login-uid');
-      })();
-      return;
+  // ✅ Sempre tenta restaurar sessão se ela for desse paciente
+  //    Se não for, cai em login-uid de qualquer forma.
+  (async () => {
+    const valido = await validarUIDPaciente(hash);
+    if (!valido) {
+      setRota('nao-encontrado');
+    } else {
+      setRota('login-uid');
     }
+  })();
+  return;
+}
 
     // 0) APP NATIVO
     if (isNativo()) {
@@ -287,11 +291,17 @@ export default function AnamneseFicha() {
         setRota('agendamento');
         return;
       }
-      if (h && h !== 'agendar') {
-        setUidDaURL(h);
-        // ✅ Se voltou pro #UID, força rota de login
-        setRota('login-uid');
-      }
+if (h && h !== 'agendar') {
+  setUidDaURL(h);
+  uidDaURLRef.current = h;
+
+  // ✅ Sempre força rota de login-uid (valida antes)
+  (async () => {
+    const valido = await validarUIDPaciente(h);
+    if (!valido) setRota('nao-encontrado');
+    else setRota('login-uid');
+  })();
+}
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -473,14 +483,34 @@ export default function AnamneseFicha() {
   // ============================================================
   // OBSERVER — PACIENTE EM TEMPO REAL
   // ============================================================
-  useEffect(() => {
+ useEffect(() => {
     if (!pacienteDocPath) return;
     const unsubscribe = onSnapshot(
       pacienteDocPath,
-      (docSnap) => {
+      async (docSnap) => {
         if (docSnap.exists()) {
           const dadosAtualizados = { id: docSnap.id, ...docSnap.data() };
           setDadosPaciente(dadosAtualizados);
+        } else {
+          // ✅ Doc foi APAGADO (esteticista excluiu a pasta OU o próprio
+          // paciente excluiu a conta em outro dispositivo).
+          // Força logout imediato — o paciente perde acesso na hora.
+          console.warn('Paciente foi excluído. Encerrando sessão...');
+          try { await signOut(auth); } catch {}
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setPacienteDocPath(null);
+          setUidDaURL(null);
+          setRota('nao-encontrado');
+          try {
+            ['af_autenticado', 'af_abaAtiva', 'af_dadosPaciente',
+             'af_pacienteDocPath', 'pp_telaAtual', 'af_uidDaURL']
+              .forEach((k) => {
+                sessionStorage.removeItem(k);
+                localStorage.removeItem(k);
+              });
+          } catch {}
         }
       },
       (error) => console.error('Erro no listener:', error)
@@ -920,6 +950,17 @@ export default function AnamneseFicha() {
         );
       }
     }
+    // ✅ Se hash é UID válido, JAMAIS cai em agenda pública
+const hashEhUIDRender =
+  hashAtual &&
+  hashAtual !== 'agendar' &&
+  hashAtual !== 'consultar' &&
+  !hashAtual.startsWith('agendar/');
+
+if (hashEhUIDRender) {
+  // Cai no fluxo normal (login-uid já foi tratado acima)
+  // Não retorna nada aqui — deixa passar pra lógica de autenticação.
+}
 
     if (!isNativo() && !hashAtual && !ehAdminUrl && !ehStandalone) {
       return (

@@ -53,8 +53,8 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
       const pacienteId = pacienteData.id;
       const uidEsteticista = pacienteData.criadoPorUid;
 
-      // 2) Apaga TODAS as fotos da subcoleção
       if (uidEsteticista && pacienteId) {
+        // 2) Apaga TODAS as fotos da subcoleção
         const fotosRef = collection(
           db,
           `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`
@@ -77,14 +77,15 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
           console.warn('Erro ao excluir doc do paciente:', e);
           throw e;
         }
-        // ✅ Invalida o link do paciente
-try {
-  await deleteDoc(doc(db, 'links_pacientes', String(pacienteId)));
-} catch (e) {
-  console.warn('Erro ao apagar links_pacientes:', e);
-}
 
-        // 4) Apaga o mapeamento de e-mail
+        // 4) Invalida o link do paciente (apaga links_pacientes)
+        try {
+          await deleteDoc(doc(db, 'links_pacientes', String(pacienteId)));
+        } catch (e) {
+          console.warn('Erro ao apagar links_pacientes:', e);
+        }
+
+        // 5) Apaga o mapeamento de e-mail
         try {
           const mapRef = doc(db, 'mapeamento_emails', emailPaciente.toLowerCase());
           const mapSnap = await getDoc(mapRef);
@@ -94,9 +95,26 @@ try {
         } catch (e) {
           console.warn('Erro ao excluir mapeamento (pode não ter permissão):', e);
         }
+
+        // 6) Notifica a esteticista que o paciente excluiu a conta
+        //    (precisa vir ANTES do auth.currentUser.delete() — fetch não exige auth,
+        //    mas mantemos aqui pra ficar tudo junto e na ordem lógica)
+        try {
+          fetch('/.netlify/functions/notificar-conta-excluida', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uidEsteticista,
+              pacienteId,
+              pacienteNome: pacienteData?.nome || 'Paciente',
+            }),
+          }).catch((e) => console.warn('Falha ao notificar exclusão:', e));
+        } catch (e) {
+          console.warn('Falha ao chamar notificar-conta-excluida:', e);
+        }
       }
 
-      // 5) Remove o usuário do Firebase Auth
+      // 7) Remove o usuário do Firebase Auth (por último — perde a sessão)
       try {
         if (auth.currentUser) {
           await auth.currentUser.delete();
@@ -106,7 +124,7 @@ try {
         // Mesmo que falhe, os dados do Firestore já foram apagados
       }
 
-      // 6) Sucesso → dispara callback
+      // 8) Sucesso → dispara callback
       onExcluido?.();
     } catch (err) {
       console.error('Erro ao excluir conta:', err);

@@ -26,3 +26,12 @@ export async function registrarLinkPaciente(pacienteId, uidEsteticista) {
     { merge: true }
   );
 }
+export function gerarUidDeterministico(chave) {
+  const base = String(chave || '');
+  let hash = 0;
+  for (let i = 0; i < base.length; i++) {
+    hash = ((hash << 5) - hash) + base.charCodeAt(i);
+    hash |= 0; // mantém como int32
+  }
+  return `u${Math.abs(hash).toString(36)}`;
+}

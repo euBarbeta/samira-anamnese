@@ -19,7 +19,7 @@ import GaleriaPaciente from './GaleriaPaciente';
 import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import TermoConsentimentoPDF from './TermoConsentimentoPDF'; 
-import { registrarLinkPaciente } from '../utils/validarUID';
+import { registrarLinkPaciente, gerarUidDeterministico } from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
 
@@ -649,10 +649,11 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
             const tempCredential = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
             pacienteUid = tempCredential.user.uid;
             await signOut(secondaryAuth);
-          } catch (signInErr) {
-            pacienteUid = 'pac_' + documentoLimpo;
+                   } catch (signInErr) {
+            // ✅ Fallback determinístico
+            pacienteUid = gerarUidDeterministico(`${emailFicticio}|${documentoLimpo}`);
           }
-        } else {
+              } else {
           console.error("Erro detalhado do Auth Secundário:", authError);
           alert(`Erro ao criar o acesso do paciente: ${authError.message}`);
           return;
@@ -685,16 +686,24 @@ const excluirPacienteDaNuvem = async (idPaciente) => {
       const novaLista = [novoPaciente, ...pacientes].sort((a, b) =>
         (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
       );
+setPacientes(novaLista);
+await salvarPacienteNaNuvem(novoPaciente);
+if (dadosAnamnese.lembretes) {
+  await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+}
+await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
 
-      setPacientes(novaLista);
-      await salvarPacienteNaNuvem(novoPaciente);
-      if (dadosAnamnese.lembretes) {
-        await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
-        
-      }
-
-      await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
-
+// ✅ NOVO: escreve o mapa de e-mail → (profissionalUid, pacienteId)
+// Sem isso, o paciente não consegue logar depois (o login lê daqui).
+await setDoc(
+  doc(db, 'mapeamento_emails', emailFicticio),
+  {
+    profissionalUid: userEsteticista.uid,
+    pacienteId: pacienteUid,
+    atualizadoEm: new Date().toISOString(),
+  },
+  { merge: true }
+);
     } catch (error) {
       console.error("Erro geral ao salvar ficha:", error);
       alert("Erro ao salvar ficha na nuvem.");
