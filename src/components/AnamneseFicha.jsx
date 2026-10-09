@@ -570,44 +570,48 @@ if (isNativo()) {
       return;
     }
 
-    setBuscandoPaciente(true);
+
+
+       setBuscandoPaciente(true);
 
     try {
       let pacienteEncontrado = null;
 
-     if (isNativo() && !uidDaURL) {
-  const { value } = await Preferences.get({ key: 'pacienteId' });
-  if (value) {
-    const esteticistasUids = [
-      'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
-      'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
-      'MZ5j3NpjlxY67yLRiEfg13TbPE32',
-    ];
-    let achou = false;
-    for (const estUid of esteticistasUids) {
-      const pacienteRef = doc(db, 'usuarios', estUid, 'pacientes', value);
-      const pacienteSnap = await getDoc(pacienteRef);
-      if (pacienteSnap.exists()) {
-        pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
-        achou = true;
-        break;
+      // ✅ Variável guarda o dado do mapa de e-mails (usada como fallback
+      //    se `criadoPorUid` estiver vazio em pacientes antigos).
+      let mapSnap2Data = null;
+
+      if (isNativo() && !uidDaURL) {
+        const { value } = await Preferences.get({ key: 'pacienteId' });
+        if (value) {
+          const esteticistasUids = [
+            'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
+            'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
+            'MZ5j3NpjlxY67yLRiEfg13TbPE32',
+          ];
+          let achou = false;
+          for (const estUid of esteticistasUids) {
+            const pacienteRef = doc(db, 'usuarios', estUid, 'pacientes', value);
+            const pacienteSnap = await getDoc(pacienteRef);
+            if (pacienteSnap.exists()) {
+              pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
+              achou = true;
+              break;
+            }
+          }
+          if (!achou) {
+            try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
+          }
+        }
       }
-    }
-    if (!achou) {
-      // ✅ O paciente salvo no Preferences foi excluído.
-      // Limpa pra não tentar carregar de novo em vão.
-      try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
-    }
-  }
-}
 
       const mapRef = doc(db, 'mapeamento_emails', emailUsuario);
 
       if (!pacienteEncontrado) {
         const mapSnap = await getDoc(mapRef);
         if (mapSnap.exists()) {
-          mapSnap2Data = mapSnap.data();    
-          const { profissionalUid, pacienteId } = mapSnap.data();
+          mapSnap2Data = mapSnap.data();
+          const { profissionalUid, pacienteId } = mapSnap2Data;
           const pacienteRef = doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId);
           const pacienteSnap = await getDoc(pacienteRef);
           if (pacienteSnap.exists()) {
@@ -638,7 +642,7 @@ if (isNativo()) {
             const docMatch = querySnapshot.docs[0];
             pacienteEncontrado = { id: docMatch.id, ...docMatch.data() };
           }
-let mapSnap2Data = null;
+
           if (pacienteEncontrado) {
             await setDoc(mapRef, {
               profissionalUid: estUid,
@@ -670,29 +674,27 @@ let mapSnap2Data = null;
           });
         }
 
-       setDadosPaciente(pacienteEncontrado);
+        setDadosPaciente(pacienteEncontrado);
 
-// ✅ SEMPRE seta o pacienteDocPath usando `criadoPorUid` do próprio
-//    documento do paciente (é a fonte mais confiável — veio direto do
-//    doc, não depende de mapa externo). Isso garante que o listener
-//    em tempo real aponte pro caminho certo independente do fluxo
-//    que criou a ficha (painel esteta OU painel de agendamento).
-const estetaUidParaPath =
-  pacienteEncontrado.criadoPorUid ||
-  (mapSnap2Data?.profissionalUid) ||
-  null;
+        // ✅ SEMPRE seta o pacienteDocPath usando `criadoPorUid` do próprio
+        //    documento do paciente (fonte mais confiável). Se por algum
+        //    motivo estiver vazio, cai no `mapSnap2Data` (mapa de e-mails).
+        const estetaUidParaPath =
+          pacienteEncontrado.criadoPorUid ||
+          (mapSnap2Data?.profissionalUid) ||
+          null;
 
-if (estetaUidParaPath) {
-  setPacienteDocPath(
-    doc(
-      db,
-      'usuarios',
-      estetaUidParaPath,
-      'pacientes',
-      String(pacienteEncontrado.id)
-    )
-  );
-}
+        if (estetaUidParaPath) {
+          setPacienteDocPath(
+            doc(
+              db,
+              'usuarios',
+              estetaUidParaPath,
+              'pacientes',
+              String(pacienteEncontrado.id)
+            )
+          );
+        }
 
         const idPaciente = String(pacienteEncontrado.id);
         window.history.replaceState(
@@ -703,32 +705,30 @@ if (estetaUidParaPath) {
         setUidDaURL(idPaciente);
         setAbaAtiva('painelPaciente');
         setAutenticado(true);
-     } else {
-  // ✅ Erro genérico — NÃO revela se a ficha existiu ou não.
-  // Mesma mensagem de "nome/senha incorretos" da tela de login.
-  setErroLoginExterno('Nome ou Senha incorretos');
-  await signOut(auth);
-  setAutenticado(false);
-  setUsuarioLogado(null);
-  setDadosPaciente(null);
-  setBuscandoPaciente(false);
-  setRota('login-uid');   // volta pra tela de login do paciente
-  setAuthVerificado(true);
-}
-  } catch (error) {
-  console.error('Erro ao carregar pasta do paciente:', error);
-  setErroLoginExterno('Nome ou Senha incorretos');
-  await signOut(auth);
-  setAutenticado(false);
-  setUsuarioLogado(null);
-  setDadosPaciente(null);
-  setBuscandoPaciente(false);
-  setRota('login-uid');
-  setAuthVerificado(true);
-} finally {
+      } else {
+        // ✅ Erro genérico — NÃO revela se a ficha existiu ou não.
+        setErroLoginExterno('Nome ou Senha incorretos');
+        await signOut(auth);
+        setAutenticado(false);
+        setUsuarioLogado(null);
+        setDadosPaciente(null);
+        setBuscandoPaciente(false);
+        setRota('login-uid');
+        setAuthVerificado(true);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar pasta do paciente:', error);
+      setErroLoginExterno('Nome ou Senha incorretos');
+      await signOut(auth);
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setDadosPaciente(null);
+      setBuscandoPaciente(false);
+      setRota('login-uid');
+      setAuthVerificado(true);
+    } finally {
       setBuscandoPaciente(false);
     }
-  };
 
   // ============================================================
   // LOGOUT
@@ -1180,4 +1180,4 @@ if (hashEhUIDRender) {
       {renderizarConteudo()}
     </>
   );
-}
+  }}
