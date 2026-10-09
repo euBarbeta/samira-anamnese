@@ -736,26 +736,24 @@ export default function ConsultaAgendamento({ onVoltar }) {
                             </div>
                           )}
 
-                          {ag.status === 'cancelado' && (
-                            <div
-                              style={{
-                                marginTop: 10,
-                                background: '#fef2f2',
-                                border: '1px solid #fca5a5',
-                                color: '#991b1b',
-                                padding: '8px 10px',
-                                borderRadius: 10,
-                                fontSize: 11,
-                                fontWeight: 600,
-                              }}
-                            >
-                              Cancelado por{' '}
-                              {ag.canceladoPor === 'paciente'
-                                ? 'você'
-                                : 'você (equipe)'}
-                              .
-                            </div>
-                          )}
+                       {ag.status === 'cancelado' && (
+  <div
+    style={{
+      marginTop: 10,
+      background: '#fef2f2',
+      border: '1px solid #fca5a5',
+      color: '#991b1b',
+      padding: '8px 10px',
+      borderRadius: 10,
+      fontSize: 11,
+      fontWeight: 600,
+    }}
+  >
+    {ag.canceladoPor === 'paciente'
+      ? '❌ Você cancelou este agendamento.'
+      : '❌ Este agendamento foi cancelado pela profissional.'}
+  </div>
+)}
 
                           {/* ✅ REAGENDAR — faltou OU cancelado */}
                           {podeReagendar && (
