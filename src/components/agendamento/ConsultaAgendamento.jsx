@@ -261,15 +261,17 @@ export default function ConsultaAgendamento({ onVoltar }) {
         )
       );
 
-      const alvoNome = normalizarNome(nome);
-      const lista = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((a) => normalizarNome(a.nome) === alvoNome)
-        .sort((a, b) => {
-          const ka = `${a.data} ${a.horaInicio}`;
-          const kb = `${b.data} ${b.horaInicio}`;
-          return kb.localeCompare(ka);
-        });
+     const alvoNome = normalizarNome(nome);
+const lista = snap.docs
+  .map((d) => ({ id: d.id, ...d.data() }))
+  .filter((a) => normalizarNome(a.nome) === alvoNome)
+  // ✅ Esconde reagendados (foram substituídos por outro agendamento)
+  .filter((a) => a.status !== 'reagendado')
+  .sort((a, b) => {
+    const ka = `${a.data} ${a.horaInicio}`;
+    const kb = `${b.data} ${b.horaInicio}`;
+    return kb.localeCompare(ka);
+  });
 
       setResultados(lista);
     } catch (e) {

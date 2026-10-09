@@ -1,6 +1,7 @@
 // src/components/PainelPaciente.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import { db } from './firebase';
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
@@ -992,23 +993,29 @@ useEffect(() => {
       collection(db, 'agendamentos'),
       where('pacienteId', '==', String(pacienteData.id))
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const lista = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((a) => !a.ocultoParaPaciente) 
-          .sort((a, b) => {
-            const ka = `${a.data} ${a.horaInicio}`;
-            const kb = `${b.data} ${b.horaInicio}`;
-            return kb.localeCompare(ka);
-          });
-        setMeusAgendamentos(lista);
-      },
+   const unsub = onSnapshot(
+  q,
+  (snap) => {
+   const lista = snap.docs
+  .map((d) => ({ id: d.id, ...d.data() }))
+  // ✅ Esconde o que o paciente ocultou OU que foi reagendado
+  .filter((a) => !a.ocultoParaPaciente && a.status !== 'reagendado')
+  .sort((a, b) => {
+        const ka = `${a.data} ${a.horaInicio}`;
+        const kb = `${b.data} ${b.horaInicio}`;
+        return kb.localeCompare(ka);
+      });
+    setMeusAgendamentos(lista);
+  },
+  
+      
       (e) => console.warn('Erro listener agendamentos:', e)
     );
     return () => unsub();
   }, [pacienteData?.id]);
+
+
+
 // ============================================================
 // ✅ BACKFILL — vincula agendamentos antigos feitos pelo LINK
 //    PÚBLICO (que não têm `pacienteId`) ao paciente logado.
@@ -1024,7 +1031,6 @@ useEffect(() => {
     setBackfillFeito(true);
 
     try {
-      // Normaliza pra comparar
       const docNorm = String(pacienteData.documento || '').replace(/\D/g, '');
       const nomeNorm = String(pacienteData.nome || '')
         .trim()
@@ -1034,16 +1040,14 @@ useEffect(() => {
 
       if (!docNorm || !nomeNorm) return;
 
-      // Busca todos agendamentos dessa esteticista
       const snap = await getDocs(query(
         collection(db, 'agendamentos'),
         where('uidEsteticista', '==', pacienteData.criadoPorUid)
       ));
 
-      // Filtra no cliente: sem pacienteId E nome+doc iguais
       const paraVincular = snap.docs.filter((d) => {
         const a = d.data();
-        if (a.pacienteId) return false; // já vinculado
+        if (a.pacienteId) return false;
 
         const aDocNorm = String(a.documento || '').replace(/\D/g, '');
         const aNomeNorm = String(a.nome || '')
@@ -1057,7 +1061,6 @@ useEffect(() => {
 
       if (paraVincular.length === 0) return;
 
-      // Atualiza em paralelo
       await Promise.all(
         paraVincular.map((d) =>
           updateDoc(d.ref, {
@@ -1301,8 +1304,7 @@ const concluirReagendamento = async (novoAg) => {
 
   if (agAntigo) {
     try {
-      // ✅ Marca como `reagendado` (some de todas as listas)
-      //    E também oculta pro paciente — evita qualquer flash
+      // ✅ Marca como reagendado (sai da lista) e oculta pro paciente
       await updateDoc(doc(db, 'agendamentos', agAntigo.id), {
         status: 'reagendado',
         reagendadoPara: novoAg.id,
@@ -1316,7 +1318,6 @@ const concluirReagendamento = async (novoAg) => {
     }
   }
 
-  // Feedback de sucesso
   setAviso({
     tipo: 'sucesso',
     titulo: 'Solicitação enviada',
@@ -1919,7 +1920,6 @@ const podeRemover = (ag) =>
     Reagendar
   </button>
 )}
-
     {/* 🗑️ Remover da lista — cancelado, concluído ou faltou */}
     <button
       type="button"
@@ -1950,6 +1950,16 @@ const podeRemover = (ag) =>
                       </div>
                     </div>
                   )}
+                  {/* ✅ Histórico completo de agendamentos (colapsável) */}
+<HistoricoAgendamentosPaciente
+  pacienteId={pacienteData.id}
+  pacienteNome={pacienteData.nome}
+  pacienteDocumento={pacienteData.documento}
+  uidEsteticista={pacienteData.criadoPorUid}
+  modo="paciente"
+  colapsavel={true}
+  abertoPorPadrao={false}
+/>
 
                   <button
                     type="button"

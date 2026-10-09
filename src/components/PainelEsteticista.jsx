@@ -3,6 +3,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
+import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
@@ -1928,9 +1929,21 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                         </div>
                       </div>
                     ))}
+
                   </div>
                 )}
-              </div>
+                 </div>
+                 <HistoricoAgendamentosPaciente
+  pacienteId={pacienteSelecionado.id}
+  pacienteNome={pacienteSelecionado.nome}
+  pacienteDocumento={pacienteSelecionado.documento}
+  uidEsteticista={auth.currentUser?.uid}
+  modo="esteticista"
+  colapsavel={true}
+  abertoPorPadrao={false}
+/>
+
+{/* ✅ Card de Consentimento LGPD */}
               <div style={{
                 marginTop: '15px',
                 background: 'rgba(255, 255, 255, 0.92)',

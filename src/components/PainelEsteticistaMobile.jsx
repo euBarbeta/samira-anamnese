@@ -9,6 +9,7 @@ import {
   signOut,
   onAuthStateChanged       // ⬅️ adicione
 } from 'firebase/auth';
+import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import { db } from './firebase';
@@ -2067,7 +2068,15 @@ if (!jaCarregou) {
                   </div>
                 )}
               </div>
-
+<HistoricoAgendamentosPaciente
+  pacienteId={pacienteSelecionado.id}
+  pacienteNome={pacienteSelecionado.nome}
+  pacienteDocumento={pacienteSelecionado.documento}
+  uidEsteticista={auth.currentUser?.uid}
+  modo="esteticista"
+  colapsavel={true}
+  abertoPorPadrao={false}
+/>
               {/* ✅ Card de Consentimento LGPD */}
               <div style={{
                 marginTop: '15px',
