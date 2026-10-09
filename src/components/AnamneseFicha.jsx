@@ -295,11 +295,16 @@ if (h && h !== 'agendar') {
   setUidDaURL(h);
   uidDaURLRef.current = h;
 
-  // ✅ Sempre força rota de login-uid (valida antes)
   (async () => {
     const valido = await validarUIDPaciente(h);
-    if (!valido) setRota('nao-encontrado');
-    else setRota('login-uid');
+    if (!valido) {
+      // ✅ Só marca 'nao-encontrado' se o usuário NÃO acabou de tentar logar
+      setRota((rotaAtual) =>
+        rotaAtual === 'autenticado' ? rotaAtual : 'nao-encontrado'
+      );
+    } else {
+      setRota('login-uid');
+    }
   })();
 }
     };
@@ -497,6 +502,10 @@ if (h && h !== 'agendar') {
           // Força logout imediato — o paciente perde acesso na hora.
           console.warn('Paciente foi excluído. Encerrando sessão...');
           try { await signOut(auth); } catch {}
+          // ✅ Limpa o Preferences do APK
+if (isNativo()) {
+  try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
+}
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
@@ -505,7 +514,7 @@ if (h && h !== 'agendar') {
           setRota('nao-encontrado');
           try {
             ['af_autenticado', 'af_abaAtiva', 'af_dadosPaciente',
-             'af_pacienteDocPath', 'pp_telaAtual', 'af_uidDaURL']
+             'af_pacienteDocPath', 'af_uidDaURL']
               .forEach((k) => {
                 sessionStorage.removeItem(k);
                 localStorage.removeItem(k);
@@ -566,30 +575,38 @@ if (h && h !== 'agendar') {
     try {
       let pacienteEncontrado = null;
 
-      if (isNativo() && !uidDaURL) {
-        const { value } = await Preferences.get({ key: 'pacienteId' });
-        if (value) {
-          const esteticistasUids = [
-            'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
-            'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
-            'MZ5j3NpjlxY67yLRiEfg13TbPE32',
-          ];
-          for (const estUid of esteticistasUids) {
-            const pacienteRef = doc(db, 'usuarios', estUid, 'pacientes', value);
-            const pacienteSnap = await getDoc(pacienteRef);
-            if (pacienteSnap.exists()) {
-              pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
-              break;
-            }
-          }
-        }
+     if (isNativo() && !uidDaURL) {
+  const { value } = await Preferences.get({ key: 'pacienteId' });
+  if (value) {
+    const esteticistasUids = [
+      'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
+      'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',
+      'MZ5j3NpjlxY67yLRiEfg13TbPE32',
+    ];
+    let achou = false;
+    for (const estUid of esteticistasUids) {
+      const pacienteRef = doc(db, 'usuarios', estUid, 'pacientes', value);
+      const pacienteSnap = await getDoc(pacienteRef);
+      if (pacienteSnap.exists()) {
+        pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
+        achou = true;
+        break;
       }
+    }
+    if (!achou) {
+      // ✅ O paciente salvo no Preferences foi excluído.
+      // Limpa pra não tentar carregar de novo em vão.
+      try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
+    }
+  }
+}
 
       const mapRef = doc(db, 'mapeamento_emails', emailUsuario);
 
       if (!pacienteEncontrado) {
         const mapSnap = await getDoc(mapRef);
         if (mapSnap.exists()) {
+          mapSnap2Data = mapSnap.data();    
           const { profissionalUid, pacienteId } = mapSnap.data();
           const pacienteRef = doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId);
           const pacienteSnap = await getDoc(pacienteRef);
@@ -621,7 +638,7 @@ if (h && h !== 'agendar') {
             const docMatch = querySnapshot.docs[0];
             pacienteEncontrado = { id: docMatch.id, ...docMatch.data() };
           }
-
+let mapSnap2Data = null;
           if (pacienteEncontrado) {
             await setDoc(mapRef, {
               profissionalUid: estUid,
@@ -653,18 +670,29 @@ if (h && h !== 'agendar') {
           });
         }
 
-        setDadosPaciente(pacienteEncontrado);
+       setDadosPaciente(pacienteEncontrado);
 
-        // ✅ CORREÇÃO 1: Fallback do pacienteDocPath
-        const mapSnap2 = await getDoc(mapRef);
-        if (mapSnap2.exists()) {
-          const { profissionalUid, pacienteId } = mapSnap2.data();
-          setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
-        } else if (pacienteEncontrado.criadoPorUid) {
-          setPacienteDocPath(
-            doc(db, 'usuarios', pacienteEncontrado.criadoPorUid, 'pacientes', String(pacienteEncontrado.id))
-          );
-        }
+// ✅ SEMPRE seta o pacienteDocPath usando `criadoPorUid` do próprio
+//    documento do paciente (é a fonte mais confiável — veio direto do
+//    doc, não depende de mapa externo). Isso garante que o listener
+//    em tempo real aponte pro caminho certo independente do fluxo
+//    que criou a ficha (painel esteta OU painel de agendamento).
+const estetaUidParaPath =
+  pacienteEncontrado.criadoPorUid ||
+  (mapSnap2Data?.profissionalUid) ||
+  null;
+
+if (estetaUidParaPath) {
+  setPacienteDocPath(
+    doc(
+      db,
+      'usuarios',
+      estetaUidParaPath,
+      'pacientes',
+      String(pacienteEncontrado.id)
+    )
+  );
+}
 
         const idPaciente = String(pacienteEncontrado.id);
         window.history.replaceState(
@@ -675,21 +703,29 @@ if (h && h !== 'agendar') {
         setUidDaURL(idPaciente);
         setAbaAtiva('painelPaciente');
         setAutenticado(true);
-      } else {
-        alert('Sua ficha de paciente não foi encontrada nas pastas do sistema.');
-        await signOut(auth);
-        setAutenticado(false);
-        setUsuarioLogado(null);
-        setAbaAtiva('telainicial');
-      }
-    } catch (error) {
-      console.error('Erro ao carregar pasta do paciente:', error);
-      alert('Erro ao acessar ficha do paciente.');
-      await signOut(auth);
-      setAutenticado(false);
-      setUsuarioLogado(null);
-      setAbaAtiva('telainicial');
-    } finally {
+     } else {
+  // ✅ Erro genérico — NÃO revela se a ficha existiu ou não.
+  // Mesma mensagem de "nome/senha incorretos" da tela de login.
+  setErroLoginExterno('Nome ou Senha incorretos');
+  await signOut(auth);
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setBuscandoPaciente(false);
+  setRota('login-uid');   // volta pra tela de login do paciente
+  setAuthVerificado(true);
+}
+  } catch (error) {
+  console.error('Erro ao carregar pasta do paciente:', error);
+  setErroLoginExterno('Nome ou Senha incorretos');
+  await signOut(auth);
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setBuscandoPaciente(false);
+  setRota('login-uid');
+  setAuthVerificado(true);
+} finally {
       setBuscandoPaciente(false);
     }
   };
@@ -753,7 +789,7 @@ if (h && h !== 'agendar') {
 
     try {
       ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
-        'af_dadosPaciente', 'af_pacienteDocPath', 'pp_telaAtual', 'af_uidDaURL']
+        'af_dadosPaciente', 'af_pacienteDocPath', 'af_uidDaURL']
         .forEach(k => {
           sessionStorage.removeItem(k);
           localStorage.removeItem(k);

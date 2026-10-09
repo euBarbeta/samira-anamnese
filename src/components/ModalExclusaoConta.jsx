@@ -96,22 +96,27 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
           console.warn('Erro ao excluir mapeamento (pode não ter permissão):', e);
         }
 
-        // 6) Notifica a esteticista que o paciente excluiu a conta
-        //    (precisa vir ANTES do auth.currentUser.delete() — fetch não exige auth,
-        //    mas mantemos aqui pra ficar tudo junto e na ordem lógica)
-        try {
-          fetch('/.netlify/functions/notificar-conta-excluida', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uidEsteticista,
-              pacienteId,
-              pacienteNome: pacienteData?.nome || 'Paciente',
-            }),
-          }).catch((e) => console.warn('Falha ao notificar exclusão:', e));
-        } catch (e) {
-          console.warn('Falha ao chamar notificar-conta-excluida:', e);
-        }
+      // 6) Notifica a esteticista que o paciente excluiu a conta.
+//    ✅ await + timeout pra garantir que a requisição termine
+//    ANTES de o auth.currentUser.delete() derrubar a sessão.
+try {
+  await Promise.race([
+    fetch('/.netlify/functions/notificar-conta-excluida', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uidEsteticista,
+        pacienteId,
+        pacienteNome: pacienteData?.nome || 'Paciente',
+      }),
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout ao notificar exclusão')), 5000)
+    ),
+  ]);
+} catch (e) {
+  console.warn('Falha ao notificar exclusão (não bloqueia):', e);
+}
       }
 
       // 7) Remove o usuário do Firebase Auth (por último — perde a sessão)

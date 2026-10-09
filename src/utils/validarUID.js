@@ -34,4 +34,27 @@ export function gerarUidDeterministico(chave) {
     hash |= 0; // mantém como int32
   }
   return `u${Math.abs(hash).toString(36)}`;
+}/**
+ * ✅ Remove recursivamente qualquer campo `undefined` de um objeto.
+ * O Firestore rejeita `undefined` — `null` é permitido, `undefined` não.
+ *
+ * Use SEMPRE antes de `setDoc`/`addDoc`/`updateDoc` quando o objeto
+ * puder conter campos opcionais que não foram preenchidos.
+ */
+export function limparUndefined(obj) {
+  if (obj === null) return null;
+  if (obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(limparUndefined).filter((v) => v !== undefined);
+  }
+  if (obj instanceof Date) return obj;
+  if (typeof obj === 'object') {
+    const limpo = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === undefined) continue; // pula undefined
+      limpo[k] = limparUndefined(v);
+    }
+    return limpo;
+  }
+  return obj;
 }

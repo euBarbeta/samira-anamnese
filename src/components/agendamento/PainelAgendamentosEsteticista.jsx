@@ -21,7 +21,7 @@ import {
 } from 'firebase/auth';
 
 import { secondaryAuth } from '../firebaseSecondary';
-import { registrarLinkPaciente, gerarUidDeterministico } from '../../utils/validarUID';
+import { registrarLinkPaciente, gerarUidDeterministico, limparUndefined } from '../../utils/validarUID';
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
 
 import {
@@ -362,6 +362,7 @@ export default function PainelAgendamentosEsteticista({
   const [pacientesExistentes, setPacientesExistentes] = useState(new Set());
   const [pacientesPorId, setPacientesPorId] = useState({});
   const [substituindo, setSubstituindo] = useState(null);
+  const [divergenciasMantidas, setDivergenciasMantidas] = useState(new Set());
   const autoSyncRef = useRef(new Set());
 
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
@@ -648,7 +649,10 @@ export default function PainelAgendamentosEsteticista({
         : {}),
     };
 
-    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novaFicha);
+   await setDoc(
+  doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid),
+  limparUndefined(novaFicha)
+);
     await registrarLinkPaciente(pacienteUid, user.uid);
 
     // ✅ O2: escreve o mapa de e-mail → (profissionalUid, pacienteId)
@@ -676,7 +680,7 @@ export default function PainelAgendamentosEsteticista({
         atualizadoEm: new Date().toISOString(),
       });
 
-      await criarFichaAutomatica(ag);
+      
     } catch (e) {
       alert('Erro ao concluir: ' + e.message);
     }
@@ -878,6 +882,7 @@ export default function PainelAgendamentosEsteticista({
     if (!pac) return [];
 
     const lista = [];
+    
 
     const emailFichaAtual = getEmailContatoDoPaciente(pac);
     const emailFicha = emailFichaAtual.toLowerCase();
@@ -891,6 +896,7 @@ export default function PainelAgendamentosEsteticista({
         pacId: pac.id,
       });
     }
+    
 
     const telFicha = getTelefoneDoPaciente(pac);
     const telAg = (ag.telefone || '').trim();
@@ -904,9 +910,10 @@ export default function PainelAgendamentosEsteticista({
       });
     }
 
-    return lista;
-  };
-
+  return lista.filter(
+    (d) => !divergenciasMantidas.has(`${d.pacId}|${d.campo}`)
+  );
+};
   const abrirFichaPreenchida = (ag) => {
     setFichaPreenchida({
       _agendamentoOrigemId: ag.id,
@@ -949,6 +956,7 @@ export default function PainelAgendamentosEsteticista({
     );
 
     let pacienteUid = existente?.id || '';
+    
 
     // ============================================================
     // ✅ PASSO 2: só cria Auth se realmente for novo.
@@ -1001,7 +1009,11 @@ export default function PainelAgendamentosEsteticista({
       agendamentoOrigemId: fichaPreenchida?._agendamentoOrigemId || existente?.agendamentoOrigemId || null,
     };
 
-    await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid), novoPaciente, { merge: true });
+    await setDoc(
+  doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid),
+  limparUndefined(novoPaciente),
+  { merge: true }
+);
     await registrarLinkPaciente(pacienteUid, user.uid);
 
     // ✅ Sempre reescreve o mapeamento de e-mail
@@ -1401,8 +1413,13 @@ export default function PainelAgendamentosEsteticista({
                                   type="button"
                                   disabled={carregandoEste}
                                   onClick={() => {
-                                    alert(`Mantido o ${d.label.toLowerCase()} do cadastro.`);
-                                  }}
+    const chave = `${d.pacId}|${d.campo}`;
+    setDivergenciasMantidas((prev) => {
+      const novo = new Set(prev);
+      novo.add(chave);
+      return novo;
+    });
+  }}
                                   style={{
                                     flex: 1,
                                     background: '#f5f5f5',
@@ -1771,6 +1788,7 @@ export default function PainelAgendamentosEsteticista({
 
               await updateDoc(
                 doc(db, 'agendamentos', agendamentoParaReagendar.id),
+                
                 {
                   status: 'reagendado',
                   reagendadoPara: novoAg.id,

@@ -11,7 +11,7 @@ import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import { secondaryAuth } from './firebaseSecondary';
 import TermoConsentimentoPDF from './TermoConsentimentoPDF';
-import { registrarLinkPaciente, gerarUidDeterministico } from '../utils/validarUID';
+import { registrarLinkPaciente, gerarUidDeterministico, limparUndefined } from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
 import ModalEscolherServico from './agendamento/ModalEscolherServico';
@@ -489,69 +489,93 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [termoBusca]);
 
-  useEffect(() => {
-    let unsubAuth = null;
+useEffect(() => {
+  let unsubAuth = null;
+  let unsubSnapshot = null;
 
   const carregarPagina = async (user, cursor = null) => {
-  const base = collection(db, `usuarios/${user.uid}/pacientes`);
-  const q = cursor
-    ? query(base, orderBy('nome'), startAfter(cursor), limit(TAMANHO_PAGINA))
-    : query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
+    const base = collection(db, `usuarios/${user.uid}/pacientes`);
+    const q = cursor
+      ? query(base, orderBy('nome'), startAfter(cursor), limit(TAMANHO_PAGINA))
+      : query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
 
-  const snap = await getDocs(q);
-  const docs = snap.docs;
-  const lista = docs.map((d) => d.data());
+    const snap = await getDocs(q);
+    const docs = snap.docs;
+    const lista = docs.map((d) => d.data());
 
-  return {
-    lista,
-    ultimo: docs[docs.length - 1] || null,
-    temMais: docs.length === TAMANHO_PAGINA,
+    return {
+      lista,
+      ultimo: docs[docs.length - 1] || null,
+      temMais: docs.length === TAMANHO_PAGINA,
+    };
   };
-};
 
-const carregarPacientes = async (user) => {
-  if (!user) return;
-  try {
-    const { lista, ultimo, temMais } = await carregarPagina(user, null);
-    setPacientes(lista);
-    setUltimoDoc(ultimo);
-    setTemMais(temMais);
+  // ✅ Carrega SÓ a primeira página em tempo real.
+  //    Se o paciente for excluído (por qualquer dispositivo), some da lista.
+  const iniciarListener = (user) => {
+    if (!user) return;
+    const base = collection(db, `usuarios/${user.uid}/pacientes`);
+    const q = query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
 
-    // Backfill (só da página atual — barato)
-    Promise.allSettled(
-      lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+    if (unsubSnapshot) unsubSnapshot();
+
+    unsubSnapshot = onSnapshot(
+      q,
+      (snap) => {
+        const lista = snap.docs.map((d) => d.data());
+        setPacientes((prev) => {
+          // Preserva pacientes carregados via "carregar mais" (páginas extras)
+          const idsNovaPagina = new Set(lista.map((p) => String(p.id)));
+          const extras = prev.filter((p) => !idsNovaPagina.has(String(p.id)));
+          return [...lista, ...extras];
+        });
+        setUltimoDoc(snap.docs[snap.docs.length - 1] || null);
+        setTemMais(snap.size === TAMANHO_PAGINA);
+        setCarregandoNuvem(false);
+        setJaCarregou(true);
+
+        // Backfill
+        Promise.allSettled(
+          lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+        );
+      },
+      (e) => {
+        console.error('Erro listener pacientes:', e);
+        setCarregandoNuvem(false);
+        setJaCarregou(true);
+      }
     );
-  } catch (e) {
-    console.error('Erro ao carregar fichas do Firestore:', e);
-  } finally {
-    setCarregandoNuvem(false);
-    setJaCarregou(true);
-  }
-};
+  };
 
-const carregarMais = async () => {
-  const user = auth.currentUser;
-  if (!user || !ultimoDoc || carregandoMais) return;
-  setCarregandoMais(true);
-  try {
-    const { lista, ultimo, temMais } = await carregarPagina(user, ultimoDoc);
-    setPacientes((prev) => [...prev, ...lista]);
-    setUltimoDoc(ultimo);
-    setTemMais(temMais);
+  const carregarMais = async () => {
+    const user = auth.currentUser;
+    if (!user || !ultimoDoc || carregandoMais) return;
+    setCarregandoMais(true);
+    try {
+      const { lista, ultimo, temMais: temMaisPagina } = await carregarPagina(user, ultimoDoc);
+      setPacientes((prev) => [...prev, ...lista]);
+      setUltimoDoc(ultimo);
+      setTemMais(temMaisPagina);
 
-    Promise.allSettled(
-      lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
-    );
-  } catch (e) {
-    console.error('Erro ao paginar pacientes:', e);
-  } finally {
-    setCarregandoMais(false);
-  }
-};
+      Promise.allSettled(
+        lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+      );
+    } catch (e) {
+      console.error('Erro ao paginar pacientes:', e);
+    } finally {
+      setCarregandoMais(false);
+    }
+  };
 
-    unsubAuth = onAuthStateChanged(auth, carregarPacientes);
-    return () => { if (unsubAuth) unsubAuth(); };
-  }, [db, auth]);
+  unsubAuth = onAuthStateChanged(auth, (user) => {
+    iniciarListener(user);
+  });
+
+  return () => {
+    if (unsubAuth) unsubAuth();
+    if (unsubSnapshot) unsubSnapshot();
+  };
+}, [db, auth]);
   
   // Função auxiliar para excluir um paciente do Firestore
  const excluirPacienteDaNuvem = async (idPaciente) => {
@@ -593,7 +617,8 @@ const carregarMais = async () => {
     if (!user) return;
 
     try {
-      await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), pacienteObj);
+      await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), limparUndefined (pacienteObj));
+
       // ✅ Invalida o cache da busca global
       cacheBuscaRef.current = null;
     } catch (e) {

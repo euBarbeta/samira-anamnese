@@ -898,26 +898,11 @@ export default function PainelPaciente({
 }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  const [telaAtual, setTelaAtual] = useState(() => {
-    try {
-      const salva =
-        localStorage.getItem('pp_telaAtual') ||
-        sessionStorage.getItem('pp_telaAtual');
-      const validas = ['detalhe_pasta', 'galeria', 'ver_anamnese'];
-      return validas.includes(salva) ? salva : 'detalhe_pasta';
-    } catch {
-      return 'detalhe_pasta';
-    }
-  });
+  const [telaAtual, setTelaAtual] = useState('detalhe_pasta');
 
   const [meusAgendamentos, setMeusAgendamentos] = useState([]);
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('pp_telaAtual', telaAtual);
-      localStorage.setItem('pp_telaAtual', telaAtual);
-    } catch {}
-  }, [telaAtual]);
+ 
 
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
