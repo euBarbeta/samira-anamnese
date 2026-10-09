@@ -1,10 +1,10 @@
 // src/components/HistoricoAgendamentosPaciente.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import {
-  MdExpandMore, MdExpandLess, MdPictureAsPdf, MdCalendarMonth,
-  MdCheckCircle, MdCancel, MdHourglassEmpty, MdPersonOff, MdRefresh,
+  MdExpandMore, MdExpandLess, MdPictureAsPdf, MdCheckCircle,
+  MdCancel, MdHourglassEmpty, MdPersonOff, MdRefresh,
   MdInfoOutline, MdEvent, MdAccessTime, MdClose, MdDownload, MdShare,
 } from 'react-icons/md';
 
@@ -54,7 +54,166 @@ const PERIODOS = [
 ];
 
 /* ============================================================
-   MODAL DE PRÉ-VISUALIZAÇÃO DO PDF
+   RELATÓRIO PDF — JSX renderizado pelo React (mesma técnica da FichaMobile)
+   ============================================================ */
+function RelatorioPDF({ id, filtrados, pacienteNome, pacienteDocumento, periodoDias }) {
+  const hoje = new Date();
+  const limiteTexto =
+    periodoDias > 0 ? `Últimos ${periodoDias} dias` : 'Todo o histórico';
+
+  const resumo = Object.entries(
+    filtrados.reduce((acc, a) => {
+      acc[a.status] = (acc[a.status] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .map(([status, qtd]) => {
+      const info = STATUS_INFO[status] || { label: status };
+      return `${info.label}: ${qtd}`;
+    })
+    .join(' · ');
+
+  return (
+    <div
+      id={id}
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        left: '-99999px',
+        top: 0,
+        width: '794px',
+        zIndex: -1,
+        pointerEvents: 'none',
+        opacity: 0.01,
+        background: '#ffffff',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'Helvetica, Arial, sans-serif',
+          padding: '30px',
+          color: '#2c163a',
+          background: '#ffffff',
+        }}
+      >
+        <h1
+          style={{
+            fontSize: '20px',
+            margin: '0 0 8px',
+            color: '#2c163a',
+            fontWeight: 700,
+          }}
+        >
+          Histórico de Agendamentos
+        </h1>
+
+        <div
+          style={{
+            fontSize: '12px',
+            color: '#666',
+            marginBottom: '20px',
+            paddingBottom: '14px',
+            borderBottom: '2px solid #C8A24A',
+            lineHeight: 1.7,
+          }}
+        >
+          <strong style={{ color: '#2c163a' }}>{pacienteNome || 'Paciente'}</strong>
+          <br />
+          Documento: {pacienteDocumento || '—'}
+          <br />
+          Filtro: {limiteTexto}
+        </div>
+
+        <div
+          style={{
+            background: '#faf5ff',
+            border: '1px solid #e2d2f5',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            marginBottom: '18px',
+            fontSize: '11px',
+            lineHeight: 1.8,
+            color: '#2c163a',
+          }}
+        >
+          <strong>Total no período:</strong> {filtrados.length}
+          <br />
+          {resumo}
+        </div>
+
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: '11px',
+          }}
+        >
+          <thead>
+            <tr>
+              <th style={thEstilo}>Data</th>
+              <th style={thEstilo}>Hora</th>
+              <th style={thEstilo}>Serviço</th>
+              <th style={thEstilo}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtrados.map((a) => {
+              const info = STATUS_INFO[a.status] || STATUS_INFO.pendente;
+              const horaReal = a.horaRealFim ? ` → real ${a.horaRealFim}` : '';
+
+              return (
+                <tr key={a.id}>
+                  <td style={tdEstilo}>{formatarDataBR(a.data)}</td>
+                  <td style={tdEstilo}>
+                    {a.horaInicio || ''}
+                    {a.horaFim ? `–${a.horaFim}` : ''}
+                    {horaReal}
+                  </td>
+                  <td style={tdEstilo}>{a.servicoNome || '—'}</td>
+                  <td style={tdEstilo}>{info.label}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div
+          style={{
+            marginTop: '30px',
+            paddingTop: '14px',
+            borderTop: '1px dashed #C8A24A',
+            fontSize: '10px',
+            color: '#888',
+            textAlign: 'center',
+            lineHeight: 1.7,
+          }}
+        >
+          Gerado em {hoje.toLocaleString('pt-BR')}
+          <br />
+          Samira Ferreira Estética & Cosmetologia
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const thEstilo = {
+  background: '#7e22ce',
+  color: '#ffffff',
+  padding: '10px 8px',
+  textAlign: 'left',
+  border: '1px solid #7e22ce',
+  fontWeight: 700,
+};
+
+const tdEstilo = {
+  padding: '8px',
+  border: '1px solid #e2d2f5',
+  fontSize: '11px',
+};
+
+/* ============================================================
+   MODAL DE PRÉ-VISUALIZAÇÃO
    ============================================================ */
 function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
   const handleBaixar = () => {
@@ -68,7 +227,6 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
 
   const handleCompartilhar = async () => {
     try {
-      // Tenta Web Share API (funciona em PWA e APK)
       const resp = await fetch(url);
       const blob = await resp.blob();
       const file = new File([blob], nomeArquivo, { type: 'application/pdf' });
@@ -123,10 +281,8 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
           overflow: 'hidden',
           boxShadow: '0 25px 70px rgba(0, 0, 0, 0.5)',
           border: '1.5px solid #C8A24A',
-          fontFamily: "'Montserrat', sans-serif",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: '14px 18px',
@@ -147,9 +303,6 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
                 color: '#2c163a',
                 fontSize: 14,
                 margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
               }}
             >
               Pré-visualizar PDF
@@ -166,29 +319,20 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
               padding: 6,
               borderRadius: '50%',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
             }}
           >
             <MdClose size={22} color="#2c163a" />
           </button>
         </div>
 
-        {/* Iframe com o PDF */}
         <div style={{ flex: 1, background: '#f3eef8', position: 'relative', minHeight: 0 }}>
           <iframe
             src={url}
             title="Pré-visualização do PDF"
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              background: '#fff',
-            }}
+            style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
           />
         </div>
 
-        {/* Rodapé com botões */}
         <div
           style={{
             padding: '12px 18px',
@@ -217,7 +361,6 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
               minHeight: 42,
             }}
           >
@@ -241,7 +384,6 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 3px 10px rgba(126, 34, 206, 0.3)',
               minHeight: 42,
             }}
           >
@@ -272,6 +414,9 @@ export default function HistoricoAgendamentosPaciente({
   const [periodoDias, setPeriodoDias] = useState(180);
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [gerandoPDF, setGerandoPDF] = useState(false);
+
+  // ✅ Estados novos pra PDF
+  const [renderizandoPDF, setRenderizandoPDF] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [nomeArquivoAtual, setNomeArquivoAtual] = useState('');
 
@@ -355,164 +500,83 @@ export default function HistoricoAgendamentosPaciente({
   }, [agendamentos, periodoDias, statusFiltro]);
 
   // ============================================================
-  // Gera PDF com html2pdf direto (mais robusto)
-  //
-  // ✅ Correções aplicadas:
-  //   - Container com width 794px (A4), opacity 1, z-index -1, top/left 0
-  //   - Aguarda 500ms antes de capturar
-  //   - html2canvas com backgroundColor branco explícito
-  //   - Mostra modal de preview em vez de baixar direto
+  // ✅ Geração do PDF via container RENDERIZADO PELO REACT
+  //    (mesma técnica da FichaMobile — funciona!)
   // ============================================================
-  const exportarPDF = async () => {
+  useEffect(() => {
+    if (!renderizandoPDF) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const containerId = 'historico-pdf-container';
+        const elemento = document.getElementById(containerId);
+
+        if (!elemento) {
+          console.error('❌ Container #historico-pdf-container não encontrado');
+          alert('Erro: container do PDF não encontrado.');
+          setRenderizandoPDF(false);
+          setGerandoPDF(false);
+          return;
+        }
+
+        // Força largura A4 (igual a FichaMobile faz)
+        elemento.style.width = '210mm';
+        elemento.style.maxWidth = 'none';
+
+        const html2pdf = (await import('html2pdf.js')).default;
+
+        const blob = await html2pdf()
+          .from(elemento)
+          .set({
+            margin: 0,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+              letterRendering: true,
+              scrollY: 0,
+              scrollX: 0,
+              windowWidth: 794,
+            },
+            jsPDF: {
+              unit: 'mm',
+              format: 'a4',
+              orientation: 'portrait',
+            },
+          })
+          .outputPdf('blob');
+
+        const url = URL.createObjectURL(blob);
+        const nomeArquivo = `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}.pdf`;
+
+        setPreviewUrl(url);
+        setNomeArquivoAtual(nomeArquivo);
+      } catch (err) {
+        console.error('Erro ao gerar PDF:', err);
+        alert('Erro ao gerar PDF. Tente novamente.');
+      } finally {
+        setRenderizandoPDF(false);
+        setGerandoPDF(false);
+      }
+    }, 900); // 900ms — mesmo tempo da FichaMobile
+
+    return () => clearTimeout(timer);
+  }, [renderizandoPDF, pacienteNome]);
+
+  // ============================================================
+  // Handler do botão
+  // ============================================================
+  const handleExportarPDF = () => {
     if (filtrados.length === 0) {
       alert('Nenhum agendamento no período selecionado.');
       return;
     }
-
     setGerandoPDF(true);
-
-    const containerId = `historico-pdf-${Date.now()}`;
-    let container = null;
-
-    try {
-      const hoje = new Date();
-      const limiteTexto =
-        periodoDias > 0
-          ? `Últimos ${periodoDias} dias`
-          : 'Todo o histórico';
-
-      // ── 1. Linhas da tabela ──
-      const linhas = filtrados
-        .map((a) => {
-          const info = STATUS_INFO[a.status] || STATUS_INFO.pendente;
-          const horaReal = a.horaRealFim ? ` → real ${a.horaRealFim}` : '';
-
-          return `
-            <tr>
-              <td style="padding: 8px; border: 1px solid #e2d2f5; font-size: 11px;">${formatarDataBR(a.data)}</td>
-              <td style="padding: 8px; border: 1px solid #e2d2f5; font-size: 11px;">${a.horaInicio || ''}${a.horaFim ? '–' + a.horaFim : ''}${horaReal}</td>
-              <td style="padding: 8px; border: 1px solid #e2d2f5; font-size: 11px;">${a.servicoNome || '—'}</td>
-              <td style="padding: 8px; border: 1px solid #e2d2f5; font-size: 11px;">${info.label}</td>
-            </tr>
-          `;
-        })
-        .join('');
-
-      // ── 2. Resumo ──
-      const resumo = Object.entries(
-        filtrados.reduce((acc, a) => {
-          acc[a.status] = (acc[a.status] || 0) + 1;
-          return acc;
-        }, {})
-      )
-        .map(([status, qtd]) => {
-          const info = STATUS_INFO[status] || { label: status };
-          return `${info.label}: ${qtd}`;
-        })
-        .join(' · ');
-
-      // ── 3. HTML do relatório ──
-      const htmlRelatorio = `
-        <div style="font-family: 'Helvetica', 'Arial', sans-serif; padding: 30px; color: #2c163a; background: #ffffff;">
-          <h1 style="font-size: 20px; margin: 0 0 8px; color: #2c163a; font-weight: 700;">
-            Histórico de Agendamentos
-          </h1>
-          <div style="font-size: 12px; color: #666; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #C8A24A; line-height: 1.7;">
-            <strong style="color: #2c163a;">${pacienteNome || 'Paciente'}</strong><br/>
-            Documento: ${pacienteDocumento || '—'}<br/>
-            Filtro: ${limiteTexto}
-          </div>
-
-          <div style="background: #faf5ff; border: 1px solid #e2d2f5; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 11px; line-height: 1.8; color: #2c163a;">
-            <strong>Total no período:</strong> ${filtrados.length}<br/>
-            ${resumo}
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-            <thead>
-              <tr>
-                <th style="background: #7e22ce; color: #fff; padding: 10px 8px; text-align: left; border: 1px solid #7e22ce; font-weight: 700;">Data</th>
-                <th style="background: #7e22ce; color: #fff; padding: 10px 8px; text-align: left; border: 1px solid #7e22ce; font-weight: 700;">Hora</th>
-                <th style="background: #7e22ce; color: #fff; padding: 10px 8px; text-align: left; border: 1px solid #7e22ce; font-weight: 700;">Serviço</th>
-                <th style="background: #7e22ce; color: #fff; padding: 10px 8px; text-align: left; border: 1px solid #7e22ce; font-weight: 700;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${linhas}
-            </tbody>
-          </table>
-
-          <div style="margin-top: 30px; padding-top: 14px; border-top: 1px dashed #C8A24A; font-size: 10px; color: #888; text-align: center; line-height: 1.7;">
-            Gerado em ${hoje.toLocaleString('pt-BR')}<br/>
-            Samira Ferreira Estética & Cosmetologia
-          </div>
-        </div>
-      `;
-
-      // ── 4. Container: visível pro browser, invisível pro usuário ──
-      //    ✅ width 794px (A4), opacity 1, z-index -1, top/left 0
-      //    ✅ pointer-events none para não travar clique
-      container = document.createElement('div');
-      container.id = containerId;
-      container.style.position = 'fixed';
-      container.style.top = '0';
-      container.style.left = '0';
-      container.style.width = '794px';
-      container.style.background = '#ffffff';
-      container.style.zIndex = '-1';
-      container.style.opacity = '1';
-      container.style.pointerEvents = 'none';
-      container.innerHTML = htmlRelatorio;
-      document.body.appendChild(container);
-
-      // Força reflow + aguarda pintura
-      void container.offsetHeight;
-      await new Promise((r) => setTimeout(r, 500));
-
-      // ── 5. Gera o PDF como Blob ──
-      const html2pdf = (await import('html2pdf.js')).default;
-
-      const blob = await html2pdf()
-        .from(container)
-        .set({
-          margin: [10, 10, 10, 10],
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff',
-            scrollX: 0,
-            scrollY: 0,
-            windowWidth: 794,
-          },
-          jsPDF: {
-            unit: 'mm',
-            format: 'a4',
-            orientation: 'portrait',
-          },
-        })
-        .outputPdf('blob');
-
-      // ── 6. Cria URL local e abre preview ──
-      const url = URL.createObjectURL(blob);
-      const nomeArquivo = `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}.pdf`;
-
-      setPreviewUrl(url);
-      setNomeArquivoAtual(nomeArquivo);
-    } catch (e) {
-      console.error('Erro ao gerar PDF:', e);
-      alert('Erro ao gerar PDF. Tente novamente.');
-    } finally {
-      if (container && container.parentNode) {
-        container.parentNode.removeChild(container);
-      }
-      setGerandoPDF(false);
-    }
+    setRenderizandoPDF(true);
   };
 
   // ============================================================
-  // Fechar modal de preview (libera memória)
+  // Fechar modal (libera memória)
   // ============================================================
   const fecharPreview = () => {
     if (previewUrl) {
@@ -633,7 +697,7 @@ export default function HistoricoAgendamentosPaciente({
 
               <button
                 type="button"
-                onClick={exportarPDF}
+                onClick={handleExportarPDF}
                 disabled={gerandoPDF || filtrados.length === 0}
                 style={{
                   fontFamily: "'Cinzel', serif",
@@ -654,10 +718,6 @@ export default function HistoricoAgendamentosPaciente({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
-                  boxShadow:
-                    gerandoPDF || filtrados.length === 0
-                      ? 'none'
-                      : '0 3px 10px rgba(126, 34, 206, 0.3)',
                 }}
               >
                 <MdPictureAsPdf size={14} />
@@ -750,13 +810,7 @@ export default function HistoricoAgendamentosPaciente({
                             flexWrap: 'wrap',
                           }}
                         >
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                            }}
-                          >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             <MdAccessTime size={12} color="#7e22ce" />
                             {a.horaInicio}
                             {a.horaFim ? `–${a.horaFim}` : ''}
@@ -798,7 +852,21 @@ export default function HistoricoAgendamentosPaciente({
         )}
       </div>
 
-      {/* Modal de preview do PDF */}
+      {/* ✅ Container do PDF — RENDERIZADO PELO REACT
+          Só aparece quando renderizandoPDF é true.
+          Fica "escondido" via left -99999px + opacity 0.01
+          (mesma técnica da FichaMobile que funciona) */}
+      {renderizandoPDF && (
+        <RelatorioPDF
+          id="historico-pdf-container"
+          filtrados={filtrados}
+          pacienteNome={pacienteNome}
+          pacienteDocumento={pacienteDocumento}
+          periodoDias={periodoDias}
+        />
+      )}
+
+      {/* Modal de preview */}
       {previewUrl && (
         <ModalPreviewPDF
           url={previewUrl}
