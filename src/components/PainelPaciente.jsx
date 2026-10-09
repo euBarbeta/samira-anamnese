@@ -1009,7 +1009,73 @@ useEffect(() => {
     );
     return () => unsub();
   }, [pacienteData?.id]);
+// ============================================================
+// ✅ BACKFILL — vincula agendamentos antigos feitos pelo LINK
+//    PÚBLICO (que não têm `pacienteId`) ao paciente logado.
+//    Roda UMA VEZ quando o painel monta.
+// ============================================================
+const [backfillFeito, setBackfillFeito] = useState(false);
 
+useEffect(() => {
+  if (backfillFeito) return;
+  if (!pacienteData?.id || !pacienteData?.criadoPorUid) return;
+
+  const fazerBackfill = async () => {
+    setBackfillFeito(true);
+
+    try {
+      // Normaliza pra comparar
+      const docNorm = String(pacienteData.documento || '').replace(/\D/g, '');
+      const nomeNorm = String(pacienteData.nome || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      if (!docNorm || !nomeNorm) return;
+
+      // Busca todos agendamentos dessa esteticista
+      const snap = await getDocs(query(
+        collection(db, 'agendamentos'),
+        where('uidEsteticista', '==', pacienteData.criadoPorUid)
+      ));
+
+      // Filtra no cliente: sem pacienteId E nome+doc iguais
+      const paraVincular = snap.docs.filter((d) => {
+        const a = d.data();
+        if (a.pacienteId) return false; // já vinculado
+
+        const aDocNorm = String(a.documento || '').replace(/\D/g, '');
+        const aNomeNorm = String(a.nome || '')
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+        return aDocNorm === docNorm && aNomeNorm === nomeNorm;
+      });
+
+      if (paraVincular.length === 0) return;
+
+      // Atualiza em paralelo
+      await Promise.all(
+        paraVincular.map((d) =>
+          updateDoc(d.ref, {
+            pacienteId: String(pacienteData.id),
+            vinculadoEm: new Date().toISOString(),
+            vinculadoPorBackfill: true,
+          })
+        )
+      );
+
+      console.log(`✅ Backfill: ${paraVincular.length} agendamento(s) vinculado(s).`);
+    } catch (e) {
+      console.warn('Falha no backfill:', e);
+    }
+  };
+
+  fazerBackfill();
+}, [pacienteData?.id, pacienteData?.criadoPorUid, backfillFeito]);
   useEffect(() => {
     const onPop = (e) => {
       const st = e.state;
@@ -1233,15 +1299,20 @@ const concluirReagendamento = async (novoAg) => {
   const agAntigo = agendamentoParaReagendar;
   setAgendamentoParaReagendar(null);
 
-  // Oculta o agendamento antigo (faltou) da lista do paciente
   if (agAntigo) {
     try {
+      // ✅ Marca como `reagendado` (some de todas as listas)
+      //    E também oculta pro paciente — evita qualquer flash
       await updateDoc(doc(db, 'agendamentos', agAntigo.id), {
+        status: 'reagendado',
+        reagendadoPara: novoAg.id,
+        reagendadoEm: new Date().toISOString(),
         ocultoParaPaciente: true,
         ocultadoPacienteEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
       });
     } catch (e) {
-      console.warn('Falha ao ocultar agendamento antigo:', e);
+      console.warn('Falha ao reagendar:', e);
     }
   }
 
@@ -1823,30 +1894,31 @@ const podeRemover = (ag) =>
     }}
   >
     {/* 🔄 Reagendar — só aparece quando faltou */}
-    {ag.status === 'faltou' && (
-      <button
-        type="button"
-        onClick={() => abrirModalReagendar(ag)}
-        style={{
-          background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
-          color: '#fff',
-          border: 'none',
-          padding: '4px 10px',
-          borderRadius: 10,
-          fontSize: 9,
-          fontWeight: 700,
-          cursor: 'pointer',
-          fontFamily: "'Cinzel', serif",
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
-        }}
-      >
-        <MdRefresh size={12} />
-        Reagendar
-      </button>
-    )}
+    {/* 🔄 Reagendar — faltou OU cancelado */}
+{(ag.status === 'faltou' || ag.status === 'cancelado') && (
+  <button
+    type="button"
+    onClick={() => abrirModalReagendar(ag)}
+    style={{
+      background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '4px 10px',
+      borderRadius: 10,
+      fontSize: 9,
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Cinzel', serif",
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+    }}
+  >
+    <MdRefresh size={12} />
+    Reagendar
+  </button>
+)}
 
     {/* 🗑️ Remover da lista — cancelado, concluído ou faltou */}
     <button

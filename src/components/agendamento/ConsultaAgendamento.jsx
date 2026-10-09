@@ -11,6 +11,7 @@ import {
   MdDelete, MdEmail,
 } from 'react-icons/md';
 import { AbasPublicas, EstilosTAP, BotaoWhatsApp, Rodape } from './TelaAgendamentoPublico';
+import ModalAgendarParaPaciente from './ModalAgendarParaPaciente';
 import TelaSemInternet from '../TelaSemInternet';
 
 /* ============================================================
@@ -44,6 +45,20 @@ const STATUS_CFG = {
     bg: '#f3f4f6',
     bd: '#d1d5db',
     Icone: MdCheckCircle,
+  },
+  faltou: {
+    texto: 'Paciente não compareceu',
+    cor: '#c2410c',
+    bg: '#fff7ed',
+    bd: '#fdba74',
+    Icone: MdWarning,
+  },
+  reagendado: {
+    texto: 'Reagendado',
+    cor: '#7e22ce',
+    bg: '#faf5ff',
+    bd: '#d8b4fe',
+    Icone: MdRefresh,
   },
 };
 
@@ -220,6 +235,9 @@ export default function ConsultaAgendamento({ onVoltar }) {
   const [confirmacao, setConfirmacao] = useState(null);
   const [processando, setProcessando] = useState(false);
 
+  // ✅ Novo: controla o modal de reagendamento
+  const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
+
   const buscar = async () => {
     setErro('');
     setResultados(null);
@@ -274,25 +292,24 @@ export default function ConsultaAgendamento({ onVoltar }) {
         canceladoPor: 'paciente',
         atualizadoEm: new Date().toISOString(),
       });
-      // ✅ Notifica a esteticista
-try {
-  await fetch('/.netlify/functions/notificar-agendamento', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      tipoEvento: 'cancelado_paciente',
-      uidEsteticista: ag.uidEsteticista,
-      agendamento: {
-        id: ag.id,
-        nome: ag.nome,
-        data: ag.data,
-        horaInicio: ag.horaInicio,
-      },
-    }),
-  });
-} catch (e) {
-  console.warn('Falha ao notificar esteticista:', e);
-}
+      try {
+        await fetch('/.netlify/functions/notificar-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipoEvento: 'cancelado_paciente',
+            uidEsteticista: ag.uidEsteticista,
+            agendamento: {
+              id: ag.id,
+              nome: ag.nome,
+              data: ag.data,
+              horaInicio: ag.horaInicio,
+            },
+          }),
+        });
+      } catch (e) {
+        console.warn('Falha ao notificar esteticista:', e);
+      }
       setResultados((prev) =>
         prev.map((a) =>
           a.id === ag.id
@@ -476,25 +493,42 @@ try {
 
             {erro && <div className="tap-erro">{erro}</div>}
 
+            {/* ✅ Botão CONSULTAR com spinner INLINE */}
             <button
               type="button"
               onClick={buscar}
               disabled={buscando}
               className="tap-btn-confirmar tap-target"
-              style={{ marginTop: 12 }}
+              style={{
+                marginTop: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
             >
-              <MdSearch size={16} style={{ marginRight: 6 }} />
-             {buscando ? (
-  <>
-    <span className="spinner-salvar" />
-    CONSULTANDO
-  </>
-) : (
-  <>
-    <MdSearch size={16} style={{ marginRight: 6 }} />
-    CONSULTAR
-  </>
-)}
+              {buscando ? (
+                <>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 15,
+                      height: 15,
+                      border: '2.5px solid rgba(255, 255, 255, 0.35)',
+                      borderTopColor: '#ffffff',
+                      borderRadius: '50%',
+                      animation: 'girarSalvar 0.7s linear infinite',
+                      flexShrink: 0,
+                    }}
+                  />
+                  CONSULTANDO…
+                </>
+              ) : (
+                <>
+                  <MdSearch size={16} />
+                  CONSULTAR
+                </>
+              )}
             </button>
 
             {/* ===== Resultados ===== */}
@@ -573,6 +607,8 @@ try {
                           ag.status === 'confirmado') &&
                         !ag.canceladoPor;
                       const podeRemover = ag.status === 'cancelado';
+                      const podeReagendar =
+                        ag.status === 'faltou' || ag.status === 'cancelado';
 
                       return (
                         <div
@@ -584,7 +620,6 @@ try {
                             padding: 14,
                           }}
                         >
-                          {/* Data + hora */}
                           <div
                             style={{
                               display: 'flex',
@@ -606,12 +641,10 @@ try {
                             {formatarDataLonga(ag.data)} às {ag.horaInicio}
                           </div>
 
-                          {/* Status */}
                           <div style={{ marginBottom: 10 }}>
                             <BadgeStatus status={ag.status} />
                           </div>
 
-                          {/* Nome */}
                           <div
                             style={{
                               display: 'flex',
@@ -627,7 +660,6 @@ try {
                             </div>
                           </div>
 
-                          {/* Documento */}
                           {ag.documento && (
                             <div
                               style={{
@@ -645,7 +677,6 @@ try {
                             </div>
                           )}
 
-                          {/* Telefone */}
                           {ag.telefone && (
                             <div
                               style={{
@@ -665,7 +696,6 @@ try {
                             </div>
                           )}
 
-                          {/* E-mail */}
                           {ag.email && (
                             <div
                               style={{
@@ -690,7 +720,6 @@ try {
                             </div>
                           )}
 
-                          {/* Observações */}
                           {ag.observacoes && (
                             <div
                               style={{
@@ -707,7 +736,6 @@ try {
                             </div>
                           )}
 
-                          {/* Feedback de cancelamento */}
                           {ag.status === 'cancelado' && (
                             <div
                               style={{
@@ -729,7 +757,37 @@ try {
                             </div>
                           )}
 
-                          {/* Ações */}
+                          {/* ✅ REAGENDAR — faltou OU cancelado */}
+                          {podeReagendar && (
+                            <button
+                              type="button"
+                              onClick={() => setAgendamentoParaReagendar(ag)}
+                              style={{
+                                marginTop: 12,
+                                width: '100%',
+                                background:
+                                  'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '10px 14px',
+                                borderRadius: 16,
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                fontFamily: "'Cinzel', serif",
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                minHeight: 42,
+                                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                              }}
+                            >
+                              <MdRefresh size={14} />
+                              Reagendar horário
+                            </button>
+                          )}
+
                           {podeCancelar && (
                             <button
                               type="button"
@@ -805,7 +863,6 @@ try {
         <EstilosTAP />
       </div>
 
-      {/* ===== Modais de confirmação ===== */}
       {confirmacao && confirmacao.acao === 'cancelar' && (
         <ModalConfirmacao
           titulo="Cancelar agendamento?"
@@ -835,6 +892,48 @@ try {
           onFechar={() => setConfirmacao(null)}
         />
       )}
+
+      {/* ✅ Modal de reagendamento — mesmo do painel da esteta */}
+      {agendamentoParaReagendar && (
+        <ModalAgendarParaPaciente
+          paciente={{
+            id: agendamentoParaReagendar.pacienteId || null,
+            nome: agendamentoParaReagendar.nome,
+            documento: agendamentoParaReagendar.documento,
+            telefone: agendamentoParaReagendar.telefone,
+            email: agendamentoParaReagendar.email,
+            emailAcesso: agendamentoParaReagendar.email,
+            consentimentoLGPD: agendamentoParaReagendar.consentimentoLGPD,
+          }}
+          uidEsteticista={agendamentoParaReagendar.uidEsteticista}
+          origem="paciente"
+          onFechar={() => setAgendamentoParaReagendar(null)}
+          onSucesso={(novoAg) => {
+            const antigo = agendamentoParaReagendar;
+            setAgendamentoParaReagendar(null);
+
+            // ✅ Marca o antigo como `reagendado` (some de todas as listas)
+            //    e o novo já foi criado como `pendente` aguardando confirmação
+            if (antigo) {
+              updateDoc(doc(db, 'agendamentos', antigo.id), {
+                status: 'reagendado',
+                reagendadoPara: novoAg.id,
+                reagendadoEm: new Date().toISOString(),
+                atualizadoEm: new Date().toISOString(),
+              }).catch((e) =>
+                console.warn('Falha ao marcar reagendamento:', e)
+              );
+
+              // Atualiza localmente pra sumir na hora
+              setResultados((prev) =>
+                prev.map((a) =>
+                  a.id === antigo.id ? { ...a, status: 'reagendado' } : a
+                )
+              );
+            }
+          }}
+        />
+      )}
     </>
   );
 }
@@ -859,9 +958,6 @@ function normalizarNome(str) {
     .replace(/\s+/g, ' ');
 }
 
-/* ============================================================
-   Estilos auxiliares
-   ============================================================ */
 const labelMini = {
   fontSize: 10,
   fontWeight: 700,

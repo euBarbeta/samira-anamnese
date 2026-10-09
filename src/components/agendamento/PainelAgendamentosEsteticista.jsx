@@ -388,16 +388,33 @@ export default function PainelAgendamentosEsteticista({
   // ✅ Resolve uma divergência: adiciona a chave ao Set E força
   //    re-render via contador. Uma única função para os 2 botões.
   // ============================================================
-  const resolverDivergencia = (agId, campo) => {
-    const chave = chaveDivergencia(agId, campo);
-    setDivergenciasMantidas((prev) => {
-      const novo = new Set(prev);
-      novo.add(chave);
-      return novo;
-    });
-    setDivergenciasVersion((v) => v + 1);
-  };
+ // ============================================================
+// ✅ Resolve uma divergência de forma PERSISTENTE:
+//    1. Atualização otimista (esconde na hora)
+//    2. Grava no Firestore no doc do agendamento
+//    → Sobrevive a reload, troca de aba e troca de dispositivo.
+// ============================================================
+const resolverDivergencia = async (agId, campo) => {
+  const chave = chaveDivergencia(agId, campo);
 
+  // Otimista: esconde já
+  setDivergenciasMantidas((prev) => {
+    const novo = new Set(prev);
+    novo.add(chave);
+    return novo;
+  });
+  setDivergenciasVersion((v) => v + 1);
+
+  // Persiste no Firestore
+  try {
+    await updateDoc(doc(db, 'agendamentos', agId), {
+      [`divergenciasResolvidas.${campo}`]: true,
+      atualizadoEm: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('Erro ao persistir divergência:', e);
+  }
+};
   // ============================================================
   // Listener 1 — AGENDAMENTOS em tempo real
   // ============================================================
@@ -910,58 +927,65 @@ export default function PainelAgendamentosEsteticista({
   //    O `divergenciasVersion` é lido para garantir que o React
   //    recalcule este bloco a cada clique.
   // ============================================================
-  const divergenciasDoAgendamento = (ag) => {
-    // eslint-disable-next-line no-unused-vars
-    const _v = divergenciasVersion; // <- dependência de re-render
+ // ============================================================
+// ✅ DIVERGÊNCIAS — cada campo resolvido de forma INDEPENDENTE.
+//    Lê de DUAS fontes:
+//      1. Firestore (`ag.divergenciasResolvidas`) → persistente
+//      2. Set local (`divergenciasMantidas`)      → otimista
+// ============================================================
+const divergenciasDoAgendamento = (ag) => {
+  // eslint-disable-next-line no-unused-vars
+  const _v = divergenciasVersion;
 
-    const pac = acharPacienteDoAgendamento(ag);
-    if (!pac) return [];
+  const pac = acharPacienteDoAgendamento(ag);
+  if (!pac) return [];
 
-    const lista = [];
+  const lista = [];
+  const resolvidas = ag.divergenciasResolvidas || {};
 
-    // ─── E-MAIL ───────────────────────────────────────────
-    const emailResolvido = divergenciasMantidas.has(
-      chaveDivergencia(ag.id, 'emailContato')
-    );
+  // ─── E-MAIL ───────────────────────────────────────────
+  const emailResolvido =
+    resolvidas.emailContato === true ||
+    divergenciasMantidas.has(chaveDivergencia(ag.id, 'emailContato'));
 
-    if (!emailResolvido) {
-      const emailFichaAtual = getEmailContatoDoPaciente(pac);
-      const emailFicha = emailFichaAtual.toLowerCase();
-      const emailRealAg = emailContatoDoAgendamento(ag.email);
+  if (!emailResolvido) {
+    const emailFichaAtual = getEmailContatoDoPaciente(pac);
+    const emailFicha = emailFichaAtual.toLowerCase();
+    const emailRealAg = emailContatoDoAgendamento(ag.email);
 
-      if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
-        lista.push({
-          campo: 'emailContato',
-          label: 'E-mail',
-          atual: emailFichaAtual,
-          novo: emailRealAg,
-          pacId: pac.id,
-        });
-      }
+    if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
+      lista.push({
+        campo: 'emailContato',
+        label: 'E-mail',
+        atual: emailFichaAtual,
+        novo: emailRealAg,
+        pacId: pac.id,
+      });
     }
+  }
 
-    // ─── TELEFONE (independente do e-mail) ────────────────
-    const telResolvido = divergenciasMantidas.has(
-      chaveDivergencia(ag.id, 'telefone')
-    );
+  // ─── TELEFONE (independente do e-mail) ────────────────
+  const telResolvido =
+    resolvidas.telefone === true ||
+    divergenciasMantidas.has(chaveDivergencia(ag.id, 'telefone'));
 
-    if (!telResolvido) {
-      const telFicha = getTelefoneDoPaciente(pac);
-      const telAg = (ag.telefone || '').trim();
+  if (!telResolvido) {
+    const telFicha = getTelefoneDoPaciente(pac);
+    const telAg = (ag.telefone || '').trim();
 
-      if (telFicha && telAg && telFicha !== telAg) {
-        lista.push({
-          campo: 'telefone',
-          label: 'Telefone',
-          atual: telFicha,
-          novo: telAg,
-          pacId: pac.id,
-        });
-      }
+    if (telFicha && telAg && telFicha !== telAg) {
+      lista.push({
+        campo: 'telefone',
+        label: 'Telefone',
+        atual: telFicha,
+        novo: telAg,
+        pacId: pac.id,
+      });
     }
+  }
 
-    return lista;
-  };
+  return lista;
+};
 
   const abrirFichaPreenchida = (ag) => {
     setFichaPreenchida({
@@ -1461,11 +1485,10 @@ export default function PainelAgendamentosEsteticista({
                                 <button
                                   type="button"
                                   disabled={carregandoEste}
-                                  onClick={() => {
-                                    // ✅ Resolve SÓ este campo (ag.id + campo)
-                                    //    e força re-render via contador
-                                    resolverDivergencia(ag.id, d.campo);
-                                  }}
+                                 onClick={() => {
+  // ✅ Resolve SÓ este campo + persiste no Firestore
+  resolverDivergencia(ag.id, d.campo);
+}}
                                   style={{
                                     flex: 1,
                                     background: '#f5f5f5',
@@ -1490,7 +1513,7 @@ export default function PainelAgendamentosEsteticista({
                                   onClick={async () => {
                                     await substituirCampo(d.pacId, d.campo, d.novo);
                                     // ✅ Resolve SÓ este campo + força re-render
-                                    resolverDivergencia(ag.id, d.campo);
+                                    await resolverDivergencia(ag.id, d.campo);
                                   }}
                                   style={{
                                     flex: 1,
@@ -1615,6 +1638,24 @@ export default function PainelAgendamentosEsteticista({
                         </button>
                       </>
                     )}
+                    {/* ✅ NOVO: Reagendar quando CANCELADO — mesma lógica do faltou */}
+{ag.status === 'cancelado' && (
+  <button
+    type="button"
+    onClick={() => abrirReagendamento(ag)}
+    disabled={buscandoPaciente}
+    style={{
+      ...btnReagendar,
+      flex: '1 1 140px',
+      opacity: buscandoPaciente ? 0.6 : 1,
+      cursor: buscandoPaciente ? 'wait' : 'pointer',
+    }}
+    title="Criar novo agendamento para este paciente"
+  >
+    <MdRefresh size={14} />
+    {buscandoPaciente ? 'Carregando…' : 'Reagendar'}
+  </button>
+)}
 
                     {(ag.status === 'cancelado' ||
                       ag.status === 'faltou' ||

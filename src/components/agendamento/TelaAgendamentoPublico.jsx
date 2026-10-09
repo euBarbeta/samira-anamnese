@@ -845,21 +845,38 @@ try {
 
                 {erro && <div className="tap-erro">{erro}</div>}
 
-                <button
-                  type="button"
-                  onClick={agendar}
-                  disabled={enviando}
-                  className="tap-btn-confirmar tap-target"
-                >
-                 {enviando ? (
-  <>
-    <span className="spinner-salvar" />
-    ENVIANDO
-  </>
-) : (
-  'CONFIRMAR AGENDAMENTO'
-)}
-                </button>
+               <button
+  type="button"
+  onClick={agendar}
+  disabled={enviando}
+  className="tap-btn-confirmar tap-target"
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  }}
+>
+  {enviando ? (
+    <>
+      <span
+        style={{
+          display: 'inline-block',
+          width: 15,
+          height: 15,
+          border: '2.5px solid rgba(255, 255, 255, 0.35)',
+          borderTopColor: '#ffffff',
+          borderRadius: '50%',
+          animation: 'girarSalvar 0.7s linear infinite',
+          flexShrink: 0,
+        }}
+      />
+      ENVIANDO…
+    </>
+  ) : (
+    'CONFIRMAR AGENDAMENTO'
+  )}
+</button>
               </div>
             )}
           </div>
