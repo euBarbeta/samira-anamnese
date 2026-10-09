@@ -75,6 +75,13 @@ function normalizarDoc(str) {
   return (str || '').replace(/\D/g, '');
 }
 
+// ============================================================
+// ✅ Chave única por agendamento + campo.
+//    E-mail e telefone são resolvidos INDEPENDENTEMENTE.
+//    Ex: "abc123|emailContato"  /  "abc123|telefone"
+// ============================================================
+const chaveDivergencia = (agId, campo) => `${agId}|${campo}`;
+
 function formatarTelefoneInternacional(tel) {
   if (!tel) return '—';
   try {
@@ -877,46 +884,61 @@ export default function PainelAgendamentosEsteticista({
     }
   };
 
- const divergenciasDoAgendamento = (ag) => {
-  // ✅ Se a esteta já clicou em MANTER ou SUBSTITUIR pra este agendamento,
-  //    não mostra mais NENHUM painel de divergência pra ele.
-  if (divergenciasMantidas.has(String(ag.id))) return [];
-
-  const pac = acharPacienteDoAgendamento(ag);
-  if (!pac) return [];
-  
+  // ============================================================
+  // ✅ DIVERGÊNCIAS — cada campo resolvido de forma INDEPENDENTE.
+  //    Se a esteta clica MANTER/SUBSTITUIR no e-mail, isso NÃO
+  //    esconde o bloco do telefone (e vice-versa).
+  // ============================================================
+  const divergenciasDoAgendamento = (ag) => {
+    const pac = acharPacienteDoAgendamento(ag);
+    if (!pac) return [];
 
     const lista = [];
-    
 
-    const emailFichaAtual = getEmailContatoDoPaciente(pac);
-    const emailFicha = emailFichaAtual.toLowerCase();
-    const emailRealAg = emailContatoDoAgendamento(ag.email);
-    if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
-      lista.push({
-        campo: 'emailContato',
-        label: 'E-mail',
-        atual: emailFichaAtual,
-        novo: emailRealAg,
-        pacId: pac.id,
-      });
-    }
-    
+    // ─── E-MAIL ───────────────────────────────────────────
+    const emailResolvido = divergenciasMantidas.has(
+      chaveDivergencia(ag.id, 'emailContato')
+    );
 
-    const telFicha = getTelefoneDoPaciente(pac);
-    const telAg = (ag.telefone || '').trim();
-    if (telFicha && telAg && telFicha !== telAg) {
-      lista.push({
-        campo: 'telefone',
-        label: 'Telefone',
-        atual: telFicha,
-        novo: telAg,
-        pacId: pac.id,
-      });
+    if (!emailResolvido) {
+      const emailFichaAtual = getEmailContatoDoPaciente(pac);
+      const emailFicha = emailFichaAtual.toLowerCase();
+      const emailRealAg = emailContatoDoAgendamento(ag.email);
+
+      if (emailFicha && emailRealAg && emailFicha !== emailRealAg) {
+        lista.push({
+          campo: 'emailContato',
+          label: 'E-mail',
+          atual: emailFichaAtual,
+          novo: emailRealAg,
+          pacId: pac.id,
+        });
+      }
     }
 
-  return lista;
-};  
+    // ─── TELEFONE (independente do e-mail) ────────────────
+    const telResolvido = divergenciasMantidas.has(
+      chaveDivergencia(ag.id, 'telefone')
+    );
+
+    if (!telResolvido) {
+      const telFicha = getTelefoneDoPaciente(pac);
+      const telAg = (ag.telefone || '').trim();
+
+      if (telFicha && telAg && telFicha !== telAg) {
+        lista.push({
+          campo: 'telefone',
+          label: 'Telefone',
+          atual: telFicha,
+          novo: telAg,
+          pacId: pac.id,
+        });
+      }
+    }
+
+    return lista;
+  };
+
   const abrirFichaPreenchida = (ag) => {
     setFichaPreenchida({
       _agendamentoOrigemId: ag.id,
@@ -1344,7 +1366,7 @@ export default function PainelAgendamentosEsteticista({
                     )}
                   </div>
 
-                  {/* ✅ Painel de divergências — só MANTER + SUBSTITUIR */}
+                  {/* ✅ Painel de divergências — MANTER/SUBSTITUIR independentes */}
                   {(() => {
                     const divs = divergenciasDoAgendamento(ag);
                     if (divs.length === 0) return null;
@@ -1416,12 +1438,13 @@ export default function PainelAgendamentosEsteticista({
                                   type="button"
                                   disabled={carregandoEste}
                                   onClick={() => {
-  setDivergenciasMantidas((prev) => {
-    const novo = new Set(prev);
-    novo.add(String(ag.id));   // ✅ id do AGENDAMENTO, não do campo
-    return novo;
-  });
-}}
+                                    // ✅ Resolve SÓ este campo (ag.id + campo)
+                                    setDivergenciasMantidas((prev) => {
+                                      const novo = new Set(prev);
+                                      novo.add(chaveDivergencia(ag.id, d.campo));
+                                      return novo;
+                                    });
+                                  }}
                                   style={{
                                     flex: 1,
                                     background: '#f5f5f5',
@@ -1444,13 +1467,14 @@ export default function PainelAgendamentosEsteticista({
                                   type="button"
                                   disabled={carregandoEste}
                                   onClick={async () => {
-  await substituirCampo(d.pacId, d.campo, d.novo);
-  setDivergenciasMantidas((prev) => {
-    const novo = new Set(prev);
-    novo.add(String(ag.id));   // ✅ esconde o painel todo depois
-    return novo;
-  });
-}}
+                                    await substituirCampo(d.pacId, d.campo, d.novo);
+                                    // ✅ Resolve SÓ este campo (ag.id + campo)
+                                    setDivergenciasMantidas((prev) => {
+                                      const novo = new Set(prev);
+                                      novo.add(chaveDivergencia(ag.id, d.campo));
+                                      return novo;
+                                    });
+                                  }}
                                   style={{
                                     flex: 1,
                                     background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',

@@ -666,6 +666,19 @@ if (isNativo()) {
           setAuthVerificado(true);
           return;
         }
+          if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
+    await signOut(auth);
+    setAutenticado(false);
+    setUsuarioLogado(null);
+    setDadosPaciente(null);
+    setBuscandoPaciente(false);
+    setErroLoginExterno(
+      'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.'
+    );
+    setRota('login-uid');
+    setAuthVerificado(true);
+    return;
+  }
 
         if (isNativo()) {
           await Preferences.set({
