@@ -2344,17 +2344,18 @@
             }}
           />
         )}
-      </div>
-    );
-  }
-  {/* ✅ Modal de exportação PDF com filtro de período */}
-  {modalExportAberto && (
+          {modalExportAberto && (
     <ModalExportarAgendamentos
       agendamentos={agendamentos}
       filtroStatus={filtroStatus}
       onFechar={() => setModalExportAberto(false)}
     />
   )}
+      </div>
+    );
+  }
+  {/* ✅ Modal de exportação PDF com filtro de período */}
+
   /* ============================================================
     Helpers
     ============================================================ */
