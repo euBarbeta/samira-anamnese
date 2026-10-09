@@ -60,14 +60,6 @@ const PERIODOS = [
 
 /* ============================================================
    COMPONENTE
-   Props:
-     - pacienteId        → id do paciente
-     - pacienteNome      → nome (fallback de busca)
-     - pacienteDocumento → documento (fallback de busca)
-     - uidEsteticista    → uid da esteta (para a query)
-     - modo              → 'esteticista' | 'paciente' (mantido por compatibilidade)
-     - colapsavel        → true/false (padrão true)
-     - abertoPorPadrao   → true/false (padrão false)
    ============================================================ */
 export default function HistoricoAgendamentosPaciente({
   pacienteId,
@@ -89,9 +81,8 @@ export default function HistoricoAgendamentosPaciente({
   // Listener — carrega TODOS os agendamentos da esteta
   // e filtra localmente por pacienteId OU nome+doc
   //
-  // ⚠️ IMPORTANTE: NÃO filtra por `ocultoParaEsteticista` nem
-  // `ocultoParaPaciente`. O histórico deve mostrar TUDO —
-  // inclusive o que foi "removido da visualização" nas listas.
+  // ⚠️ NÃO filtra por `ocultoParaEsteticista` nem `ocultoParaPaciente`.
+  //    O histórico deve mostrar TUDO.
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
@@ -114,7 +105,6 @@ export default function HistoricoAgendamentosPaciente({
 
         const todos = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          // ✅ Match por pacienteId OU nome+documento (fallback)
           .filter((a) => {
             if (a.pacienteId && String(a.pacienteId) === pacIdStr) return true;
             if (
@@ -128,7 +118,7 @@ export default function HistoricoAgendamentosPaciente({
           .sort((a, b) => {
             const ka = `${a.data} ${a.horaInicio}`;
             const kb = `${b.data} ${b.horaInicio}`;
-            return kb.localeCompare(ka); // mais recente primeiro
+            return kb.localeCompare(ka);
           });
 
         setAgendamentos(todos);
@@ -172,6 +162,12 @@ export default function HistoricoAgendamentosPaciente({
 
   // ============================================================
   // Exportar PDF — funciona em web, PWA e APK via exportarParaPDF
+  //
+  // ✅ CORRIGIDO:
+  //   - Container com opacity 0.01 (não 0) → browser NÃO pula o render
+  //   - left: 0 + z-index -1 (não left: -99999px) → html2canvas captura
+  //   - Aguarda 300ms antes de chamar o gerador
+  //   - Container declarado fora do try pra limpar com segurança
   // ============================================================
   const exportarPDF = async () => {
     if (filtrados.length === 0) {
@@ -180,6 +176,7 @@ export default function HistoricoAgendamentosPaciente({
     }
 
     setGerandoPDF(true);
+    let container = null;
 
     try {
       const hoje = new Date();
@@ -188,7 +185,7 @@ export default function HistoricoAgendamentosPaciente({
           ? `Últimos ${periodoDias} dias`
           : 'Todo o histórico';
 
-      // ── 1. Monta as linhas da tabela ──
+      // ── 1. Linhas da tabela ──
       const linhas = filtrados
         .map((a) => {
           const info = STATUS_INFO[a.status] || STATUS_INFO.pendente;
@@ -196,10 +193,10 @@ export default function HistoricoAgendamentosPaciente({
 
           return `
             <tr>
-              <td>${formatarDataBR(a.data)}</td>
-              <td>${a.horaInicio || ''}${a.horaFim ? '–' + a.horaFim : ''}${horaReal}</td>
-              <td>${a.servicoNome || '—'}</td>
-              <td>${info.label}</td>
+              <td style="padding: 6px; border: 1px solid #e2d2f5;">${formatarDataBR(a.data)}</td>
+              <td style="padding: 6px; border: 1px solid #e2d2f5;">${a.horaInicio || ''}${a.horaFim ? '–' + a.horaFim : ''}${horaReal}</td>
+              <td style="padding: 6px; border: 1px solid #e2d2f5;">${a.servicoNome || '—'}</td>
+              <td style="padding: 6px; border: 1px solid #e2d2f5;">${info.label}</td>
             </tr>
           `;
         })
@@ -218,10 +215,10 @@ export default function HistoricoAgendamentosPaciente({
         })
         .join(' · ');
 
-      // ── 3. HTML do relatório (sem <html><body> — o gerador cuida disso) ──
+      // ── 3. HTML do relatório ──
       const htmlRelatorio = `
-        <div style="font-family: 'Helvetica', 'Arial', sans-serif; padding: 24px; color: #2c163a;">
-          <h1 style="font-size: 18px; margin: 0 0 6px;">Histórico de Agendamentos</h1>
+        <div style="font-family: 'Helvetica', 'Arial', sans-serif; padding: 24px; color: #2c163a; background: #ffffff;">
+          <h1 style="font-size: 18px; margin: 0 0 6px; color: #2c163a;">Histórico de Agendamentos</h1>
           <div style="font-size: 11px; color: #666; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #C8A24A;">
             <strong>${pacienteNome || 'Paciente'}</strong><br/>
             Documento: ${pacienteDocumento || '—'}<br/>
@@ -254,32 +251,39 @@ export default function HistoricoAgendamentosPaciente({
         </div>
       `;
 
-      // ── 4. Cria container oculto com o HTML ──
+      // ── 4. Container: visível pro browser, quase invisível pro usuário ──
       const containerId = `historico-pdf-${Date.now()}`;
-      const container = document.createElement('div');
+      container = document.createElement('div');
       container.id = containerId;
       container.style.position = 'fixed';
-      container.style.left = '-99999px';
+      container.style.left = '0';
       container.style.top = '0';
       container.style.width = '800px';
-      container.style.background = '#fff';
+      container.style.background = '#ffffff';
+      container.style.zIndex = '-1';
+      container.style.opacity = '0.01';
+      container.style.pointerEvents = 'none';
       container.innerHTML = htmlRelatorio;
       document.body.appendChild(container);
 
-      // ── 5. Chama o gerador do projeto (funciona em web, PWA e APK) ──
+      // ⚠️ Aguarda o browser pintar antes de capturar
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // ── 5. Chama o gerador do projeto ──
       const { exportarParaPDF } = await import('../utils/gerarPdf');
       await exportarParaPDF(
         containerId,
         `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}`,
         { compartilhar: true }
       );
-
-      // ── 6. Limpa ──
-      document.body.removeChild(container);
     } catch (e) {
       console.error('Erro ao gerar PDF:', e);
       alert('Erro ao gerar PDF. Tente novamente.');
     } finally {
+      // ── 6. Limpa com segurança ──
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
       setGerandoPDF(false);
     }
   };
@@ -525,7 +529,6 @@ export default function HistoricoAgendamentosPaciente({
                           flexWrap: 'wrap',
                         }}
                       >
-                        {/* ✅ Ícone no lugar do emoji 🕒 */}
                         <span
                           style={{
                             display: 'inline-flex',
