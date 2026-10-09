@@ -1332,10 +1332,33 @@ if (!jaCarregou) {
             Ficha de Anamnese
           </button>
 
-        <MdCalendarMonth size={16} />
-Agendamentos
-
-{agendamentosPendentesCount > 0 && (
+          <button
+            type="button"
+            onClick={() => navegarPara('agendamentos')}
+            className="btn-efeito-hover"
+            style={{
+              flex: 1,
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 10px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
+              lineHeight: 1.2,
+              textAlign: 'center',
+            }}
+          >
+            <MdCalendarMonth size={15} style={{ flexShrink: 0 }} />
+            Agendamentos
+          {agendamentosPendentesCount > 0 && (
   <span
     style={{
       display: 'inline-flex',
@@ -1357,6 +1380,7 @@ Agendamentos
     {agendamentosPendentesCount}
   </span>
 )}
+          </button>
         </div>
       </div>
 

@@ -726,7 +726,7 @@ if (isNativo()) {
   setRota('nao-encontrado');
   setAuthVerificado(true);
 }
-  
+    
  };  
   // ============================================================
   // LOGOUT
