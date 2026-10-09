@@ -8,6 +8,11 @@ import {
   MdInfoOutline, MdEvent, MdAccessTime, MdClose, MdDownload, MdShare,
 } from 'react-icons/md';
 
+// ✅ Imports nativos (funcionam tanto em web quanto em APK)
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -31,6 +36,29 @@ function formatarDataLonga(iso) {
   const d = new Date(iso + 'T12:00:00');
   const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   return `${dias[d.getDay()]}, ${dia}/${mes}/${ano}`;
+}
+
+// ✅ Detecta se está rodando como app nativo (APK)
+function isNativo() {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+// ✅ Converte Blob → base64 (sem o prefixo data:)
+function blobParaBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      const base64 = String(result).split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 // ============================================================
@@ -213,47 +241,104 @@ const tdEstilo = {
 };
 
 /* ============================================================
-   MODAL DE PRÉ-VISUALIZAÇÃO
+   MODAL DE PRÉ-VISUALIZAÇÃO — funciona em web, PWA e APK
    ============================================================ */
-function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
-  const handleBaixar = () => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nomeArquivo;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
+function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
+  const [processando, setProcessando] = useState(false);
 
-  const handleCompartilhar = async () => {
+  // ============================================================
+  // BAIXAR — detecta plataforma
+  // ============================================================
+  const handleBaixar = async () => {
+    setProcessando(true);
     try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const file = new File([blob], nomeArquivo, { type: 'application/pdf' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Histórico de Agendamentos',
+      if (isNativo()) {
+        // ✅ APK: salva no cache + abre menu nativo "Salvar como"
+        const base64 = await blobParaBase64(blob);
+        const resultado = await Filesystem.writeFile({
+          path: nomeArquivo,
+          data: base64,
+          directory: Directory.Cache,
+          recursive: true,
         });
-      } else if (navigator.share) {
-        await navigator.share({
-          title: 'Histórico de Agendamentos',
-          text: 'PDF do histórico',
+
+        await Share.share({
+          title: 'Salvar PDF',
+          text: 'Escolha onde salvar o PDF:',
+          url: resultado.uri,
+          dialogTitle: 'Salvar PDF',
         });
       } else {
-        alert('Compartilhamento não suportado. Use "Baixar".');
+        // ✅ Web/PWA: download normal
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomeArquivo;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       }
     } catch (e) {
-      if (e.name === 'AbortError') return;
-      console.warn('Erro ao compartilhar:', e);
-      alert('Não foi possível compartilhar. Use "Baixar".');
+      if (e?.message?.toLowerCase().includes('cancel')) return;
+      console.error('Erro ao baixar:', e);
+      alert('Não foi possível baixar. Tente novamente.');
+    } finally {
+      setProcessando(false);
+    }
+  };
+
+  // ============================================================
+  // COMPARTILHAR — detecta plataforma
+  // ============================================================
+  const handleCompartilhar = async () => {
+    setProcessando(true);
+    try {
+      if (isNativo()) {
+        // ✅ APK: salva no cache + abre Share nativo (WhatsApp, Gmail, etc.)
+        const base64 = await blobParaBase64(blob);
+        const resultado = await Filesystem.writeFile({
+          path: nomeArquivo,
+          data: base64,
+          directory: Directory.Cache,
+          recursive: true,
+        });
+
+        await Share.share({
+          title: 'Histórico de Agendamentos',
+          text: 'PDF do histórico de agendamentos',
+          url: resultado.uri,
+          dialogTitle: 'Compartilhar PDF',
+        });
+      } else {
+        // ✅ Web/PWA: Web Share API
+        const file = new File([blob], nomeArquivo, { type: 'application/pdf' });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Histórico de Agendamentos',
+            text: 'PDF do histórico de agendamentos',
+          });
+        } else if (navigator.share) {
+          await navigator.share({
+            title: 'Histórico de Agendamentos',
+            text: 'PDF do histórico de agendamentos',
+          });
+        } else {
+          alert('Compartilhamento não suportado. Use "Baixar".');
+        }
+      }
+    } catch (e) {
+      if (e?.name === 'AbortError' || e?.message?.toLowerCase().includes('cancel')) return;
+      console.error('Erro ao compartilhar:', e);
+      alert('Não foi possível compartilhar. Tente novamente.');
+    } finally {
+      setProcessando(false);
     }
   };
 
   return (
     <div
-      onClick={onFechar}
+      onClick={processando ? undefined : onFechar}
       style={{
         position: 'fixed',
         inset: 0,
@@ -283,6 +368,7 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
           border: '1.5px solid #C8A24A',
         }}
       >
+        {/* Header */}
         <div
           style={{
             padding: '14px 18px',
@@ -311,28 +397,80 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
           <button
             type="button"
             onClick={onFechar}
+            disabled={processando}
             aria-label="Fechar"
             style={{
               background: 'transparent',
               border: 'none',
-              cursor: 'pointer',
+              cursor: processando ? 'not-allowed' : 'pointer',
               padding: 6,
               borderRadius: '50%',
               display: 'flex',
+              opacity: processando ? 0.5 : 1,
             }}
           >
             <MdClose size={22} color="#2c163a" />
           </button>
         </div>
 
-        <div style={{ flex: 1, background: '#f3eef8', position: 'relative', minHeight: 0 }}>
-          <iframe
-            src={url}
-            title="Pré-visualização do PDF"
-            style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
-          />
+        {/* Preview — iframe em web, mensagem em APK */}
+        <div
+          style={{
+            flex: 1,
+            background: '#f3eef8',
+            position: 'relative',
+            minHeight: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {isNativo() ? (
+            <div
+              style={{
+                padding: 30,
+                textAlign: 'center',
+                color: '#666',
+                fontFamily: "'Montserrat', sans-serif",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              <MdPictureAsPdf
+                size={56}
+                color="#7e22ce"
+                style={{ marginBottom: 12 }}
+              />
+              <div
+                style={{
+                  fontWeight: 700,
+                  color: '#2c163a',
+                  marginBottom: 6,
+                  fontFamily: "'Cinzel', serif",
+                }}
+              >
+                PDF pronto!
+              </div>
+              <div style={{ fontSize: 12 }}>
+                Toque em <strong>Baixar</strong> ou <strong>Compartilhar</strong>{' '}
+                abaixo para salvar ou enviar.
+              </div>
+            </div>
+          ) : (
+            <iframe
+              src={url}
+              title="Pré-visualização do PDF"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                background: '#fff',
+              }}
+            />
+          )}
         </div>
 
+        {/* Rodapé com botões */}
         <div
           style={{
             padding: '12px 18px',
@@ -348,16 +486,19 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
           <button
             type="button"
             onClick={handleBaixar}
+            disabled={processando}
             style={{
               fontFamily: "'Cinzel', serif",
-              background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-              color: '#fff',
+              background: processando
+                ? '#ddd'
+                : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+              color: processando ? '#888' : '#fff',
               border: '1.5px solid #9c7826',
               padding: '10px 20px',
               borderRadius: 20,
               fontSize: 12,
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: processando ? 'wait' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
@@ -365,22 +506,25 @@ function ModalPreviewPDF({ url, nomeArquivo, onFechar }) {
             }}
           >
             <MdDownload size={16} />
-            BAIXAR
+            {processando ? 'PROCESSANDO…' : 'BAIXAR'}
           </button>
 
           <button
             type="button"
             onClick={handleCompartilhar}
+            disabled={processando}
             style={{
               fontFamily: "'Cinzel', serif",
-              background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-              color: '#fff',
+              background: processando
+                ? '#ddd'
+                : 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+              color: processando ? '#888' : '#fff',
               border: '1.5px solid #6b21a8',
               padding: '10px 20px',
               borderRadius: 20,
               fontSize: 12,
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: processando ? 'wait' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
@@ -415,9 +559,10 @@ export default function HistoricoAgendamentosPaciente({
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [gerandoPDF, setGerandoPDF] = useState(false);
 
-  // ✅ Estados novos pra PDF
+  // ✅ Estados pra PDF
   const [renderizandoPDF, setRenderizandoPDF] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewBlob, setPreviewBlob] = useState(null);   // ✅ NOVO
   const [nomeArquivoAtual, setNomeArquivoAtual] = useState('');
 
   // ============================================================
@@ -500,8 +645,7 @@ export default function HistoricoAgendamentosPaciente({
   }, [agendamentos, periodoDias, statusFiltro]);
 
   // ============================================================
-  // ✅ Geração do PDF via container RENDERIZADO PELO REACT
-  //    (mesma técnica da FichaMobile — funciona!)
+  // Geração do PDF via container RENDERIZADO PELO REACT
   // ============================================================
   useEffect(() => {
     if (!renderizandoPDF) return;
@@ -519,7 +663,7 @@ export default function HistoricoAgendamentosPaciente({
           return;
         }
 
-        // Força largura A4 (igual a FichaMobile faz)
+        // Força largura A4
         elemento.style.width = '210mm';
         elemento.style.maxWidth = 'none';
 
@@ -550,6 +694,7 @@ export default function HistoricoAgendamentosPaciente({
         const nomeArquivo = `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}.pdf`;
 
         setPreviewUrl(url);
+        setPreviewBlob(blob);              // ✅ salva o blob
         setNomeArquivoAtual(nomeArquivo);
       } catch (err) {
         console.error('Erro ao gerar PDF:', err);
@@ -558,7 +703,7 @@ export default function HistoricoAgendamentosPaciente({
         setRenderizandoPDF(false);
         setGerandoPDF(false);
       }
-    }, 900); // 900ms — mesmo tempo da FichaMobile
+    }, 900);
 
     return () => clearTimeout(timer);
   }, [renderizandoPDF, pacienteNome]);
@@ -583,6 +728,7 @@ export default function HistoricoAgendamentosPaciente({
       URL.revokeObjectURL(previewUrl);
     }
     setPreviewUrl(null);
+    setPreviewBlob(null);          // ✅ limpa o blob
     setNomeArquivoAtual('');
   };
 
@@ -852,10 +998,7 @@ export default function HistoricoAgendamentosPaciente({
         )}
       </div>
 
-      {/* ✅ Container do PDF — RENDERIZADO PELO REACT
-          Só aparece quando renderizandoPDF é true.
-          Fica "escondido" via left -99999px + opacity 0.01
-          (mesma técnica da FichaMobile que funciona) */}
+      {/* Container do PDF — renderizado pelo React */}
       {renderizandoPDF && (
         <RelatorioPDF
           id="historico-pdf-container"
@@ -870,6 +1013,7 @@ export default function HistoricoAgendamentosPaciente({
       {previewUrl && (
         <ModalPreviewPDF
           url={previewUrl}
+          blob={previewBlob}
           nomeArquivo={nomeArquivoAtual}
           onFechar={fecharPreview}
         />
