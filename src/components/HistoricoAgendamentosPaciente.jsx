@@ -5,7 +5,7 @@ import { db } from './firebase';
 import {
   MdExpandMore, MdExpandLess, MdPictureAsPdf, MdCalendarMonth,
   MdCheckCircle, MdCancel, MdHourglassEmpty, MdPersonOff, MdRefresh,
-  MdInfoOutline, MdEvent,
+  MdInfoOutline, MdEvent, MdAccessTime,
 } from 'react-icons/md';
 
 // ============================================================
@@ -65,7 +65,7 @@ const PERIODOS = [
      - pacienteNome      → nome (fallback de busca)
      - pacienteDocumento → documento (fallback de busca)
      - uidEsteticista    → uid da esteta (para a query)
-     - modo              → 'esteticista' | 'paciente'
+     - modo              → 'esteticista' | 'paciente' (mantido por compatibilidade)
      - colapsavel        → true/false (padrão true)
      - abertoPorPadrao   → true/false (padrão false)
    ============================================================ */
@@ -88,6 +88,10 @@ export default function HistoricoAgendamentosPaciente({
   // ============================================================
   // Listener — carrega TODOS os agendamentos da esteta
   // e filtra localmente por pacienteId OU nome+doc
+  //
+  // ⚠️ IMPORTANTE: NÃO filtra por `ocultoParaEsteticista` nem
+  // `ocultoParaPaciente`. O histórico deve mostrar TUDO —
+  // inclusive o que foi "removido da visualização" nas listas.
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
@@ -120,12 +124,6 @@ export default function HistoricoAgendamentosPaciente({
               return true;
             }
             return false;
-          })
-          // ✅ Respeita a flag de ocultação do modo atual
-          .filter((a) => {
-            if (modo === 'esteticista' && a.ocultoParaEsteticista) return false;
-            if (modo === 'paciente' && a.ocultoParaPaciente) return false;
-            return true;
           })
           .sort((a, b) => {
             const ka = `${a.data} ${a.horaInicio}`;
@@ -173,12 +171,7 @@ export default function HistoricoAgendamentosPaciente({
   }, [agendamentos, periodoDias, statusFiltro]);
 
   // ============================================================
-  // Contagem total (para o header)
-  // ============================================================
-  const totalGeral = agendamentos.length;
-
-  // ============================================================
-  // Exportar PDF — janela nova + print
+  // Exportar PDF — funciona em web, PWA e APK via exportarParaPDF
   // ============================================================
   const exportarPDF = async () => {
     if (filtrados.length === 0) {
@@ -195,6 +188,7 @@ export default function HistoricoAgendamentosPaciente({
           ? `Últimos ${periodoDias} dias`
           : 'Todo o histórico';
 
+      // ── 1. Monta as linhas da tabela ──
       const linhas = filtrados
         .map((a) => {
           const info = STATUS_INFO[a.status] || STATUS_INFO.pendente;
@@ -211,6 +205,7 @@ export default function HistoricoAgendamentosPaciente({
         })
         .join('');
 
+      // ── 2. Resumo por status ──
       const resumo = Object.entries(
         filtrados.reduce((acc, a) => {
           acc[a.status] = (acc[a.status] || 0) + 1;
@@ -223,118 +218,68 @@ export default function HistoricoAgendamentosPaciente({
         })
         .join(' · ');
 
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Histórico — ${pacienteNome}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: 'Helvetica', 'Arial', sans-serif;
-              padding: 24px;
-              color: #2c163a;
-              margin: 0;
-            }
-            h1 {
-              font-size: 18px;
-              margin: 0 0 6px;
-            }
-            .sub {
-              font-size: 11px;
-              color: #666;
-              margin-bottom: 18px;
-              padding-bottom: 12px;
-              border-bottom: 2px solid #C8A24A;
-            }
-            .resumo {
-              background: #faf5ff;
-              border: 1px solid #e2d2f5;
-              border-radius: 8px;
-              padding: 10px 14px;
-              margin-bottom: 16px;
-              font-size: 11px;
-              line-height: 1.7;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 11px;
-            }
-            th {
-              background: #7e22ce;
-              color: #fff;
-              padding: 8px 6px;
-              text-align: left;
-              border: 1px solid #7e22ce;
-            }
-            td {
-              padding: 6px;
-              border: 1px solid #e2d2f5;
-            }
-            tr:nth-child(even) td { background: #faf5ff; }
-            .rodape {
-              margin-top: 24px;
-              padding-top: 12px;
-              border-top: 1px dashed #C8A24A;
-              font-size: 10px;
-              color: #888;
-              text-align: center;
-              line-height: 1.6;
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Histórico de Agendamentos</h1>
-          <div class="sub">
+      // ── 3. HTML do relatório (sem <html><body> — o gerador cuida disso) ──
+      const htmlRelatorio = `
+        <div style="font-family: 'Helvetica', 'Arial', sans-serif; padding: 24px; color: #2c163a;">
+          <h1 style="font-size: 18px; margin: 0 0 6px;">Histórico de Agendamentos</h1>
+          <div style="font-size: 11px; color: #666; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid #C8A24A;">
             <strong>${pacienteNome || 'Paciente'}</strong><br/>
             Documento: ${pacienteDocumento || '—'}<br/>
             Filtro: ${limiteTexto}
           </div>
 
-          <div class="resumo">
+          <div style="background: #faf5ff; border: 1px solid #e2d2f5; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 11px; line-height: 1.7;">
             <strong>Total no período:</strong> ${filtrados.length}<br/>
             ${resumo}
           </div>
 
-          <table>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Hora</th>
-                <th>Serviço</th>
-                <th>Status</th>
+                <th style="background: #7e22ce; color: #fff; padding: 8px 6px; text-align: left; border: 1px solid #7e22ce;">Data</th>
+                <th style="background: #7e22ce; color: #fff; padding: 8px 6px; text-align: left; border: 1px solid #7e22ce;">Hora</th>
+                <th style="background: #7e22ce; color: #fff; padding: 8px 6px; text-align: left; border: 1px solid #7e22ce;">Serviço</th>
+                <th style="background: #7e22ce; color: #fff; padding: 8px 6px; text-align: left; border: 1px solid #7e22ce;">Status</th>
               </tr>
             </thead>
-            <tbody>${linhas}</tbody>
+            <tbody>
+              ${linhas}
+            </tbody>
           </table>
 
-          <div class="rodape">
+          <div style="margin-top: 24px; padding-top: 12px; border-top: 1px dashed #C8A24A; font-size: 10px; color: #888; text-align: center; line-height: 1.6;">
             Gerado em ${hoje.toLocaleString('pt-BR')}<br/>
             Samira Ferreira Estética & Cosmetologia
           </div>
-        </body>
-        </html>
+        </div>
       `;
 
-      const win = window.open('', '_blank');
-      if (!win) {
-        alert('Permita popups para gerar o PDF.');
-        setGerandoPDF(false);
-        return;
-      }
-      win.document.write(html);
-      win.document.close();
+      // ── 4. Cria container oculto com o HTML ──
+      const containerId = `historico-pdf-${Date.now()}`;
+      const container = document.createElement('div');
+      container.id = containerId;
+      container.style.position = 'fixed';
+      container.style.left = '-99999px';
+      container.style.top = '0';
+      container.style.width = '800px';
+      container.style.background = '#fff';
+      container.innerHTML = htmlRelatorio;
+      document.body.appendChild(container);
 
-      setTimeout(() => {
-        win.focus();
-        win.print();
-        setGerandoPDF(false);
-      }, 600);
+      // ── 5. Chama o gerador do projeto (funciona em web, PWA e APK) ──
+      const { exportarParaPDF } = await import('../utils/gerarPdf');
+      await exportarParaPDF(
+        containerId,
+        `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}`,
+        { compartilhar: true }
+      );
+
+      // ── 6. Limpa ──
+      document.body.removeChild(container);
     } catch (e) {
       console.error('Erro ao gerar PDF:', e);
       alert('Erro ao gerar PDF. Tente novamente.');
+    } finally {
       setGerandoPDF(false);
     }
   };
@@ -375,19 +320,6 @@ export default function HistoricoAgendamentosPaciente({
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <MdEvent size={18} color="#7e22ce" />
           Histórico de Agendamentos do Paciente
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              background: '#7e22ce',
-              color: '#fff',
-              borderRadius: 10,
-              padding: '2px 8px',
-              marginLeft: 4,
-            }}
-          >
-            {totalGeral}
-          </span>
         </span>
         {colapsavel && (
           <span style={{ display: 'flex', alignItems: 'center', color: '#7e22ce' }}>
@@ -589,12 +521,20 @@ export default function HistoricoAgendamentosPaciente({
                           marginTop: 2,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 8,
+                          gap: 6,
                           flexWrap: 'wrap',
                         }}
                       >
-                        <span>
-                          🕒 {a.horaInicio}
+                        {/* ✅ Ícone no lugar do emoji 🕒 */}
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                          }}
+                        >
+                          <MdAccessTime size={12} color="#7e22ce" />
+                          {a.horaInicio}
                           {a.horaFim ? `–${a.horaFim}` : ''}
                         </span>
                         {a.servicoNome && <span>· {a.servicoNome}</span>}
