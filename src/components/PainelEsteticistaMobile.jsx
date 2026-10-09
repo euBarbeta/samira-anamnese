@@ -213,6 +213,60 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   useEffect(() => { pacRef.current = pacienteSelecionado; }, [pacienteSelecionado]);
   useEffect(() => { evoRef.current = evolucaoSelecionada; }, [evolucaoSelecionada]);
   useEffect(() => { modalOpenRef.current = modalExclusao.isOpen; }, [modalExclusao.isOpen]);
+  // ============================================================
+// ✅ SINCRONIZA `pacienteSelecionado` COM A LISTA EM TEMPO REAL
+// ------------------------------------------------------------
+// - Se um campo mudou (ex: consentimentoLGPD), atualiza a pasta aberta.
+// - Se o paciente foi excluído (sumiu da lista), volta pra lista
+//   automaticamente, mesmo se a esteta estava dentro da pasta dele.
+// ============================================================
+const [agendamentosPendentesCount, setAgendamentosPendentesCount] = useState(0);
+
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const q = query(
+    collection(db, 'agendamentos'),
+    where('uidEsteticista', '==', user.uid),
+    where('status', '==', 'pendente')
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => setAgendamentosPendentesCount(snap.size),
+    (e) => console.warn('Erro contagem pendentes:', e)
+  );
+
+  return () => unsub();
+}, []);
+useEffect(() => {
+  if (!jaCarregou) return;
+  if (!pacienteSelecionado) return;
+
+  const atual = pacientes.find(
+    (p) => String(p.id) === String(pacienteSelecionado.id)
+  );
+
+  if (!atual) {
+    // ✅ Paciente foi excluído (por ele mesmo em outro dispositivo,
+    //    ou pela própria esteta em outra aba). Volta pra lista.
+    setPacienteSelecionado(null);
+    setEvolucaoSelecionada(null);
+    setTelaAtual('lista');
+    window.history.replaceState(
+      { painelEsteticista: 'lista' },
+      '',
+      window.location.pathname
+    );
+    return;
+  }
+
+  if (atual !== pacienteSelecionado) {
+    setPacienteSelecionado(atual);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [pacientes, jaCarregou]);
 
   // Adicione esta função auxiliar no topo do componente PainelEsteticista
   const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
@@ -1278,33 +1332,31 @@ if (!jaCarregou) {
             Ficha de Anamnese
           </button>
 
-          <button
-            type="button"
-            onClick={() => navegarPara('agendamentos')}
-            className="btn-efeito-hover"
-            style={{
-              flex: 1,
-              fontFamily: "'Cinzel', serif",
-              background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-              color: '#fff',
-              border: 'none',
-              padding: '12px 10px',
-              borderRadius: '20px',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '5px',
-              boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
-              lineHeight: 1.2,
-              textAlign: 'center',
-            }}
-          >
-            <MdCalendarMonth size={15} style={{ flexShrink: 0 }} />
-            Agendamentos
-          </button>
+        <MdCalendarMonth size={16} />
+Agendamentos
+
+{agendamentosPendentesCount > 0 && (
+  <span
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 20,
+      height: 20,
+      padding: '0 6px',
+      borderRadius: 10,
+      background: '#dc2626',
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: 800,
+      fontFamily: "'Montserrat', sans-serif",
+      marginLeft: 2,
+      boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+    }}
+  >
+    {agendamentosPendentesCount}
+  </span>
+)}
         </div>
       </div>
 

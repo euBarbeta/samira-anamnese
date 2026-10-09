@@ -705,30 +705,28 @@ if (isNativo()) {
         setUidDaURL(idPaciente);
         setAbaAtiva('painelPaciente');
         setAutenticado(true);
-      } else {
-        // ✅ Erro genérico — NÃO revela se a ficha existiu ou não.
-        setErroLoginExterno('Nome ou Senha incorretos');
-        await signOut(auth);
-        setAutenticado(false);
-        setUsuarioLogado(null);
-        setDadosPaciente(null);
-        setBuscandoPaciente(false);
-        setRota('login-uid');
-        setAuthVerificado(true);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar pasta do paciente:', error);
-      setErroLoginExterno('Nome ou Senha incorretos');
-      await signOut(auth);
-      setAutenticado(false);
-      setUsuarioLogado(null);
-      setDadosPaciente(null);
-      setBuscandoPaciente(false);
-      setRota('login-uid');
-      setAuthVerificado(true);
-    } finally {
-      setBuscandoPaciente(false);
-    }
+     } else {
+  // ✅ Conta inexistente → PaginaNaoEncontrada (comportamento "404"
+  //    estilo Google). NÃO cai em tela de login com "senha incorreta".
+  await signOut(auth);
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setBuscandoPaciente(false);
+  setRota('nao-encontrado');
+  setAuthVerificado(true);
+}
+   } catch (error) {
+  console.error('Erro ao carregar pasta do paciente:', error);
+  await signOut(auth);
+  setAutenticado(false);
+  setUsuarioLogado(null);
+  setDadosPaciente(null);
+  setBuscandoPaciente(false);
+  setRota('nao-encontrado');
+  setAuthVerificado(true);
+}
+  
  };  
   // ============================================================
   // LOGOUT
@@ -893,11 +891,18 @@ if (isNativo()) {
 
   // ============================================================
   // RENDER
-  // ============================================================
-  const renderizarConteudo = () => {
+   const renderizarConteudo = () => {
     const hashAtual = window.location.hash.slice(1);
     const pathAtual = window.location.pathname;
     const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
+
+    // ✅ PRIORIDADE ABSOLUTA — se a rota já foi decidida como
+    //    'não-encontrado' (conta excluída, link inválido, etc.),
+    //    mostra PaginaNaoEncontrada ANTES de qualquer outra checagem.
+    //    Isso faz a conta excluída mostrar 404 em vez de login.
+    if (rota === 'nao-encontrado') {
+      return <PaginaNaoEncontrada />;
+    }
 
     // ✅ PRIORIDADE MÁXIMA: hash #UID
     const hashEhUID =

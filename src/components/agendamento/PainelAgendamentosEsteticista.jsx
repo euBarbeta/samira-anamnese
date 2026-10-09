@@ -877,9 +877,14 @@ export default function PainelAgendamentosEsteticista({
     }
   };
 
-  const divergenciasDoAgendamento = (ag) => {
-    const pac = acharPacienteDoAgendamento(ag);
-    if (!pac) return [];
+ const divergenciasDoAgendamento = (ag) => {
+  // ✅ Se a esteta já clicou em MANTER ou SUBSTITUIR pra este agendamento,
+  //    não mostra mais NENHUM painel de divergência pra ele.
+  if (divergenciasMantidas.has(String(ag.id))) return [];
+
+  const pac = acharPacienteDoAgendamento(ag);
+  if (!pac) return [];
+  
 
     const lista = [];
     
@@ -910,10 +915,8 @@ export default function PainelAgendamentosEsteticista({
       });
     }
 
-  return lista.filter(
-    (d) => !divergenciasMantidas.has(`${d.pacId}|${d.campo}`)
-  );
-};
+  return lista;
+};  
   const abrirFichaPreenchida = (ag) => {
     setFichaPreenchida({
       _agendamentoOrigemId: ag.id,
@@ -1413,13 +1416,12 @@ export default function PainelAgendamentosEsteticista({
                                   type="button"
                                   disabled={carregandoEste}
                                   onClick={() => {
-    const chave = `${d.pacId}|${d.campo}`;
-    setDivergenciasMantidas((prev) => {
-      const novo = new Set(prev);
-      novo.add(chave);
-      return novo;
-    });
-  }}
+  setDivergenciasMantidas((prev) => {
+    const novo = new Set(prev);
+    novo.add(String(ag.id));   // ✅ id do AGENDAMENTO, não do campo
+    return novo;
+  });
+}}
                                   style={{
                                     flex: 1,
                                     background: '#f5f5f5',
@@ -1441,7 +1443,14 @@ export default function PainelAgendamentosEsteticista({
                                 <button
                                   type="button"
                                   disabled={carregandoEste}
-                                  onClick={() => substituirCampo(d.pacId, d.campo, d.novo)}
+                                  onClick={async () => {
+  await substituirCampo(d.pacId, d.campo, d.novo);
+  setDivergenciasMantidas((prev) => {
+    const novo = new Set(prev);
+    novo.add(String(ag.id));   // ✅ esconde o painel todo depois
+    return novo;
+  });
+}}
                                   style={{
                                     flex: 1,
                                     background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
