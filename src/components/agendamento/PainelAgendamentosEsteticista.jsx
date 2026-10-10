@@ -366,216 +366,378 @@ function escapeHtml(str) {
   /* ============================================================
     MODAL DE EXPORTAÇÃO PDF — Histórico por período
     ============================================================ */
-  function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
-    const hoje = new Date();
-    const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+ /* ============================================================
+   MODAL DE FEEDBACK — estética do sistema (substitui alert)
+   ============================================================ */
+function ModalFeedback({ tipo = 'info', titulo, mensagem, onFechar }) {
+  const config = {
+    info:    { cor: '#7e22ce', bg: '#faf5ff', borda: '#d8b4fe', icone: 'ℹ️' },
+    sucesso: { cor: '#166534', bg: '#f0fdf4', borda: '#86efac', icone: '✅' },
+    aviso:   { cor: '#92400e', bg: '#fff8e1', borda: '#fcd34d', icone: '⚠️' },
+    erro:    { cor: '#991b1b', bg: '#fef2f2', borda: '#fca5a5', icone: '❌' },
+  }[tipo] || { cor: '#7e22ce', bg: '#faf5ff', borda: '#d8b4fe', icone: 'ℹ️' };
 
-    const [dataInicio, setDataInicio] = useState(
-      primeiroDiaMes.toISOString().split('T')[0]
-    );
-    const [dataFim, setDataFim] = useState(hoje.toISOString().split('T')[0]);
-    const [statusFiltro, setStatusFiltro] = useState('todos');
-    const [gerando, setGerando] = useState(false);
+  const { cor, bg, borda, icone } = config;
 
-    const gerarPDF = async () => {
-      if (!dataInicio || !dataFim) {
-        alert('Preencha as duas datas.');
-        return;
-      }
+  return (
+    <div
+      onClick={onFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(44, 22, 58, 0.6)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 2147483647,
+        padding: 20,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '28px 24px 22px',
+          maxWidth: 400,
+          width: '100%',
+          boxShadow: '0 20px 60px rgba(44, 22, 58, 0.4)',
+          border: '1.5px solid #e2d2f5',
+          fontFamily: "'Montserrat', sans-serif",
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            margin: '0 auto 14px auto',
+            borderRadius: '50%',
+            background: bg,
+            border: `2px solid ${borda}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 30,
+            boxShadow: `0 4px 14px ${cor}22`,
+          }}
+        >
+          {icone}
+        </div>
 
-      if (dataInicio > dataFim) {
-        alert('A data inicial não pode ser maior que a final.');
-        return;
-      }
+        {titulo && (
+          <h3
+            style={{
+              fontFamily: "'Cinzel', serif",
+              color: cor,
+              fontSize: 17,
+              fontWeight: 700,
+              margin: '0 0 10px 0',
+              letterSpacing: '0.4px',
+            }}
+          >
+            {titulo}
+          </h3>
+        )}
 
-      setGerando(true);
+        {mensagem && (
+          <p
+            style={{
+              fontSize: 13,
+              color: '#2c163a',
+              margin: '0 0 20px 0',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {mensagem}
+          </p>
+        )}
 
-      try {
-        // 1) Filtra os agendamentos
-        const filtrados = agendamentos
-          .filter((a) => {
-            // Período
-            if (a.data < dataInicio || a.data > dataFim) return false;
+        <button
+          type="button"
+          onClick={onFechar}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
+            border: '1.5px solid #9c7826',
+            padding: '13px 16px',
+            borderRadius: 22,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: "'Cinzel', serif",
+            boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+            letterSpacing: '0.6px',
+          }}
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
 
-            // Status
-            if (statusFiltro !== 'todos' && a.status !== statusFiltro) return false;
+/* ============================================================
+   MODAL DE EXPORTAÇÃO PDF — Histórico por período
+   ============================================================ */
+function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
+  // ✅ Helper local — usa timezone LOCAL (não UTC)
+  const toISO = (d) => {
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  };
 
-            // Oculta os que a esteta removeu da visualização
-            if (a.ocultoParaEsteticista) return false;
+  const hoje = new Date();
 
-            return true;
-          })
-          .sort((a, b) => {
-            const ka = `${a.data} ${a.horaInicio}`;
-            const kb = `${b.data} ${b.horaInicio}`;
-            return kb.localeCompare(ka);
-          });
+  // ✅ NOVO: últimos 90 dias por padrão (pega bem mais casos)
+  const noventaDiasAtras = new Date(hoje);
+  noventaDiasAtras.setDate(noventaDiasAtras.getDate() - 90);
 
-        if (filtrados.length === 0) {
-          alert('Nenhum agendamento no período selecionado.');
-          setGerando(false);
-          return;
-        }
+  const [dataInicio, setDataInicio] = useState(toISO(noventaDiasAtras));
+  const [dataFim, setDataFim] = useState(toISO(hoje));
+  const [statusFiltro, setStatusFiltro] = useState('todos');
+  const [gerando, setGerando] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
-        // 2) Monta HTML do PDF (num iframe oculto)
-        const dataBRIni = dataInicio.split('-').reverse().join('/');
-        const dataBRFim = dataFim.split('-').reverse().join('/');
+  // ============================================================
+  // ✅ NOVO: contador em tempo real
+  //    Recalcula sempre que as datas ou o status mudam.
+  // ============================================================
+  const filtradosPreview = useMemo(() => {
+    if (!dataInicio || !dataFim) return [];
 
-       const linhas = filtrados.map((a) => {
-  const statusLabel = {
-    pendente: 'Pendente',
-    confirmado: 'Confirmado',
-    concluido: 'Concluído',
-    cancelado: 'Cancelado',
-    faltou: 'Faltou',
-    reagendado: 'Reagendado',
-  }[a.status] || a.status;
+    return agendamentos.filter((a) => {
+      if (a.data < dataInicio || a.data > dataFim) return false;
+      if (statusFiltro !== 'todos' && a.status !== statusFiltro) return false;
+      if (a.ocultoParaEsteticista) return false;
+      return true;
+    });
+  }, [agendamentos, dataInicio, dataFim, statusFiltro]);
 
-  const horaReal = a.horaRealFim ? ` → real ${a.horaRealFim}` : '';
+  const gerarPDF = async () => {
+    // ✅ Substituído: alert() → setFeedback()
+    if (!dataInicio || !dataFim) {
+      setFeedback({
+        tipo: 'aviso',
+        titulo: 'Datas obrigatórias',
+        mensagem: 'Escolha a data inicial e a data final para gerar o relatório.',
+      });
+      return;
+    }
 
-  return `
-    <tr>
-      <td>${escapeHtml(formatarDataBR(a.data))}</td>
-      <td>${escapeHtml(a.horaInicio)}${a.horaFim ? '–' + escapeHtml(a.horaFim) : ''}${escapeHtml(horaReal)}</td>
-      <td>${escapeHtml(a.nome || '')}</td>
-      <td>${escapeHtml(a.telefone || '')}</td>
-      <td>${escapeHtml(a.servicoNome || '—')}</td>
-      <td>${escapeHtml(statusLabel)}</td>
-    </tr>
-  `;
-}).join('');
+    if (dataInicio > dataFim) {
+      setFeedback({
+        tipo: 'aviso',
+        titulo: 'Datas invertidas',
+        mensagem:
+          'A data inicial precisa ser anterior ou igual à data final.\n' +
+          'Corrija o período e tente novamente.',
+      });
+      return;
+    }
 
-        const html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8" />
-           <title>Agendamentos ${escapeHtml(dataBRIni)} a ${escapeHtml(dataBRFim)}</title>
-            <style>
-              * { box-sizing: border-box; }
-              body {
-                font-family: 'Helvetica', 'Arial', sans-serif;
-                padding: 24px;
-                color: #2c163a;
-                margin: 0;
-              }
-              h1 {
-                font-size: 18px;
-                margin: 0 0 6px;
-                color: #2c163a;
-                letter-spacing: 0.4px;
-              }
-              .sub {
-                font-size: 11px;
-                color: #666;
-                margin-bottom: 18px;
-                padding-bottom: 12px;
-                border-bottom: 2px solid #C8A24A;
-              }
-              .resumo {
-                background: #faf5ff;
-                border: 1px solid #e2d2f5;
-                border-radius: 8px;
-                padding: 10px 14px;
-                margin-bottom: 16px;
-                font-size: 11px;
-                line-height: 1.8;
-              }
-              .resumo strong { color: #7e22ce; }
-              table {
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 10.5px;
-              }
-              th {
-                background: #7e22ce;
-                color: #fff;
-                padding: 8px 6px;
-                text-align: left;
-                font-weight: 700;
-                border: 1px solid #7e22ce;
-              }
-              td {
-                padding: 6px;
-                border: 1px solid #e2d2f5;
-              }
-              tr:nth-child(even) td { background: #faf5ff; }
-              .rodape {
-                margin-top: 24px;
-                padding-top: 12px;
-                border-top: 1px dashed #C8A24A;
-                font-size: 10px;
-                color: #888;
-                text-align: center;
-                line-height: 1.6;
-              }
-            </style>
-          </head>
-          <body>
-            <h1>Relatório de Agendamentos</h1>
-           <div class="sub">
-  Samira Ferreira Estética & Cosmetologia<br/>
-  Período: <strong>${escapeHtml(dataBRIni)}</strong> a <strong>${escapeHtml(dataBRFim)}</strong>
-</div>
+    setGerando(true);
 
-            <div class="resumo">
-              <strong>Total no período:</strong> ${filtrados.length} agendamento(s)<br/>
-              <strong>Concluídos:</strong> ${filtrados.filter(a => a.status === 'concluido').length} ·
-              <strong>Faltas:</strong> ${filtrados.filter(a => a.status === 'faltou').length} ·
-              <strong>Cancelados:</strong> ${filtrados.filter(a => a.status === 'cancelado').length} ·
-              <strong>Confirmados:</strong> ${filtrados.filter(a => a.status === 'confirmado').length} ·
-              <strong>Pendentes:</strong> ${filtrados.filter(a => a.status === 'pendente').length}
-            </div>
+    try {
+      const filtrados = [...filtradosPreview].sort((a, b) => {
+        const ka = `${a.data} ${a.horaInicio}`;
+        const kb = `${b.data} ${b.horaInicio}`;
+        return kb.localeCompare(ka);
+      });
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Hora</th>
-                  <th>Paciente</th>
-                  <th>Telefone</th>
-                  <th>Serviço</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${linhas}
-              </tbody>
-            </table>
-
-            <div class="rodape">
-              Gerado em ${new Date().toLocaleString('pt-BR')}<br/>
-              Documento de uso interno — não compartilhe sem autorização.
-            </div>
-          </body>
-          </html>
-        `;
-
-        // 3) Abre numa janela nova e chama print
-        const win = window.open('', '_blank');
-        if (!win) {
-          alert('Permita popups para gerar o PDF.');
-          setGerando(false);
-          return;
-        }
-        win.document.write(html);
-        win.document.close();
-
-        // Aguarda o render antes de chamar print
-        setTimeout(() => {
-          win.focus();
-          win.print();
-          setGerando(false);
-          onFechar();
-        }, 600);
-      } catch (e) {
-        console.error('Erro ao gerar PDF:', e);
-        alert('Erro ao gerar PDF. Tente novamente.');
+      // ✅ Substituído: alert() → setFeedback() com mensagem ÚTIL
+      if (filtrados.length === 0) {
+        setFeedback({
+          tipo: 'info',
+          titulo: 'Nenhum agendamento no período',
+          mensagem:
+            `Não encontramos agendamentos entre ${dataInicio.split('-').reverse().join('/')} e ${dataFim.split('-').reverse().join('/')}` +
+            (statusFiltro !== 'todos' ? ` com status "${statusFiltro}".` : '.') +
+            '\n\nAjuste as datas ou o filtro e tente novamente.',
+        });
         setGerando(false);
+        return;
       }
-    };
 
-    return (
+      // ============================================================
+      // Monta o HTML (mesma lógica de antes, só usando filtrados)
+      // ============================================================
+      const dataBRIni = dataInicio.split('-').reverse().join('/');
+      const dataBRFim = dataFim.split('-').reverse().join('/');
+
+      const linhas = filtrados.map((a) => {
+        const statusLabel = {
+          pendente: 'Pendente',
+          confirmado: 'Confirmado',
+          concluido: 'Concluído',
+          cancelado: 'Cancelado',
+          faltou: 'Faltou',
+          reagendado: 'Reagendado',
+        }[a.status] || a.status;
+
+        const horaReal = a.horaRealFim ? ` → real ${a.horaRealFim}` : '';
+
+        return `
+          <tr>
+            <td>${escapeHtml(formatarDataBR(a.data))}</td>
+            <td>${escapeHtml(a.horaInicio)}${a.horaFim ? '–' + escapeHtml(a.horaFim) : ''}${escapeHtml(horaReal)}</td>
+            <td>${escapeHtml(a.nome || '')}</td>
+            <td>${escapeHtml(a.telefone || '')}</td>
+            <td>${escapeHtml(a.servicoNome || '—')}</td>
+            <td>${escapeHtml(statusLabel)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Agendamentos ${escapeHtml(dataBRIni)} a ${escapeHtml(dataBRFim)}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: 'Helvetica', 'Arial', sans-serif;
+              padding: 24px;
+              color: #2c163a;
+              margin: 0;
+            }
+            h1 {
+              font-size: 18px;
+              margin: 0 0 6px;
+              color: #2c163a;
+              letter-spacing: 0.4px;
+            }
+            .sub {
+              font-size: 11px;
+              color: #666;
+              margin-bottom: 18px;
+              padding-bottom: 12px;
+              border-bottom: 2px solid #C8A24A;
+            }
+            .resumo {
+              background: #faf5ff;
+              border: 1px solid #e2d2f5;
+              border-radius: 8px;
+              padding: 10px 14px;
+              margin-bottom: 16px;
+              font-size: 11px;
+              line-height: 1.8;
+            }
+            .resumo strong { color: #7e22ce; }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 10.5px;
+            }
+            th {
+              background: #7e22ce;
+              color: #fff;
+              padding: 8px 6px;
+              text-align: left;
+              font-weight: 700;
+              border: 1px solid #7e22ce;
+            }
+            td {
+              padding: 6px;
+              border: 1px solid #e2d2f5;
+            }
+            tr:nth-child(even) td { background: #faf5ff; }
+            .rodape {
+              margin-top: 24px;
+              padding-top: 12px;
+              border-top: 1px dashed #C8A24A;
+              font-size: 10px;
+              color: #888;
+              text-align: center;
+              line-height: 1.6;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Relatório de Agendamentos</h1>
+          <div class="sub">
+            Samira Ferreira Estética & Cosmetologia<br/>
+            Período: <strong>${escapeHtml(dataBRIni)}</strong> a <strong>${escapeHtml(dataBRFim)}</strong>
+          </div>
+
+          <div class="resumo">
+            <strong>Total no período:</strong> ${filtrados.length} agendamento(s)<br/>
+            <strong>Concluídos:</strong> ${filtrados.filter(a => a.status === 'concluido').length} ·
+            <strong>Faltas:</strong> ${filtrados.filter(a => a.status === 'faltou').length} ·
+            <strong>Cancelados:</strong> ${filtrados.filter(a => a.status === 'cancelado').length} ·
+            <strong>Confirmados:</strong> ${filtrados.filter(a => a.status === 'confirmado').length} ·
+            <strong>Pendentes:</strong> ${filtrados.filter(a => a.status === 'pendente').length}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Hora</th>
+                <th>Paciente</th>
+                <th>Telefone</th>
+                <th>Serviço</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhas}
+            </tbody>
+          </table>
+
+          <div class="rodape">
+            Gerado em ${new Date().toLocaleString('pt-BR')}<br/>
+            Documento de uso interno — não compartilhe sem autorização.
+          </div>
+        </body>
+        </html>
+      `;
+
+      const win = window.open('', '_blank');
+      if (!win) {
+        setFeedback({
+          tipo: 'aviso',
+          titulo: 'Popup bloqueado',
+          mensagem:
+            'Seu navegador bloqueou a janela do PDF.\n' +
+            'Permita popups para este site e tente novamente.',
+        });
+        setGerando(false);
+        return;
+      }
+      win.document.write(html);
+      win.document.close();
+
+      setTimeout(() => {
+        win.focus();
+        win.print();
+        setGerando(false);
+        onFechar();
+      }, 600);
+    } catch (e) {
+      console.error('Erro ao gerar PDF:', e);
+      setFeedback({
+        tipo: 'erro',
+        titulo: 'Erro ao gerar PDF',
+        mensagem: e?.message || 'Algo deu errado. Tente novamente.',
+      });
+      setGerando(false);
+    }
+  };
+
+  const totalPreview = filtradosPreview.length;
+
+  return (
+    <>
       <div
         onClick={gerando ? undefined : onFechar}
         style={{
@@ -648,7 +810,7 @@ function escapeHtml(str) {
             value={statusFiltro}
             onChange={(e) => setStatusFiltro(e.target.value)}
             disabled={gerando}
-            style={{ ...inputEstilo, marginBottom: 18 }}
+            style={{ ...inputEstilo, marginBottom: 12 }}
           >
             <option value="todos">Todos os status</option>
             <option value="concluido">Somente concluídos</option>
@@ -657,6 +819,33 @@ function escapeHtml(str) {
             <option value="faltou">Somente faltas</option>
             <option value="cancelado">Somente cancelados</option>
           </select>
+
+          {/* ✅ NOVO: contador em tempo real */}
+          <div
+            style={{
+              background: totalPreview > 0 ? '#f0fdf4' : '#fff8e1',
+              border: `1.5px solid ${totalPreview > 0 ? '#86efac' : '#fcd34d'}`,
+              borderRadius: 10,
+              padding: '10px 14px',
+              marginBottom: 18,
+              fontSize: 12,
+              color: totalPreview > 0 ? '#166534' : '#92400e',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              lineHeight: 1.5,
+            }}
+          >
+            <span style={{ fontSize: 16 }}>{totalPreview > 0 ? '✅' : '⚠️'}</span>
+            <span>
+              {totalPreview === 0
+                ? 'Nenhum agendamento no período selecionado.'
+                : totalPreview === 1
+                  ? '1 agendamento encontrado.'
+                  : `${totalPreview} agendamentos encontrados.`}
+            </span>
+          </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button
@@ -683,41 +872,57 @@ function escapeHtml(str) {
             <button
               type="button"
               onClick={gerarPDF}
-              disabled={gerando}
+              disabled={gerando || totalPreview === 0}
               style={{
                 flex: 1,
-                background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-                color: '#fff',
+                background:
+                  gerando || totalPreview === 0
+                    ? '#ddd'
+                    : 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+                color: gerando || totalPreview === 0 ? '#888' : '#fff',
                 border: '1.5px solid #6b21a8',
                 padding: '12px 16px',
                 borderRadius: 22,
                 fontSize: 12,
                 fontWeight: 700,
-                cursor: gerando ? 'wait' : 'pointer',
+                cursor: gerando || totalPreview === 0 ? 'not-allowed' : 'pointer',
                 fontFamily: "'Cinzel', serif",
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                boxShadow: '0 4px 14px rgba(126, 34, 206, 0.35)',
+                boxShadow:
+                  gerando || totalPreview === 0
+                    ? 'none'
+                    : '0 4px 14px rgba(126, 34, 206, 0.35)',
                 opacity: gerando ? 0.7 : 1,
                 minHeight: 44,
               }}
             >
               {gerando ? (
-  'GERANDO…'
-) : (
-  <>
-    <MdPictureAsPdf size={15} />
-    GERAR PDF
-  </>
-)}
+                'GERANDO…'
+              ) : (
+                <>
+                  <MdPictureAsPdf size={15} />
+                  GERAR PDF
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
-    );
-  }
+
+      {feedback && (
+        <ModalFeedback
+          tipo={feedback.tipo}
+          titulo={feedback.titulo}
+          mensagem={feedback.mensagem}
+          onFechar={() => setFeedback(null)}
+        />
+      )}
+    </>
+  );
+}
 
   // Estilos reutilizáveis do modal
   const labelEstilo = {
