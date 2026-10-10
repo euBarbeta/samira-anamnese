@@ -350,36 +350,7 @@ const lista = snap.docs
 
       <div className="tap-tela">
         <div className="tap-conteudo" style={{ maxWidth: 720 }}>
-          {onVoltar && (
-            <button
-              type="button"
-              onClick={onVoltar}
-              className="btn-voltar-lista tap-target"
-              style={{
-                fontFamily: "'Cinzel', serif",
-                background:
-                  'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-                color: '#2c163a',
-                border: '1.5px solid #C8A24A',
-                padding: '10px 20px',
-                borderRadius: '25px',
-                fontSize: '12px',
-                fontWeight: 700,
-                letterSpacing: '0.5px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '16px',
-                boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-                backdropFilter: 'blur(6px)',
-                minHeight: 40,
-              }}
-            >
-              Voltar
-            </button>
-          )}
-
+          
           <AbasPublicas abaAtiva="consultar" />
 
           <div className="tap-card">
