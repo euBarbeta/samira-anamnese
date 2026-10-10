@@ -214,30 +214,40 @@ useEffect(() => {
   max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
   const dataFim = toISODateLocal(max);
 
-  const unsub = onSnapshot(
-    query(
-      collection(db, 'agendamentos'),
-      where('uidEsteticista', '==', uidEsteticista),
-      where('data', '>=', hoje),
-      where('data', '<=', dataFim)
-    ),
-    (snap) => {
+  (async () => {
+    try {
+      const res = await fetch('/.netlify/functions/buscar-slots-ocupados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uidEsteticista,
+          dataInicio: hoje,
+          dataFim,
+        }),
+      });
+
       if (cancelado) return;
-      const ocupados = snap.docs
-        .map((d) => d.data())
-        .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
-      setAgendamentosOcupados(ocupados);
+
+      if (!res.ok) {
+        console.error('Falha ao buscar slots:', await res.text());
+        setAgendamentosOcupados([]);
+        setCarregando(false);
+        return;
+      }
+
+      const data = await res.json();
+      setAgendamentosOcupados(data.ocupados || []);
       setCarregando(false);
-    },
-    (err) => {
-      console.error('Erro listener agendamentos:', err);
+    } catch (err) {
+      if (cancelado) return;
+      console.error('Erro rede buscar slots:', err);
+      setAgendamentosOcupados([]);
       setCarregando(false);
     }
-  );
+  })();
 
   return () => {
     cancelado = true;
-    unsub();
   };
 }, [uidEsteticista, configAgenda]);
 

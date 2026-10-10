@@ -121,42 +121,57 @@ export default function ModalAgendarParaPaciente({
   // ============================================================
   // Listener 2 — AGENDAMENTOS do período (tempo real)
   // ============================================================
-  useEffect(() => {
-    if (!uidEsteticista || !configAgenda) return;
+// ============================================================
+// ✅ Busca agendamentos ocupados via Netlify Function
+//    (o navegador não pode ler `agendamentos` direto — a
+//     function devolve só os HORÁRIOS ocupados, sem PII)
+// ============================================================
+useEffect(() => {
+  if (!uidEsteticista || !configAgenda) return;
 
-    let cancelado = false;
+  let cancelado = false;
 
-    const hoje = toISODateLocal(new Date());
-    const max = new Date();
-    max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-    const dataFim = toISODateLocal(max);
+  const hoje = toISODateLocal(new Date());
+  const max = new Date();
+  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+  const dataFim = toISODateLocal(max);
 
-    const unsub = onSnapshot(
-      query(
-        collection(db, 'agendamentos'),
-        where('uidEsteticista', '==', uidEsteticista),
-        where('data', '>=', hoje),
-        where('data', '<=', dataFim)
-      ),
-      (snap) => {
-        if (cancelado) return;
-        const ocupados = snap.docs
-          .map((d) => d.data())
-          .filter((a) => a.status === 'pendente' || a.status === 'confirmado');
-        setAgendamentosOcupados(ocupados);
+  (async () => {
+    try {
+      const res = await fetch('/.netlify/functions/buscar-slots-ocupados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uidEsteticista,
+          dataInicio: hoje,
+          dataFim,
+        }),
+      });
+
+      if (cancelado) return;
+
+      if (!res.ok) {
+        console.error('Falha ao buscar slots:', await res.text());
+        setAgendamentosOcupados([]);
         setCarregando(false);
-      },
-      (err) => {
-        console.error('Erro listener agendamentos:', err);
-        setCarregando(false);
+        return;
       }
-    );
 
-    return () => {
-      cancelado = true;
-      unsub();
-    };
-  }, [uidEsteticista, configAgenda]);
+      const data = await res.json();
+      setAgendamentosOcupados(data.ocupados || []);
+      setCarregando(false);
+    } catch (err) {
+      if (cancelado) return;
+      console.error('Erro rede buscar slots:', err);
+      setAgendamentosOcupados([]);
+      setCarregando(false);
+    }
+  })();
+
+  return () => {
+    cancelado = true;
+  };
+}, [uidEsteticista, configAgenda]);
 
   // ============================================================
   // Recalcula slots sempre que config ou agendamentos mudarem
