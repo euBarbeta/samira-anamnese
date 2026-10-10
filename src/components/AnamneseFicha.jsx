@@ -4,6 +4,8 @@ import TelaInicialMobile from './TelaInicialMobile';
 import TelaSemInternet from './TelaSemInternet';
 import FichaDesktop from './FichaDesktop';
 import FichaMobile from './FichaMobile';
+import ModalSairApp from './ModalSairApp';
+import { useBackButtonExit, fecharAppNativo } from './useBackButtonExit';
 import FichaEvoDesktop from './FichaEvoDesktop';
 import FichaEvoMobile from './FichaEvoMobile';
 import PainelEsteticista from './PainelEsteticista';
@@ -37,6 +39,10 @@ export default function AnamneseFicha() {
 
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [rota, setRota] = useState('verificando');
+  const [mostrarModalSair, setMostrarModalSair] = useState(false);
+  useBackButtonExit(() => {
+  setMostrarModalSair(true);
+});
 
   // ✅ Lê o #id também do localStorage (sobrevive ao kill do WebView)
   const [uidDaURL, setUidDaURL] = useState(() => {
@@ -1191,11 +1197,20 @@ if (hashEhUIDRender) {
 
     return null;
   };
+return (
+  <>
+    <TelaSemInternet />
+    {renderizarConteudo()}
 
-  return (
-    <>
-      <TelaSemInternet />
-      {renderizarConteudo()}
-    </>
-  );
-  }
+    {mostrarModalSair && (
+      <ModalSairApp
+        onCancelar={() => setMostrarModalSair(false)}
+        onConfirmar={() => {
+          setMostrarModalSair(false);
+          fecharAppNativo();
+        }}
+      />
+    )}
+  </>
+);
+ }

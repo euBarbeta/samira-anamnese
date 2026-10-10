@@ -5,7 +5,7 @@ import { db } from './firebase';
 import {
   MdExpandMore, MdExpandLess, MdPictureAsPdf, MdCheckCircle,
   MdCancel, MdHourglassEmpty, MdPersonOff, MdRefresh,
-  MdInfoOutline, MdEvent, MdAccessTime, MdClose, MdDownload, MdShare,
+  MdInfoOutline, MdEvent, MdAccessTime, MdClose, MdDownload,
 } from 'react-icons/md';
 
 // ✅ Imports nativos (funcionam tanto em web quanto em APK)
@@ -107,12 +107,13 @@ function RelatorioPDF({ id, filtrados, pacienteNome, pacienteDocumento, periodoD
       aria-hidden="true"
       style={{
         position: 'fixed',
-        left: '-99999px',
+        left: 0,
         top: 0,
         width: '794px',
         zIndex: -1,
         pointerEvents: 'none',
-        opacity: 0.01,
+        visibility: 'visible',
+        opacity: 1,
         background: '#ffffff',
       }}
     >
@@ -286,56 +287,6 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
     }
   };
 
-  // ============================================================
-  // COMPARTILHAR — detecta plataforma
-  // ============================================================
-  const handleCompartilhar = async () => {
-    setProcessando(true);
-    try {
-      if (isNativo()) {
-        // ✅ APK: salva no cache + abre Share nativo (WhatsApp, Gmail, etc.)
-        const base64 = await blobParaBase64(blob);
-        const resultado = await Filesystem.writeFile({
-          path: nomeArquivo,
-          data: base64,
-          directory: Directory.Cache,
-          recursive: true,
-        });
-
-        await Share.share({
-          title: 'Histórico de Agendamentos',
-          text: 'PDF do histórico de agendamentos',
-          url: resultado.uri,
-          dialogTitle: 'Compartilhar PDF',
-        });
-      } else {
-        // ✅ Web/PWA: Web Share API
-        const file = new File([blob], nomeArquivo, { type: 'application/pdf' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Histórico de Agendamentos',
-            text: 'PDF do histórico de agendamentos',
-          });
-        } else if (navigator.share) {
-          await navigator.share({
-            title: 'Histórico de Agendamentos',
-            text: 'PDF do histórico de agendamentos',
-          });
-        } else {
-          alert('Compartilhamento não suportado. Use "Baixar".');
-        }
-      }
-    } catch (e) {
-      if (e?.name === 'AbortError' || e?.message?.toLowerCase().includes('cancel')) return;
-      console.error('Erro ao compartilhar:', e);
-      alert('Não foi possível compartilhar. Tente novamente.');
-    } finally {
-      setProcessando(false);
-    }
-  };
-
   return (
     <div
       onClick={processando ? undefined : onFechar}
@@ -452,8 +403,7 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
                 PDF pronto!
               </div>
               <div style={{ fontSize: 12 }}>
-                Toque em <strong>Baixar</strong> ou <strong>Compartilhar</strong>{' '}
-                abaixo para salvar ou enviar.
+                Toque em <strong>Baixar</strong> abaixo para salvar o PDF.
               </div>
             </div>
           ) : (
@@ -470,7 +420,7 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
           )}
         </div>
 
-        {/* Rodapé com botões */}
+        {/* Rodapé com botão único */}
         <div
           style={{
             padding: '12px 18px',
@@ -508,32 +458,6 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
             <MdDownload size={16} />
             {processando ? 'PROCESSANDO…' : 'BAIXAR'}
           </button>
-
-          <button
-            type="button"
-            onClick={handleCompartilhar}
-            disabled={processando}
-            style={{
-              fontFamily: "'Cinzel', serif",
-              background: processando
-                ? '#ddd'
-                : 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-              color: processando ? '#888' : '#fff',
-              border: '1.5px solid #6b21a8',
-              padding: '10px 20px',
-              borderRadius: 20,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: processando ? 'wait' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              minHeight: 42,
-            }}
-          >
-            <MdShare size={16} />
-            COMPARTILHAR
-          </button>
         </div>
       </div>
     </div>
@@ -562,7 +486,7 @@ export default function HistoricoAgendamentosPaciente({
   // ✅ Estados pra PDF
   const [renderizandoPDF, setRenderizandoPDF] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [previewBlob, setPreviewBlob] = useState(null);   // ✅ NOVO
+  const [previewBlob, setPreviewBlob] = useState(null);
   const [nomeArquivoAtual, setNomeArquivoAtual] = useState('');
 
   // ============================================================
@@ -694,7 +618,7 @@ export default function HistoricoAgendamentosPaciente({
         const nomeArquivo = `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}.pdf`;
 
         setPreviewUrl(url);
-        setPreviewBlob(blob);              // ✅ salva o blob
+        setPreviewBlob(blob);
         setNomeArquivoAtual(nomeArquivo);
       } catch (err) {
         console.error('Erro ao gerar PDF:', err);
@@ -728,7 +652,7 @@ export default function HistoricoAgendamentosPaciente({
       URL.revokeObjectURL(previewUrl);
     }
     setPreviewUrl(null);
-    setPreviewBlob(null);          // ✅ limpa o blob
+    setPreviewBlob(null);
     setNomeArquivoAtual('');
   };
 

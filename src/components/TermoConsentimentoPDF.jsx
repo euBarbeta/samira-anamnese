@@ -210,6 +210,11 @@ const handleBaixarPDF = async () => {
 
             <p style={paragrafo}><strong>a)</strong> <strong>Dados pessoais</strong> (nome, telefone, endereço, documento, data de nascimento): para cadastro, identificação, contato e execução dos procedimentos estéticos contratados.</p>
             <p style={paragrafo}><strong>b)</strong> <strong>Dados sensíveis de saúde</strong> (ficha de anamnese — alergias, medicamentos, condições de saúde, histórico clínico estético): para garantir segurança e personalização dos procedimentos.</p>
+            <p style={paragrafo}>
+  <strong>e)</strong> <strong>Histórico de agendamentos</strong> (datas, horários,
+  serviços realizados, observações e status) — para registro cronológico do
+  acompanhamento e para emissão de relatórios sob solicitação do(a) titular.
+</p>
             <p style={paragrafo}><strong>c)</strong> <strong>Imagens</strong> (fotos faciais e/ou corporais): para acompanhamento da evolução dos procedimentos.</p>
             <p style={paragrafo}><strong>d)</strong> <strong>Envio de lembretes</strong> via notificação push sobre retornos e cuidados.</p>
 

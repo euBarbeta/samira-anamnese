@@ -124,60 +124,7 @@ function LoadingElegante({ texto = 'Carregando agenda' }) {
 /* ============================================================
    Botão "Voltar pro prontuário"
    ============================================================ */
-function BotaoVoltarProntuario() {
-  let uidSalvo = null;
-  try {
-    uidSalvo =
-      localStorage.getItem('af_uidDaURL') ||
-      sessionStorage.getItem('af_uidDaURL');
-  } catch {}
 
-  if (!uidSalvo) return null;
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (window.history.length > 1 && window.history.state) {
-          window.history.back();
-          setTimeout(() => {
-            const h = window.location.hash;
-            if (!h || h === '#agendar' || h.startsWith('#agendar/')) {
-              window.location.href = `/#${uidSalvo}`;
-            }
-          }, 400);
-        } else {
-          window.location.href = `/#${uidSalvo}`;
-        }
-      }}
-      className="btn-voltar-lista tap-target"
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background:
-          'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-        color: '#2c163a',
-        border: '1.5px solid #C8A24A',
-        padding: '10px 20px',
-        borderRadius: '25px',
-        fontSize: '12px',
-        fontWeight: 700,
-        letterSpacing: '0.5px',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '16px',
-        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-        transition: 'all 0.25s ease',
-        backdropFilter: 'blur(6px)',
-        minHeight: 40,
-      }}
-    >
-      <MdArrowBack size={15} color="#C8A24A" />
-      Voltar para o menu da pasta
-    </button>
-  );
-}
 
 export default function TelaAgendamentoPublico({ uidEsteticista }) {
   const [config, setConfig] = useState(null);
@@ -443,7 +390,7 @@ try {
         <TelaSemInternet />
         <div className="tap-tela">
           <div className="tap-conteudo">
-            <BotaoVoltarProntuario />
+          
             <AbasPublicas abaAtiva="agendar" />
             <div className="tap-card" style={{ padding: 0 }}>
               <LoadingElegante texto="Carregando agenda" />
@@ -466,7 +413,7 @@ try {
         <TelaSemInternet />
         <div className="tap-tela">
           <div className="tap-conteudo">
-            <BotaoVoltarProntuario />
+            
             <AbasPublicas abaAtiva="agendar" />
             <div className="tap-card" style={{ textAlign: 'center' }}>
               <MdWarning size={40} color="#e65100" />
@@ -488,7 +435,7 @@ try {
         <TelaSemInternet />
         <div className="tap-tela">
           <div className="tap-conteudo" style={{ maxWidth: 520 }}>
-            <BotaoVoltarProntuario />
+            
             <AbasPublicas abaAtiva="agendar" />
             <div className="tap-card" style={{ textAlign: 'center' }}>
               <MdCheckCircle size={56} color="#16a34a" />
@@ -574,7 +521,7 @@ try {
       <TelaSemInternet />
       <div className="tap-tela">
         <div className="tap-conteudo">
-          <BotaoVoltarProntuario />
+        
           <AbasPublicas abaAtiva="agendar" />
 
           <div className="tap-card">
