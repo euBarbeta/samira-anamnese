@@ -31,7 +31,19 @@
   MdContentCopy, MdCheck, MdDelete, MdAssignment, MdEvent,
   MdPersonOff, MdRefresh, MdPictureAsPdf,
 } from 'react-icons/md';
-
+// ============================================================
+// ✅ Escapa texto pra uso seguro dentro de HTML
+//    (evita XSS quando o nome do paciente tem <script> ou onerror=)
+// ============================================================
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
   const DIAS_HISTORICO = 30;
 
   // ============================================================
@@ -409,36 +421,36 @@
         const dataBRIni = dataInicio.split('-').reverse().join('/');
         const dataBRFim = dataFim.split('-').reverse().join('/');
 
-        const linhas = filtrados.map((a) => {
-          const statusLabel = {
-            pendente: 'Pendente',
-            confirmado: 'Confirmado',
-            concluido: 'Concluído',
-            cancelado: 'Cancelado',
-            faltou: 'Faltou',
-            reagendado: 'Reagendado',
-          }[a.status] || a.status;
+       const linhas = filtrados.map((a) => {
+  const statusLabel = {
+    pendente: 'Pendente',
+    confirmado: 'Confirmado',
+    concluido: 'Concluído',
+    cancelado: 'Cancelado',
+    faltou: 'Faltou',
+    reagendado: 'Reagendado',
+  }[a.status] || a.status;
 
-          const horaReal = a.horaRealFim ? ` → real ${a.horaRealFim}` : '';
+  const horaReal = a.horaRealFim ? ` → real ${a.horaRealFim}` : '';
 
-          return `
-            <tr>
-              <td>${formatarDataBR(a.data)}</td>
-              <td>${a.horaInicio}${a.horaFim ? '–' + a.horaFim : ''}${horaReal}</td>
-              <td>${a.nome || ''}</td>
-              <td>${a.telefone || ''}</td>
-              <td>${a.servicoNome || '—'}</td>
-              <td>${statusLabel}</td>
-            </tr>
-          `;
-        }).join('');
+  return `
+    <tr>
+      <td>${escapeHtml(formatarDataBR(a.data))}</td>
+      <td>${escapeHtml(a.horaInicio)}${a.horaFim ? '–' + escapeHtml(a.horaFim) : ''}${escapeHtml(horaReal)}</td>
+      <td>${escapeHtml(a.nome || '')}</td>
+      <td>${escapeHtml(a.telefone || '')}</td>
+      <td>${escapeHtml(a.servicoNome || '—')}</td>
+      <td>${escapeHtml(statusLabel)}</td>
+    </tr>
+  `;
+}).join('');
 
         const html = `
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8" />
-            <title>Agendamentos ${dataBRIni} a ${dataBRFim}</title>
+           <title>Agendamentos ${escapeHtml(dataBRIni)} a ${escapeHtml(dataBRFim)}</title>
             <style>
               * { box-sizing: border-box; }
               body {
@@ -501,10 +513,10 @@
           </head>
           <body>
             <h1>Relatório de Agendamentos</h1>
-            <div class="sub">
-              Samira Ferreira Estética & Cosmetologia<br/>
-              Período: <strong>${dataBRIni}</strong> a <strong>${dataBRFim}</strong>
-            </div>
+           <div class="sub">
+  Samira Ferreira Estética & Cosmetologia<br/>
+  Período: <strong>${escapeHtml(dataBRIni)}</strong> a <strong>${escapeHtml(dataBRFim)}</strong>
+</div>
 
             <div class="resumo">
               <strong>Total no período:</strong> ${filtrados.length} agendamento(s)<br/>

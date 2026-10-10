@@ -4,6 +4,7 @@ import TelaInicialMobile from './TelaInicialMobile';
 import TelaSemInternet from './TelaSemInternet';
 import FichaDesktop from './FichaDesktop';
 import FichaMobile from './FichaMobile';
+import { logWarn } from '../utils/log';
 import ModalSairApp from './ModalSairApp';
 import { useBackButtonExit, fecharAppNativo } from './useBackButtonExit';
 import FichaEvoDesktop from './FichaEvoDesktop';
@@ -158,7 +159,7 @@ export default function AnamneseFicha() {
         window.history.replaceState(window.history.state, '', novaURL);
       }
     } catch (e) {
-      console.warn('Falha ao limpar query string:', e);
+      logWarn('Falha ao limpar query string:', e);
     }
   }, []);
 
@@ -172,7 +173,7 @@ export default function AnamneseFicha() {
           if (uid) setUidEsteticistaGlobal(uid);
         }
       } catch (e) {
-        console.warn('Falha lendo UID global:', e);
+        logWarn('Falha lendo UID global:', e);
       }
     })();
     return () => { cancelado = true; };
@@ -422,7 +423,7 @@ if (h && h !== 'agendar') {
                   const { profissionalUid, pacienteId } = mapSnap.data();
                   setPacienteDocPath(doc(db, 'usuarios', profissionalUid, 'pacientes', pacienteId));
                 }
-              } catch (e) { console.warn('Falha restaurando path:', e); }
+              } catch (e) { logWarn('Falha restaurando path:', e); }
             }
           }
 
@@ -473,6 +474,26 @@ if (h && h !== 'agendar') {
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // ============================================================
+// 📍 Re-checa localização sempre que o app volta pro primeiro plano
+//    (o usuário pode ter desligado o GPS enquanto estava fora)
+// ============================================================
+useEffect(() => {
+  if (!dadosPaciente?.id) return;
+
+  const handleVisibilidade = () => {
+    if (document.visibilityState !== 'visible') return;
+
+    import('../utils/segurancaEstado')
+      .then(({ atualizarEstadoSeguranca }) => {
+        atualizarEstadoSeguranca(dadosPaciente.id).catch(() => {});
+      })
+      .catch(() => {});
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilidade);
+  return () => document.removeEventListener('visibilitychange', handleVisibilidade);
+}, [dadosPaciente?.id]);
 
   useEffect(() => {
     try {
@@ -506,7 +527,7 @@ if (h && h !== 'agendar') {
           // ✅ Doc foi APAGADO (esteticista excluiu a pasta OU o próprio
           // paciente excluiu a conta em outro dispositivo).
           // Força logout imediato — o paciente perde acesso na hora.
-          console.warn('Paciente foi excluído. Encerrando sessão...');
+          logWarn('Paciente foi excluído. Encerrando sessão...');
           try { await signOut(auth); } catch {}
           // ✅ Limpa o Preferences do APK
 if (isNativo()) {
@@ -694,6 +715,11 @@ if (isNativo()) {
         }
 
         setDadosPaciente(pacienteEncontrado);
+        import('../utils/segurancaEstado')
+  .then(({ atualizarEstadoSeguranca }) => {
+    atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
+  })
+  .catch(() => {});
 
         // ✅ SEMPRE seta o pacienteDocPath usando `criadoPorUid` do próprio
         //    documento do paciente (fonte mais confiável). Se por algum
@@ -769,21 +795,21 @@ if (isNativo()) {
               docRef(dbRef, 'push_subscriptions_esteticistas', usuarioLogado.uid),
               { fcmToken: null, atualizadoEm: new Date().toISOString() }
             );
-          } catch (e) { console.warn('Falha ao limpar FCM da esteticista:', e); }
+          } catch (e) { logWarn('Falha ao limpar FCM da esteticista:', e); }
         } else if (dadosPaciente?.id) {
           try {
             await updateDoc(
               docRef(dbRef, 'push_subscriptions', String(dadosPaciente.id)),
               { fcmToken: null, atualizadoEm: new Date().toISOString() }
             );
-          } catch (e) { console.warn('Falha ao limpar FCM do paciente:', e); }
+          } catch (e) { logWarn('Falha ao limpar FCM do paciente:', e); }
         }
 
         try {
           await Preferences.remove({ key: 'push_native_last_paciente_id' });
           await Preferences.remove({ key: 'push_native_last_esteticista_uid' });
-        } catch (e) { console.warn('Falha ao limpar Preferences:', e); }
-      } catch (e) { console.warn('Falha ao limpar FCM no logout:', e); }
+        } catch (e) { logWarn('Falha ao limpar Preferences:', e); }
+      } catch (e) { logWarn('Falha ao limpar FCM no logout:', e); }
     }
 
     try {

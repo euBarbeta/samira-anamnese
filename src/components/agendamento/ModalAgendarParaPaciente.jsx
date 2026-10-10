@@ -1,6 +1,7 @@
 // src/components/agendamento/ModalAgendarParaPaciente.jsx
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
+import { sanitizarTexto } from '../../utils/sanitizar';
 import {
   collection, query, where, getDocs, addDoc, doc, getDoc, onSnapshot,
 } from 'firebase/firestore';
@@ -243,11 +244,14 @@ export default function ModalAgendarParaPaciente({
         servicoId: null,
         servicoNome: null,
 
-        nome: paciente?.nome || 'Paciente',
-        documento: paciente?.documento || '',
-        telefone: paciente?.telefone || '',
-        email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
-        observacoes: observacoes.trim(),
+              nome: sanitizarTexto(paciente?.nome || 'Paciente', { maxLength: 100 }),
+      documento: paciente?.documento || '',
+      telefone: paciente?.telefone || '',
+      email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
+      observacoes: sanitizarTexto(observacoes, {
+        maxLength: 500,
+        permitirQuebraLinha: true,
+      }),
 
         status: novoStatus,
         criadoPor: isPaciente ? 'paciente' : 'esteticista',

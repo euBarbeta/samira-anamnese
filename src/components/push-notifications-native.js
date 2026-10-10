@@ -4,6 +4,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Preferences } from '@capacitor/preferences';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { log, logWarn, logError } from '../utils/log';
 
 /**
  * Verifica se está rodando como app nativo (Capacitor/APK)
@@ -39,7 +40,7 @@ async function limparTokenPacienteAnterior(novoPacienteId) {
       atualizadoEm: new Date().toISOString(),
     }).catch(() => {});
   } catch (e) {
-    console.warn('Falha ao limpar token anterior (paciente):', e);
+    logWarn('Falha ao limpar token anterior (paciente):', e);
   }
 }
 
@@ -58,7 +59,7 @@ async function limparTokenEsteticistaAnterior(novaEsteticistaUid) {
       }
     ).catch(() => {});
   } catch (e) {
-    console.warn('Falha ao limpar token anterior (esteticista):', e);
+    logWarn('Falha ao limpar token anterior (esteticista):', e);
   }
 }
 
@@ -75,7 +76,7 @@ let pacienteIdAtual = null;
    ============================================================ */
 export async function inscreverPushNativo(pacienteId) {
   if (!isNativo()) {
-    console.warn('⚠️ Não está rodando em plataforma nativa');
+    logWarn('⚠️ Não está rodando em plataforma nativa');
     return null;
   }
 
@@ -84,7 +85,7 @@ export async function inscreverPushNativo(pacienteId) {
   // ✅ Se o paciente MUDOU (logout/login com outro usuário),
   //    força re-registro dos listeners.
   if (pacienteIdAtual && pacienteIdAtual !== pacienteIdStr) {
-    console.log('🔄 Paciente mudou — forçando re-registro de listeners');
+    log('🔄 Paciente mudou — forçando re-registro de listeners');
     listenerRegistrado = false;
   }
   pacienteIdAtual = pacienteIdStr;
@@ -98,7 +99,7 @@ export async function inscreverPushNativo(pacienteId) {
     }
 
     if (permStatus.receive !== 'granted') {
-      console.warn('❌ Permissão de notificação negada');
+      logWarn('❌ Permissão de notificação negada');
       return null;
     }
 
@@ -116,7 +117,7 @@ export async function inscreverPushNativo(pacienteId) {
       await PushNotifications.removeAllListeners();
 
       await PushNotifications.addListener('registration', async (token) => {
-        console.log('✅ Token FCM recebido:', token.value);
+        log('✅ Token FCM recebido:', token.value);
 
         try {
           await setDoc(
@@ -146,11 +147,11 @@ export async function inscreverPushNativo(pacienteId) {
       });
 
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('📬 Notificação recebida (app aberto):', notification);
+        log('📬 Notificação recebida (app aberto):', notification);
       });
 
       await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-        console.log('👆 Notificação clicada:', action);
+        log('👆 Notificação clicada:', action);
       });
 
       listenerRegistrado = true;
@@ -178,7 +179,7 @@ export async function inscreverPushEsteticista(uidEsteticista) {
 
   // ✅ Mesmo detalhe sutil para a esteticista
   if (uidEsteticistaAtual && uidEsteticistaAtual !== uidStr) {
-    console.log('🔄 Esteticista mudou — forçando re-registro de listeners');
+    log('🔄 Esteticista mudou — forçando re-registro de listeners');
     listenerRegistradoEsteticista = false;
   }
   uidEsteticistaAtual = uidStr;
@@ -189,7 +190,7 @@ export async function inscreverPushEsteticista(uidEsteticista) {
       permStatus = await PushNotifications.requestPermissions();
     }
     if (permStatus.receive !== 'granted') {
-      console.warn('❌ Permissão negada (esteticista)');
+      logWarn('❌ Permissão negada (esteticista)');
       return null;
     }
 
@@ -205,7 +206,7 @@ export async function inscreverPushEsteticista(uidEsteticista) {
       await PushNotifications.removeAllListeners();
 
       await PushNotifications.addListener('registration', async (token) => {
-        console.log('✅ Token FCM esteticista:', token.value);
+        log('✅ Token FCM esteticista:', token.value);
 
         try {
           await setDoc(

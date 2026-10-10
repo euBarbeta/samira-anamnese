@@ -6,6 +6,7 @@ import {
   inscreverPushNativo,
   inscreverPushEsteticista,
 } from './push-notifications-native';
+import { log, logWarn, logError } from '../utils/log';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
@@ -46,7 +47,7 @@ async function limparSubscriptionEsteticistaAnterior() {
     ).catch(() => {});
     localStorage.removeItem(STORAGE_KEY_LAST_ESTHETICIAN);
   } catch (e) {
-    console.warn('localStorage indisponível:', e);
+    logWarn('localStorage indisponível:', e);
   }
 }
 
@@ -61,7 +62,7 @@ async function limparSubscriptionPacienteAnterior() {
     ).catch(() => {});
     localStorage.removeItem(STORAGE_KEY_LAST_PATIENT);
   } catch (e) {
-    console.warn('localStorage indisponível:', e);
+    logWarn('localStorage indisponível:', e);
   }
 }
 
@@ -78,7 +79,7 @@ export async function inscreverPush(pacienteId) {
 
   // 2) Navegador (PWA) → web-push
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.warn('❌ Push não suportado no navegador.');
+    logWarn('❌ Push não suportado no navegador.');
     return null;
   }
   if (!VAPID_PUBLIC_KEY) {
@@ -101,7 +102,7 @@ export async function inscreverPush(pacienteId) {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return null;
     } else if (Notification.permission === 'denied') {
-      console.warn('❌ Permissão negada pelo usuário.');
+      logWarn('❌ Permissão negada pelo usuário.');
       return null;
     }
 
@@ -156,7 +157,7 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
 
   // 2) Navegador (PWA) → web-push
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.warn('❌ Push não suportado no navegador.');
+    logWarn('❌ Push não suportado no navegador.');
     return null;
   }
   if (!VAPID_PUBLIC_KEY) {
@@ -179,7 +180,7 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') return null;
     } else if (Notification.permission === 'denied') {
-      console.warn('❌ Permissão negada pelo usuário.');
+      logWarn('❌ Permissão negada pelo usuário.');
       return null;
     }
 
@@ -219,4 +220,39 @@ export async function inscreverPushEsteticistaWeb(uidEsteticista) {
     console.error('❌ Erro inscrever push esteticista (web):', err);
     return null;
   }
+}
+/* ============================================================
+   Listener global — o SW avisa quando a subscription mudou
+   (`pushsubscriptionchange`). Se uma aba estiver aberta,
+   aproveitamos o token do usuário para regravar com auth.
+   ============================================================ */
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', async (event) => {
+    const msg = event.data || {};
+    if (msg.tipo !== 'RESUBSCRIBE_PUSH') return;
+    if (!msg.subscription || !msg.role || !msg.id) return;
+
+    try {
+      const { auth } = await import('./firebase');
+      const user = auth.currentUser;
+      if (!user || user.uid !== String(msg.id)) return;
+
+      const token = await user.getIdToken();
+
+      await fetch('/.netlify/functions/atualizar-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          role: msg.role,
+          id: msg.id,
+          subscription: msg.subscription,
+        }),
+      });
+    } catch (e) {
+      logWarn('Falha ao ressincronizar subscription via mensagem do SW:', e);
+    }
+  });
 }

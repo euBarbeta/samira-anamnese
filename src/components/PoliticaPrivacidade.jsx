@@ -142,7 +142,26 @@ export default function PoliticaPrivacidade({ onFechar }) {
             <li>✅ <strong>Revogação do consentimento</strong> a qualquer momento.</li>
             <li>✅ <strong>Informação</strong> sobre compartilhamentos.</li>
           </ul>
-
+<h3 style={subTitulo}>5.1. Registro de segurança no login</h3>
+<p style={paragrafo}>
+  Para proteger sua conta contra acessos não autorizados, registramos
+  automaticamente:
+</p>
+<ul style={lista}>
+  <li><strong>Data e hora</strong> de cada login (sucesso ou falha);</li>
+  <li><strong>Identificação do dispositivo</strong> (navegador + sistema operacional + características técnicas);</li>
+  <li><strong>Localização aproximada (cidade)</strong> — <strong>somente se você autorizar</strong>;</li>
+  <li><strong>Tentativas de login falhas</strong> para detectar ataques.</li>
+</ul>
+<p style={paragrafo}>
+  <strong>A localização é opcional e separada</strong> do consentimento geral.
+  Você pode recusar sem prejuízo ao uso do app. A profissional responsável verá
+  o status "não compartilhada" e continuará te atendendo normalmente.
+</p>
+<p style={paragrafo}>
+  <strong>Não rastreamos em tempo real.</strong> A localização é capturada
+  apenas no momento do login e armazenada como cidade aproximada.
+</p>
           <h3 style={subTitulo}>8. Segurança</h3>
           <p style={paragrafo}>
             Adotamos medidas técnicas e administrativas para proteger seus dados, incluindo:

@@ -4,6 +4,7 @@ import {
   collection, query, where, getDocs, addDoc, doc, getDoc,onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { sanitizarTexto, sanitizarEmail, sanitizarDocumento } from '../../utils/sanitizar';
 import {
   gerarSlotsDisponiveis, gerarCodigoAutenticidade, validarCPF, toISODateLocal,
 } from '../../utils/agenda';
@@ -301,6 +302,21 @@ useEffect(() => {
       setErro('Você precisa autorizar o tratamento dos seus dados (LGPD).');
       return;
     }
+      if (!lgpdAceito) {
+    setErro('Você precisa autorizar o tratamento dos seus dados (LGPD).');
+    return;
+  }
+
+  // ✅ NOVO: sanitiza tudo antes de salvar (evita XSS no PDF e no painel)
+  const nomeLimpo = sanitizarTexto(nome, { maxLength: 100 });
+  const documentoLimpo = sanitizarDocumento(documento);
+  const emailLimpo = sanitizarEmail(email);
+  const observacoesLimpo = sanitizarTexto(observacoes, {
+    maxLength: 500,
+    permitirQuebraLinha: true,
+  });
+
+  setEnviando(true);
 
     setEnviando(true);
     try {
@@ -313,7 +329,7 @@ useEffect(() => {
         userAgent: (navigator.userAgent || '').slice(0, 200),
       };
 
-     const docRef = await addDoc(collection(db, 'agendamentos'), {
+         const docRef = await addDoc(collection(db, 'agendamentos'), {
   uidEsteticista,
   profissionalId: uidEsteticista,
 
@@ -325,54 +341,54 @@ useEffect(() => {
   servicoId: null,
   servicoNome: null,
 
-  nome: nome.trim(),
-        documento: documento.trim(),
-        telefone: telefone,
+  nome: nomeLimpo,                    // ← sanitizado
+  documento: documentoLimpo,          // ← sanitizado
+  telefone: telefone,
 
-        email: email.trim().toLowerCase(),
-        observacoes: observacoes.trim(),
-        status: 'pendente',
-        criadoPor: 'publico',
-        canceladoPor: null,
-        consentimentoLGPD: consentimento,
-        codigoAutenticidade: codigo,
-        criadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-      });
+  email: emailLimpo,                  // ← sanitizado
+  observacoes: observacoesLimpo,      // ← sanitizado
+  status: 'pendente',
+  criadoPor: 'publico',
+  canceladoPor: null,
+  consentimentoLGPD: consentimento,
+  codigoAutenticidade: codigo,
+  criadoEm: new Date().toISOString(),
+  atualizadoEm: new Date().toISOString(),
+});
 try {
-  await fetch('/.netlify/functions/vincular-paciente-agendamento', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      uidEsteticista,
-      agendamentoId: docRef.id,
-      nome: nome.trim(),
-      documento: documento.trim(),
-    }),
-  });
+ await fetch('/.netlify/functions/vincular-paciente-agendamento', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    uidEsteticista,
+    agendamentoId: docRef.id,
+    nome: nomeLimpo,          // ← sanitizado
+    documento: documentoLimpo, // ← sanitizado
+  }),
+});
 } catch (e) {
   console.warn('Falha ao vincular paciente automaticamente:', e);
   // não quebra o fluxo do agendamento — ele já foi criado com sucesso
 }
-      notificarAgendamento({
-        tipoEvento: 'novo',
-        uidEsteticista,
-        agendamento: {
-          id: docRef.id,
-          nome: nome.trim(),
-          data: slotSelecionado.data,
-          horaInicio: slotSelecionado.horaInicio,
-          documento: documento.trim(),
-          telefone: telefone,
-        },
-      });
+     notificarAgendamento({
+  tipoEvento: 'novo',
+  uidEsteticista,
+  agendamento: {
+    id: docRef.id,
+    nome: nomeLimpo,          // ← sanitizado
+    data: slotSelecionado.data,
+    horaInicio: slotSelecionado.horaInicio,
+    documento: documentoLimpo, // ← sanitizado
+    telefone: telefone,
+  },
+});
 
       setSucesso({
-        data: slotSelecionado.data,
-        hora: slotSelecionado.horaInicio,
-        nome: nome.trim(),
-        documento: documento.trim(),
-      });
+  data: slotSelecionado.data,
+  hora: slotSelecionado.horaInicio,
+  nome: nomeLimpo,          // ← sanitizado
+  documento: documentoLimpo, // ← sanitizado
+});
     } catch (e) {
       console.error('Erro ao agendar:', e);
       setErro('Erro ao confirmar agendamento. Tente novamente.');

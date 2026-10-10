@@ -215,6 +215,13 @@ const handleBaixarPDF = async () => {
   serviços realizados, observações e status) — para registro cronológico do
   acompanhamento e para emissão de relatórios sob solicitação do(a) titular.
 </p>
+<p style={paragrafo}>
+  <strong>f)</strong> <strong>Registro de segurança no login</strong> (data/hora
+  do acesso, identificação do dispositivo e, se você autorizar, localização
+  aproximada — apenas cidade) — para detectar acessos não autorizados e
+  proteger sua conta. A localização é <strong>opcional e separada</strong> do
+  consentimento geral: você pode recusá-la sem prejuízo ao uso do app.
+</p>
             <p style={paragrafo}><strong>c)</strong> <strong>Imagens</strong> (fotos faciais e/ou corporais): para acompanhamento da evolução dos procedimentos.</p>
             <p style={paragrafo}><strong>d)</strong> <strong>Envio de lembretes</strong> via notificação push sobre retornos e cuidados.</p>
 

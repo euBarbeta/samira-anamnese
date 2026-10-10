@@ -22,56 +22,112 @@ export default function TelaInicial({
     if (erroExterno) setErro(erroExterno);
   }, [erroExterno]);
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setErro('');
-    setCarregando(true);
+ const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  setErro('');
+  setCarregando(true);
 
-    try {
-      const nomeLimpo = nomeCompleto.trim().toLowerCase();
-      let emailFicticio = '';
+  try {
+    const nomeLimpo = nomeCompleto.trim().toLowerCase();
+    let emailFicticio = '';
 
-      if (nomeLimpo === 'mbtech') {
-        emailFicticio = 'mbtech@sistema.local';
-      } else if (nomeLimpo === 'samira ferreira' || nomeLimpo === 'samira') {
-        emailFicticio = 'samira.ferreira@sistema.local';
-      } else {
-        const partes = nomeCompleto.trim().split(/\s+/);
-        if (partes.length < 2) {
-          setErro('Por favor, digite o nome completo corretamente.');
-          setCarregando(false);
-          return;
-        }
-
-        const primeiroNome = partes[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const sobrenome = partes[partes.length - 1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-        emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
+    if (nomeLimpo === 'mbtech') {
+      emailFicticio = 'mbtech@sistema.local';
+    } else if (nomeLimpo === 'samira ferreira' || nomeLimpo === 'samira') {
+      emailFicticio = 'samira.ferreira@sistema.local';
+    } else {
+      const partes = nomeCompleto.trim().split(/\s+/);
+      if (partes.length < 2) {
+        setErro('Por favor, digite o nome completo corretamente.');
+        setCarregando(false);
+        return;
       }
-      // ✅ No APK, não restringimos nada — deixa qualquer um logar
-const ehNativo = isNativo();
 
-if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-  setErro('Acesso não autorizado.');
-  setCarregando(false);
-  return;
-}
+      const primeiroNome = partes[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const sobrenome = partes[partes.length - 1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+      emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
+    }
 
+    // ✅ No APK, não restringimos nada — deixa qualquer um logar
+    const ehNativo = isNativo();
+
+    if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
+      setErro('Acesso não autorizado.');
+      setCarregando(false);
+      return;
+    }
+
+    // ============================================================
+    // 🔒 VERIFICA BLOQUEIO ANTES DE TENTAR LOGAR
+    // ============================================================
+    try {
+      const check = await fetch('/.netlify/functions/verificar-bloqueio-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailFicticio }),
+      });
+      const checkData = await check.json();
+
+      if (checkData.bloqueado === true) {
+        setErro(
+          `🚫 Acesso suspenso. ${checkData.motivo ? `Motivo: ${checkData.motivo}` : 'Entre em contato com a profissional.'}`
+        );
+        setCarregando(false);
+        return;
+      }
+    } catch (e) {
+      console.warn('Falha ao verificar bloqueio (segue tentando):', e);
+    }
+
+    // ============================================================
+    // 🔒 TENTA LOGAR
+    // ============================================================
+    try {
       await signInWithEmailAndPassword(auth, emailFicticio, senha);
       setCarregando(false);
-       
-     
+
+      // ✅ Sucesso → registra pra limpar tentativas
+      fetch('/.netlify/functions/registrar-tentativa-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailFicticio,
+          sucesso: true,
+          userAgent: navigator.userAgent,
+          plataforma: isNativo() ? 'apk' : 'pwa',
+        }),
+      }).catch(() => {});
     } catch (error) {
       console.error("Erro no login:", error);
+
+      // ✅ Falha → registra tentativa falha
+      fetch('/.netlify/functions/registrar-tentativa-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailFicticio,
+          sucesso: false,
+          userAgent: navigator.userAgent,
+          plataforma: isNativo() ? 'apk' : 'pwa',
+        }),
+      }).catch(() => {});
+
       setCarregando(false);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         setErro('Nome ou senha incorretos.');
+      } else if (error.code === 'auth/too-many-requests') {
+        setErro('Muitas tentativas. Aguarde alguns minutos.');
       } else {
         setErro('Erro ao realizar login. Tente novamente.');
       }
     }
-  };
+  } catch (error) {
+    console.error("Erro no login:", error);
+    setCarregando(false);
+    setErro('Erro ao realizar login. Tente novamente.');
+  }
+};
 
   return (
     <div style={{

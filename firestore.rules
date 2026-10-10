@@ -1,0 +1,284 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // HELPER — só a esteticista "dona" escreve
+    // ============================================================
+    function ehEsteticistaDona(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // AGENDAMENTO PÚBLICO — links
+    // ============================================================
+    match /links_pacientes/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ============================================================
+    // AGENDAMENTOS
+    // ------------------------------------------------------------
+    // 🚨 MUDANÇA CRÍTICA:
+    //   - Leitura: SÓ esteta dona OU o próprio paciente
+    //   - Consulta pública agora vai via Netlify Function
+    //     (function usa credencial admin e ignora as rules)
+    // ============================================================
+    match /agendamentos/{id} {
+      allow read: if
+        request.auth != null
+        && (
+          request.auth.uid == resource.data.uidEsteticista
+          || request.auth.uid == resource.data.pacienteId
+        );
+
+      allow create: if
+        // Público (sem login): só cria se declarar consentimento
+        (
+          request.auth == null
+          && request.resource.data.status == 'pendente'
+          && request.resource.data.consentimentoLGPD.aceito == true
+        )
+        ||
+        // Esteta logada: pode criar
+        (
+          request.auth != null
+          && request.auth.uid == request.resource.data.uidEsteticista
+        );
+
+      allow update: if
+        // 1) Esteta dona: tudo
+        (
+          request.auth != null
+          && request.auth.uid == resource.data.uidEsteticista
+        )
+        ||
+        // 2) Paciente logado: aceita consentimento (pendente → confirmado)
+        (
+          request.auth != null
+          && request.auth.uid == resource.data.pacienteId
+          && resource.data.status == 'pendente'
+          && request.resource.data.status == 'confirmado'
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(['consentimentoLGPD', 'status', 'atualizadoEm'])
+        )
+        ||
+        // 3) Paciente logado: cancela o próprio
+        (
+          request.auth != null
+          && request.auth.uid == resource.data.pacienteId
+          && request.resource.data.status == 'cancelado'
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(['status', 'canceladoPor', 'atualizadoEm'])
+        )
+        ||
+        // 4) Paciente logado: oculta da própria lista
+        (
+          request.auth != null
+          && request.auth.uid == resource.data.pacienteId
+          && resource.data.status in ['cancelado', 'concluido', 'faltou', 'reagendado']
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(['ocultoParaPaciente', 'ocultadoPacienteEm'])
+        );
+
+      // 🚨 MUDANÇA CRÍTICA: delete SÓ esteta dona ou o próprio paciente.
+      //    Ninguém mais apaga nada — nem cancelado.
+      allow delete: if
+        request.auth != null
+        && (
+          request.auth.uid == resource.data.uidEsteticista
+          || request.auth.uid == resource.data.pacienteId
+        );
+    }
+
+    // ============================================================
+    // AGENDA CONFIG
+    // ============================================================
+    match /usuarios/{uid}/agenda_config/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // SISTEMA
+    // ------------------------------------------------------------
+    // 🚨 MUDANÇA: SÓ a esteta padrão escreve (ninguém mais).
+    //    Leitura continua livre (agenda pública precisa).
+    // ============================================================
+    match /sistema/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+    }
+
+    // ============================================================
+    // SEGURANÇA — tentativas de login e bloqueios
+    // ------------------------------------------------------------
+    // Esteta dona lê e escreve. Público pode CRIAR tentativa
+    // (para registrar falha) mas não pode ler nem apagar.
+    // ============================================================
+    match /tentativas_login/{emailHash} {
+      allow read: if request.auth != null
+                  && request.auth.uid == 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+      allow create: if true; // público registra falha
+      allow update: if request.auth != null
+                    && request.auth.uid == 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+      allow delete: if request.auth != null
+                    && request.auth.uid == 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+    }
+
+    match /bloqueios_login/{emailHash} {
+      allow read: if true; // público verifica se está bloqueado (só recebe true/false da function)
+      allow write: if request.auth != null
+                   && request.auth.uid == 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+    }
+
+    // ============================================================
+    // SEGURANÇA — estado por paciente (LGPD, localização, device)
+    // ------------------------------------------------------------
+    // Paciente dono lê/escreve; esteta também lê.
+    // ============================================================
+    match /seguranca_estado/{pacienteId} {
+      allow read: if
+        request.auth != null
+        && (
+          request.auth.uid == pacienteId
+          || request.auth.uid == 'MZ5j3NpjlxY67yLRiEfg13TbPE32'
+        );
+      allow write: if request.auth != null
+                   && request.auth.uid == pacienteId;
+    }
+
+    // ============================================================
+    // SERVIÇOS
+    // ============================================================
+    match /usuarios/{uid}/servicos/{servicoId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow create, update: if request.auth != null
+                            && request.auth.uid == uid
+                            && request.resource.data.nome is string
+                            && request.resource.data.nome.size() > 0
+                            && request.resource.data.nome.size() <= 60
+                            && request.resource.data.duracaoMin is int
+                            && request.resource.data.duracaoMin >= 5
+                            && request.resource.data.duracaoMin <= 480;
+
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // FOTOS — collectionGroup
+    // ============================================================
+    match /{path=**}/fotos/{fotoId} {
+      allow read: if request.auth != null
+                  && (
+                    resource.data.uidEsteticista == request.auth.uid
+                    || resource.data.pacienteId == request.auth.uid
+                  );
+
+      allow update, delete: if request.auth != null
+                            && (
+                              resource.data.uidEsteticista == request.auth.uid
+                              || resource.data.pacienteId == request.auth.uid
+                            );
+    }
+
+    // ============================================================
+    // PUSH SUBSCRIPTIONS — PACIENTE
+    // ============================================================
+    match /push_subscriptions/{pacienteId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == pacienteId;
+
+      allow update: if request.auth != null
+                    && request.auth.uid != pacienteId
+                    && resource != null
+                    && request.resource.data.subscription == null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['subscription', 'subscriptionLimpaEm']);
+    }
+
+    // ============================================================
+    // PUSH SUBSCRIPTIONS — ESTETICISTA
+    // ============================================================
+    match /push_subscriptions_esteticistas/{uid} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == uid;
+
+      allow update: if request.auth != null
+                    && request.auth.uid != uid
+                    && resource != null
+                    && request.resource.data.subscription == null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['subscription', 'subscriptionLimpaEm']);
+    }
+
+    // ============================================================
+    // PACIENTES
+    // ============================================================
+    match /usuarios/{uidEsteticista}/pacientes/{pacienteId} {
+      allow read: if request.auth != null
+                  && (
+                    request.auth.uid == uidEsteticista
+                    || request.auth.uid == pacienteId
+                    || resource.data.emailAcesso == request.auth.token.email
+                  );
+
+      allow create: if request.auth != null
+                    && request.auth.uid == uidEsteticista;
+
+      allow update: if request.auth != null
+                    && (
+                      request.auth.uid == uidEsteticista
+                      || (
+                        request.auth.uid == pacienteId
+                        && request.resource.data.diff(resource.data)
+                             .affectedKeys()
+                             .hasOnly(['consentimentoLGPD'])
+                      )
+                    );
+
+      allow delete: if request.auth != null
+                    && (request.auth.uid == uidEsteticista
+                        || request.auth.uid == pacienteId);
+
+      match /fotos/{fotoId} {
+        allow read: if request.auth != null
+                    && (request.auth.uid == uidEsteticista
+                        || request.auth.uid == pacienteId);
+
+        allow create: if request.auth != null
+                      && (request.auth.uid == uidEsteticista
+                          || request.auth.uid == pacienteId);
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uidEsteticista;
+
+        allow delete: if request.auth != null
+                      && (request.auth.uid == uidEsteticista
+                          || request.auth.uid == pacienteId);
+      }
+    }
+
+    // ============================================================
+    // MAPEAMENTO E-MAILS
+    // ============================================================
+    match /mapeamento_emails/{email} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ============================================================
+    // REGRA GENÉRICA — sempre por último
+    // ============================================================
+    match /usuarios/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

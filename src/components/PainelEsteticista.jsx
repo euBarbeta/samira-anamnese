@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth } from 'react-icons/md';
+import { sanitizarFichaAnamnese } from '../utils/sanitizar';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth, MdSecurity  } from 'react-icons/md';
+import CardSegurancaPaciente from './CardSegurancaPaciente';
+import PainelSeguranca from './PainelSeguranca';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, query, where,updateDoc, collection, doc, setDoc, getDocs, deleteDoc,onSnapshot, limit, orderBy, startAfter, collectionGroup } from 'firebase/firestore';
+import { getFirestore, query, where, updateDoc, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit, collectionGroup } from 'firebase/firestore';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
+import { log, logWarn, logError } from '../utils/log';
 import GaleriaPaciente from './GaleriaPaciente'; 
 import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
@@ -168,10 +172,13 @@ function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
   );
 }
 export default function PainelEsteticista({ onLogout }) {
-  const TAMANHO_PAGINA = 50;
-  const [ultimoDoc, setUltimoDoc] = useState(null);
-  const [temMais, setTemMais] = useState(true);
-  const [carregandoMais, setCarregandoMais] = useState(false);
+const TAMANHO_PAGINA = 50;
+const [limitePagina, setLimitePagina] = useState(TAMANHO_PAGINA);
+const [temMais, setTemMais] = useState(true);
+
+const [carregandoNuvem, setCarregandoNuvem] = useState(true);
+const [jaCarregou, setJaCarregou] = useState(false);
+const [pacientes, setPacientes] = useState([]);
 
   // ✅ Busca global
   const [resultadosBusca, setResultadosBusca] = useState(null);
@@ -181,10 +188,8 @@ export default function PainelEsteticista({ onLogout }) {
   const [telaAtual, setTelaAtual] = useState('lista');
   const [termoBusca, setTermoBusca] = useState('');
   const [termoBuscaEvolucao, setTermoBuscaEvolucao] = useState('');
-  const [carregandoNuvem, setCarregandoNuvem] = useState(true);
-  const [jaCarregou, setJaCarregou] = useState(false);
-  const [pacientes, setPacientes] = useState([]);
-  const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
+  
+const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
@@ -227,7 +232,7 @@ useEffect(() => {
   const unsub = onSnapshot(
     q,
     (snap) => setAgendamentosPendentesCount(snap.size),
-    (e) => console.warn('Erro contagem pendentes:', e)
+    (e) => logWarn('Erro contagem pendentes:', e)
   );
 
   return () => unsub();
@@ -451,7 +456,7 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
     await Promise.all(batch);
     setFotosPendentes((prev) => prev.filter((f) => f.pacienteId !== pacienteId));
   } catch (e) {
-    console.warn('Falha ao marcar como notificadas:', e);
+    logWarn('Falha ao marcar como notificadas:', e);
   }
 };
 
@@ -462,7 +467,7 @@ const marcarFotosComoNotificadas = async (pacienteId) => {
 
     import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
       inscreverPushEsteticistaWeb(user.uid).catch((e) =>
-        console.warn('Falha ao registrar push da esteticista:', e)
+        logWarn('Falha ao registrar push da esteticista:', e)
       );
     });
   }, []);
@@ -482,7 +487,7 @@ useEffect(() => {
       atualizadoEm: new Date().toISOString(),
     },
     { merge: true }
-  ).catch((e) => console.warn('Falha publicando UID global:', e));
+  ).catch((e) => logWarn('Falha publicando UID global:', e));
 }, []);
 
 // ============================================================
@@ -548,48 +553,28 @@ useEffect(() => {
   let unsubAuth = null;
   let unsubSnapshot = null;
 
-  const carregarPagina = async (user, cursor = null) => {
-    const base = collection(db, `usuarios/${user.uid}/pacientes`);
-    const q = cursor
-      ? query(base, orderBy('nome'), startAfter(cursor), limit(TAMANHO_PAGINA))
-      : query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
-
-    const snap = await getDocs(q);
-    const docs = snap.docs;
-    const lista = docs.map((d) => d.data());
-
-    return {
-      lista,
-      ultimo: docs[docs.length - 1] || null,
-      temMais: docs.length === TAMANHO_PAGINA,
-    };
-  };
-
-  // ✅ Carrega SÓ a primeira página em tempo real.
-  //    Se o paciente for excluído (por qualquer dispositivo), some da lista.
+  // ✅ Sincroniza a coleção INTEIRA em tempo real.
+  //    - Paciente criado em qualquer dispositivo → aparece aqui
+  //    - Paciente excluído em qualquer dispositivo → some daqui
+  //    - Paciente editado em qualquer dispositivo → atualiza aqui
   const iniciarListener = (user) => {
     if (!user) return;
+
     const base = collection(db, `usuarios/${user.uid}/pacientes`);
-    const q = query(base, orderBy('nome'), limit(TAMANHO_PAGINA));
+    const q = query(base, orderBy('nome'), limit(limitePagina));
 
     if (unsubSnapshot) unsubSnapshot();
 
     unsubSnapshot = onSnapshot(
       q,
       (snap) => {
-        const lista = snap.docs.map((d) => d.data());
-        setPacientes((prev) => {
-          // Preserva pacientes carregados via "carregar mais" (páginas extras)
-          const idsNovaPagina = new Set(lista.map((p) => String(p.id)));
-          const extras = prev.filter((p) => !idsNovaPagina.has(String(p.id)));
-          return [...lista, ...extras];
-        });
-        setUltimoDoc(snap.docs[snap.docs.length - 1] || null);
-        setTemMais(snap.size === TAMANHO_PAGINA);
-        setCarregandoNuvem(false);
-        setJaCarregou(true);
+       const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+setPacientes(lista);
+setTemMais(snap.size === limitePagina);  // ⬅️ NOVA LINHA
+setCarregandoNuvem(false);
+setJaCarregou(true);
 
-        // Backfill
+        // Backfill dos links dos pacientes
         Promise.allSettled(
           lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
         );
@@ -602,26 +587,6 @@ useEffect(() => {
     );
   };
 
-  const carregarMais = async () => {
-    const user = auth.currentUser;
-    if (!user || !ultimoDoc || carregandoMais) return;
-    setCarregandoMais(true);
-    try {
-      const { lista, ultimo, temMais: temMaisPagina } = await carregarPagina(user, ultimoDoc);
-      setPacientes((prev) => [...prev, ...lista]);
-      setUltimoDoc(ultimo);
-      setTemMais(temMaisPagina);
-
-      Promise.allSettled(
-        lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
-      );
-    } catch (e) {
-      console.error('Erro ao paginar pacientes:', e);
-    } finally {
-      setCarregandoMais(false);
-    }
-  };
-
   unsubAuth = onAuthStateChanged(auth, (user) => {
     iniciarListener(user);
   });
@@ -630,7 +595,7 @@ useEffect(() => {
     if (unsubAuth) unsubAuth();
     if (unsubSnapshot) unsubSnapshot();
   };
-}, [db, auth]);
+}, [db, auth, limitePagina]);
   
   // Função auxiliar para excluir um paciente do Firestore
  const excluirPacienteDaNuvem = async (idPaciente) => {
@@ -645,7 +610,7 @@ useEffect(() => {
     try {
       await deleteDoc(doc(db, 'links_pacientes', String(idPaciente)));
     } catch (e) {
-      console.warn('Falha ao apagar links_pacientes:', e);
+      logWarn('Falha ao apagar links_pacientes:', e);
     }
 
     // 3. ✅ Invalida o cache da busca global
@@ -688,7 +653,7 @@ useEffect(() => {
       alert("Erro: Sessão da esteticista não encontrada. Faça login novamente.");
       return;
     }
-
+  const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
     try {
       // 2. Tratamento do Nome para gerar o e-mail
       const nomeOriginal = dadosAnamnese.nome ? dadosAnamnese.nome.trim() : '';
@@ -1319,6 +1284,29 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
   </span>
 )}
                 </button>
+       <button
+  type="button"
+  onClick={() => navegarPara('seguranca')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
+  }}
+>
+  <MdSecurity size={16} />
+  Segurança
+</button>
               </div>
             </div>
 
@@ -1596,35 +1584,62 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
       ))}
     </div>
 
-    {temMais && (
+   {temMais && (
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
         <button
           type="button"
-          onClick={carregarMais}
-          disabled={carregandoMais}
+          onClick={() => setLimitePagina((prev) => prev + TAMANHO_PAGINA)}
           style={{
             fontFamily: "'Cinzel', serif",
-            background: carregandoMais
-              ? '#ddd'
-              : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-            color: carregandoMais ? '#888' : '#fff',
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
             border: 'none',
             padding: '12px 28px',
             borderRadius: '24px',
             fontSize: 12,
             fontWeight: 700,
-            cursor: carregandoMais ? 'wait' : 'pointer',
+            cursor: 'pointer',
             boxShadow: '0 3px 12px rgba(200, 162, 74, 0.3)',
           }}
         >
-          {carregandoMais ? 'CARREGANDO…' : 'CARREGAR MAIS PACIENTES'}
+          CARREGAR MAIS PACIENTES
         </button>
       </div>
     )}
   </>
 )}
+   
+ 
             </div>
           )}
+          {telaAtual === 'seguranca' && (
+  <div>
+    <button
+      type="button"
+      onClick={() => navegarPara('lista')}
+      className="btn-voltar-lista"
+      style={{
+        fontFamily: "'Cinzel', serif",
+        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+        color: '#2c163a',
+        border: '1.5px solid #C8A24A',
+        padding: '10px 22px',
+        borderRadius: '25px',
+        fontSize: '13px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '20px',
+      }}
+    >
+      <MdArrowBack size={16} color="#C8A24A" />
+      Voltar para lista de pacientes
+    </button>
+    <PainelSeguranca />
+  </div>
+)}
           {telaAtual === 'agendamentos' && (
   <div>
     <button
@@ -1942,6 +1957,7 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
   colapsavel={true}
   abertoPorPadrao={false}
 />
+<CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
 
 {/* ✅ Card de Consentimento LGPD */}
               <div style={{
@@ -2269,6 +2285,8 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
           </div>
         </div>
       )}
+         {/* ⬇️ BOTÃO CARREGAR MAIS — NOVO */}
+ 
     </div>
   );
 }

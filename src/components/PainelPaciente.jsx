@@ -1,6 +1,7 @@
 // src/components/PainelPaciente.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import ModalConsentimentoLocalizacao from './ModalConsentimentoLocalizacao';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import { db } from './firebase';
 import { inscreverPush } from './push-notifications';
@@ -709,6 +710,7 @@ function formatarDataBR(iso) {
 function ModalRemoverAgendamento({ agendamento, onFechar, onConfirmar }) {
   const [removendo, setRemovendo] = useState(false);
 
+
   const isConcluido = agendamento?.status === 'concluido';
 
   const handleConfirmar = async () => {
@@ -915,6 +917,7 @@ export default function PainelPaciente({
   const [mostrarConsentimento, setMostrarConsentimento] = useState(false);
   const [consentimentoRecusado, setConsentimentoRecusado] = useState(false);
   const [mostrarExclusaoConta, setMostrarExclusaoConta] = useState(false);
+  const [mostrarModalLocalizacao, setMostrarModalLocalizacao] = useState(false);
 
   // ✅ Modal de remoção de agendamento
   const [agendamentoParaRemover, setAgendamentoParaRemover] = useState(null);
@@ -946,20 +949,44 @@ export default function PainelPaciente({
     [telaAtual]
   );
 
-  useEffect(() => {
-    if (!pacienteData) return;
+useEffect(() => {
+  if (!pacienteData) return;
 
-    const consentimento = pacienteData.consentimentoLGPD;
-    const aceito = consentimento?.aceito === true;
-    const versaoOk = consentimento?.versaoTermo === '1.0';
+  const consentimento = pacienteData.consentimentoLGPD;
+  const aceito = consentimento?.aceito === true;
+  const versaoOk = consentimento?.versaoTermo === '1.0';
 
-    if (aceito && versaoOk) {
-      setMostrarConsentimento(false);
-      return;
-    }
-
+  if (aceito && versaoOk) {
+    setMostrarConsentimento(false);
+  } else {
     setMostrarConsentimento(true);
-  }, [pacienteData]);
+  }
+}, [pacienteData]);
+// ============================================================
+// 📍 Abre o modal de localização se:
+//  - LGPD já aceito
+//  - E ainda não vimos estado de segurança pra esse paciente
+// ============================================================
+useEffect(() => {
+  if (!pacienteData?.id) return;
+
+  const consentimentoOk = pacienteData.consentimentoLGPD?.aceito === true;
+  if (!consentimentoOk) return;
+
+  // Checa no Firestore se já tem estado salvo
+  import('./firebase').then(async ({ db }) => {
+    const { doc, getDoc } = await import('firebase/firestore');
+    try {
+      const snap = await getDoc(doc(db, 'seguranca_estado', String(pacienteData.id)));
+      if (!snap.exists()) {
+        // Nunca vimos antes → mostra modal de localização
+        setMostrarModalLocalizacao(true);
+      }
+    } catch (e) {
+      console.warn('Falha checando estado de segurança:', e);
+    }
+  });
+}, [pacienteData?.id]);
 
 useEffect(() => {
   const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';
@@ -1021,64 +1048,9 @@ useEffect(() => {
 //    PÚBLICO (que não têm `pacienteId`) ao paciente logado.
 //    Roda UMA VEZ quando o painel monta.
 // ============================================================
-const [backfillFeito, setBackfillFeito] = useState(false);
 
-useEffect(() => {
-  if (backfillFeito) return;
-  if (!pacienteData?.id || !pacienteData?.criadoPorUid) return;
 
-  const fazerBackfill = async () => {
-    setBackfillFeito(true);
 
-    try {
-      const docNorm = String(pacienteData.documento || '').replace(/\D/g, '');
-      const nomeNorm = String(pacienteData.nome || '')
-        .trim()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-
-      if (!docNorm || !nomeNorm) return;
-
-      const snap = await getDocs(query(
-        collection(db, 'agendamentos'),
-        where('uidEsteticista', '==', pacienteData.criadoPorUid)
-      ));
-
-      const paraVincular = snap.docs.filter((d) => {
-        const a = d.data();
-        if (a.pacienteId) return false;
-
-        const aDocNorm = String(a.documento || '').replace(/\D/g, '');
-        const aNomeNorm = String(a.nome || '')
-          .trim()
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '');
-
-        return aDocNorm === docNorm && aNomeNorm === nomeNorm;
-      });
-
-      if (paraVincular.length === 0) return;
-
-      await Promise.all(
-        paraVincular.map((d) =>
-          updateDoc(d.ref, {
-            pacienteId: String(pacienteData.id),
-            vinculadoEm: new Date().toISOString(),
-            vinculadoPorBackfill: true,
-          })
-        )
-      );
-
-      console.log(`✅ Backfill: ${paraVincular.length} agendamento(s) vinculado(s).`);
-    } catch (e) {
-      console.warn('Falha no backfill:', e);
-    }
-  };
-
-  fazerBackfill();
-}, [pacienteData?.id, pacienteData?.criadoPorUid, backfillFeito]);
   useEffect(() => {
     const onPop = (e) => {
       const st = e.state;
@@ -1304,17 +1276,27 @@ const concluirReagendamento = async (novoAg) => {
 
   if (agAntigo) {
     try {
-      // ✅ Marca como reagendado (sai da lista) e oculta pro paciente
-      await updateDoc(doc(db, 'agendamentos', agAntigo.id), {
-        status: 'reagendado',
-        reagendadoPara: novoAg.id,
-        reagendadoEm: new Date().toISOString(),
-        ocultoParaPaciente: true,
-        ocultadoPacienteEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-      });
+      // 🔒 Chama Function (o paciente logado não pode fazer esse update direto)
+      const res = await fetch(
+        '/.netlify/functions/marcar-agendamento-reagendado',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agendamentoId: agAntigo.id,
+            novoAgendamentoId: novoAg.id,
+            nome: agAntigo.nome,
+            documento: agAntigo.documento,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn('Falha ao marcar reagendamento:', err);
+      }
     } catch (e) {
-      console.warn('Falha ao reagendar:', e);
+      console.warn('Erro de rede ao marcar reagendamento:', e);
     }
   }
 
@@ -1943,6 +1925,12 @@ const podeRemover = (ag) =>
       Remover da lista
     </button>
   </div>
+)}
+{mostrarModalLocalizacao && (
+  <ModalConsentimentoLocalizacao
+    pacienteId={pacienteData.id}
+    onFinalizar={() => setMostrarModalLocalizacao(false)}
+  />
 )}
                             
                           </div>

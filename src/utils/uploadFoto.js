@@ -1,5 +1,6 @@
 // src/utils/uploadFoto.js
 import imageCompression from 'browser-image-compression';
+import { auth } from '../components/firebase';
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -188,10 +189,24 @@ export async function uploadFoto(file, pacienteId) {
 /**
  * Deleta uma foto do Cloudinary.
  */
+/**
+ * Deleta uma foto do Cloudinary.
+ * Agora exige usuário logado + manda o Firebase ID Token.
+ */
 export async function deletarFotoCloudinary(publicId) {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Você precisa estar logado para excluir fotos.');
+  }
+
+  const token = await user.getIdToken();
+
   const response = await fetch('/.netlify/functions/deletar-foto', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
     body: JSON.stringify({ publicId }),
   });
 

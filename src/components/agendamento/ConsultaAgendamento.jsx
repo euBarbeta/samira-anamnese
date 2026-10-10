@@ -1,9 +1,7 @@
 // src/components/agendamento/ConsultaAgendamento.jsx
 import React, { useState } from 'react';
-import {
-  collection, query, where, getDocs, doc, updateDoc, deleteDoc,
-} from 'firebase/firestore';
-import { db } from '../firebase';
+
+
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
 import {
   MdSearch, MdWarning, MdCheckCircle, MdCancel, MdHourglassEmpty,
@@ -237,113 +235,114 @@ export default function ConsultaAgendamento({ onVoltar }) {
 
   // ✅ Novo: controla o modal de reagendamento
   const [agendamentoParaReagendar, setAgendamentoParaReagendar] = useState(null);
+const buscar = async () => {
+  setErro('');
+  setResultados(null);
 
-  const buscar = async () => {
-    setErro('');
-    setResultados(null);
+  if (!nome.trim() || nome.trim().split(/\s+/).length < 2) {
+    setErro('Informe seu nome completo (nome e sobrenome).');
+    return;
+  }
+  if (!documento.trim() || documento.trim().length < 5) {
+    setErro('Informe o mesmo documento usado no agendamento.');
+    return;
+  }
 
-    if (!nome.trim() || nome.trim().split(/\s+/).length < 2) {
-      setErro('Informe seu nome completo (nome e sobrenome).');
-      return;
+  setBuscando(true);
+  try {
+    // 🔒 Busca via Netlify Function (o Firestore agora bloqueia leitura pública)
+    const res = await fetch('/.netlify/functions/consultar-agendamento-publico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome: nome.trim(),
+        documento: documento.trim(),
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha na consulta');
     }
-    if (!documento.trim() || documento.trim().length < 5) {
-      setErro('Informe o mesmo documento usado no agendamento.');
-      return;
-    }
 
-    setBuscando(true);
-    try {
-      const docLimpo = documento.trim();
-      const snap = await getDocs(
-        query(
-          collection(db, 'agendamentos'),
-          where('documento', '==', docLimpo)
-        )
-      );
+    const data = await res.json();
+    setResultados(data.agendamentos || []);
+  } catch (e) {
+    console.error('Erro ao consultar:', e);
+    setErro('Não foi possível consultar agora. Tente novamente.');
+  } finally {
+    setBuscando(false);
+  }
+};
 
-     const alvoNome = normalizarNome(nome);
-const lista = snap.docs
-  .map((d) => ({ id: d.id, ...d.data() }))
-  .filter((a) => normalizarNome(a.nome) === alvoNome)
-  // ✅ Esconde reagendados (foram substituídos por outro agendamento)
-  .filter((a) => a.status !== 'reagendado')
-  .sort((a, b) => {
-    const ka = `${a.data} ${a.horaInicio}`;
-    const kb = `${b.data} ${b.horaInicio}`;
-    return kb.localeCompare(ka);
-  });
-
-      setResultados(lista);
-    } catch (e) {
-      console.error('Erro ao consultar:', e);
-      setErro('Não foi possível consultar agora. Tente novamente.');
-    } finally {
-      setBuscando(false);
-    }
-  };
-
-  const cancelar = async () => {
-    if (!confirmacao || confirmacao.acao !== 'cancelar') return;
-    const ag = confirmacao.ag;
-    setProcessando(true);
-    try {
-      await updateDoc(doc(db, 'agendamentos', ag.id), {
+const cancelar = async () => {
+  if (!confirmacao || confirmacao.acao !== 'cancelar') return;
+  const ag = confirmacao.ag;
+  setProcessando(true);
+  try {
+    // 🔒 Chama a Function (valida nome+doc no servidor)
+    const res = await fetch('/.netlify/functions/cancelar-agendamento-publico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agendamentoId: ag.id,
         nome: ag.nome,
         documento: ag.documento,
-        status: 'cancelado',
-        canceladoPor: 'paciente',
-        atualizadoEm: new Date().toISOString(),
-      });
-      try {
-        await fetch('/.netlify/functions/notificar-agendamento', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tipoEvento: 'cancelado_paciente',
-            uidEsteticista: ag.uidEsteticista,
-            agendamento: {
-              id: ag.id,
-              nome: ag.nome,
-              data: ag.data,
-              horaInicio: ag.horaInicio,
-            },
-          }),
-        });
-      } catch (e) {
-        console.warn('Falha ao notificar esteticista:', e);
-      }
-      setResultados((prev) =>
-        prev.map((a) =>
-          a.id === ag.id
-            ? { ...a, status: 'cancelado', canceladoPor: 'paciente' }
-            : a
-        )
-      );
-      setConfirmacao(null);
-    } catch (e) {
-      console.error('Erro ao cancelar:', e);
-      setErro('Não foi possível cancelar. Tente novamente.');
-    } finally {
-      setProcessando(false);
-    }
-  };
+      }),
+    });
 
-  const remover = async () => {
-    if (!confirmacao || confirmacao.acao !== 'remover') return;
-    const ag = confirmacao.ag;
-    setProcessando(true);
-    try {
-      await deleteDoc(doc(db, 'agendamentos', ag.id));
-      setResultados((prev) => prev.filter((a) => a.id !== ag.id));
-      setConfirmacao(null);
-    } catch (e) {
-      console.error('Erro ao remover:', e);
-      setErro('Não foi possível remover. Tente novamente.');
-    } finally {
-      setProcessando(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao cancelar');
     }
-  };
 
+    // Atualiza localmente (feedback otimista)
+    setResultados((prev) =>
+      prev.map((a) =>
+        a.id === ag.id
+          ? { ...a, status: 'cancelado', canceladoPor: 'paciente' }
+          : a
+      )
+    );
+    setConfirmacao(null);
+  } catch (e) {
+    console.error('Erro ao cancelar:', e);
+    setErro(e.message || 'Não foi possível cancelar. Tente novamente.');
+  } finally {
+    setProcessando(false);
+  }
+};
+
+const remover = async () => {
+  if (!confirmacao || confirmacao.acao !== 'remover') return;
+  const ag = confirmacao.ag;
+  setProcessando(true);
+  try {
+    // 🔒 Chama a Function (valida nome+doc no servidor)
+    const res = await fetch('/.netlify/functions/remover-agendamento-publico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agendamentoId: ag.id,
+        nome: ag.nome,
+        documento: ag.documento,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao remover');
+    }
+
+    setResultados((prev) => prev.filter((a) => a.id !== ag.id));
+    setConfirmacao(null);
+  } catch (e) {
+    console.error('Erro ao remover:', e);
+    setErro(e.message || 'Não foi possível remover. Tente novamente.');
+  } finally {
+    setProcessando(false);
+  }
+};
   return (
     <>
       <TelaSemInternet />
@@ -879,30 +878,43 @@ const lista = snap.docs
           uidEsteticista={agendamentoParaReagendar.uidEsteticista}
           origem="paciente"
           onFechar={() => setAgendamentoParaReagendar(null)}
-          onSucesso={(novoAg) => {
-            const antigo = agendamentoParaReagendar;
-            setAgendamentoParaReagendar(null);
+         onSucesso={async (novoAg) => {
+  const antigo = agendamentoParaReagendar;
+  setAgendamentoParaReagendar(null);
 
-            // ✅ Marca o antigo como `reagendado` (some de todas as listas)
-            //    e o novo já foi criado como `pendente` aguardando confirmação
-            if (antigo) {
-              updateDoc(doc(db, 'agendamentos', antigo.id), {
-                status: 'reagendado',
-                reagendadoPara: novoAg.id,
-                reagendadoEm: new Date().toISOString(),
-                atualizadoEm: new Date().toISOString(),
-              }).catch((e) =>
-                console.warn('Falha ao marcar reagendamento:', e)
-              );
+  if (antigo) {
+    try {
+      // 🔒 Chama Function (valida nome+doc e marca como reagendado)
+      const res = await fetch(
+        '/.netlify/functions/marcar-agendamento-reagendado',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agendamentoId: antigo.id,
+            novoAgendamentoId: novoAg.id,
+            nome: antigo.nome,
+            documento: antigo.documento,
+          }),
+        }
+      );
 
-              // Atualiza localmente pra sumir na hora
-              setResultados((prev) =>
-                prev.map((a) =>
-                  a.id === antigo.id ? { ...a, status: 'reagendado' } : a
-                )
-              );
-            }
-          }}
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn('Falha ao marcar reagendamento:', err);
+      }
+    } catch (e) {
+      console.warn('Erro de rede ao marcar reagendamento:', e);
+    }
+
+    // Atualiza local pra sumir na hora
+    setResultados((prev) =>
+      prev.map((a) =>
+        a.id === antigo.id ? { ...a, status: 'reagendado' } : a
+      )
+    );
+  }
+}}
         />
       )}
     </>
@@ -920,14 +932,7 @@ function formatarDataLonga(iso) {
   return `${dias[d.getDay()]}, ${dia}/${mes}/${ano}`;
 }
 
-function normalizarNome(str) {
-  return (str || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
+
 
 const labelMini = {
   fontSize: 10,

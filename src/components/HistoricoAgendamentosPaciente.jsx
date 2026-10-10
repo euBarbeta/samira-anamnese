@@ -8,10 +8,8 @@ import {
   MdInfoOutline, MdEvent, MdAccessTime, MdClose, MdDownload,
 } from 'react-icons/md';
 
-// ✅ Imports nativos (funcionam tanto em web quanto em APK)
-import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
+// ✅ ISOLADO: gera o PDF sem usar html2pdf.js
+import { gerarPdfHistorico, salvarPdfHistorico } from '../utils/gerarPdfHistorico';
 
 // ============================================================
 // Helpers
@@ -38,29 +36,6 @@ function formatarDataLonga(iso) {
   return `${dias[d.getDay()]}, ${dia}/${mes}/${ano}`;
 }
 
-// ✅ Detecta se está rodando como app nativo (APK)
-function isNativo() {
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
-}
-
-// ✅ Converte Blob → base64 (sem o prefixo data:)
-function blobParaBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      const base64 = String(result).split(',')[1] || '';
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
 // ============================================================
 // Mapa de status
 // ============================================================
@@ -82,7 +57,8 @@ const PERIODOS = [
 ];
 
 /* ============================================================
-   RELATÓRIO PDF — JSX renderizado pelo React (mesma técnica da FichaMobile)
+   RELATÓRIO PDF — Container renderizado pelo React.
+   Fica escondido (absolute + left:-10000) mas VISÍVEL pro html2canvas.
    ============================================================ */
 function RelatorioPDF({ id, filtrados, pacienteNome, pacienteDocumento, periodoDias }) {
   const hoje = new Date();
@@ -106,13 +82,12 @@ function RelatorioPDF({ id, filtrados, pacienteNome, pacienteDocumento, periodoD
       id={id}
       aria-hidden="true"
       style={{
-        position: 'fixed',
-        left: 0,
+        position: 'absolute',
+        left: '-10000px',    // longe da tela, mas o html2canvas captura
         top: 0,
         width: '794px',
         zIndex: -1,
         pointerEvents: 'none',
-        visibility: 'visible',
         opacity: 1,
         background: '#ffffff',
       }}
@@ -242,42 +217,15 @@ const tdEstilo = {
 };
 
 /* ============================================================
-   MODAL DE PRÉ-VISUALIZAÇÃO — funciona em web, PWA e APK
+   MODAL DE PRÉ-VISUALIZAÇÃO
    ============================================================ */
 function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
   const [processando, setProcessando] = useState(false);
 
-  // ============================================================
-  // BAIXAR — detecta plataforma
-  // ============================================================
   const handleBaixar = async () => {
     setProcessando(true);
     try {
-      if (isNativo()) {
-        // ✅ APK: salva no cache + abre menu nativo "Salvar como"
-        const base64 = await blobParaBase64(blob);
-        const resultado = await Filesystem.writeFile({
-          path: nomeArquivo,
-          data: base64,
-          directory: Directory.Cache,
-          recursive: true,
-        });
-
-        await Share.share({
-          title: 'Salvar PDF',
-          text: 'Escolha onde salvar o PDF:',
-          url: resultado.uri,
-          dialogTitle: 'Salvar PDF',
-        });
-      } else {
-        // ✅ Web/PWA: download normal
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = nomeArquivo;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
+      await salvarPdfHistorico(blob, nomeArquivo);
     } catch (e) {
       if (e?.message?.toLowerCase().includes('cancel')) return;
       console.error('Erro ao baixar:', e);
@@ -376,7 +324,8 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
             justifyContent: 'center',
           }}
         >
-          {isNativo() ? (
+          {typeof window !== 'undefined' &&
+          (window.Capacitor?.isNativePlatform?.() ?? false) ? (
             <div
               style={{
                 padding: 30,
@@ -483,25 +432,29 @@ export default function HistoricoAgendamentosPaciente({
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [gerandoPDF, setGerandoPDF] = useState(false);
 
-  // ✅ Estados pra PDF
+  // ✅ Estados do PDF
   const [renderizandoPDF, setRenderizandoPDF] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewBlob, setPreviewBlob] = useState(null);
   const [nomeArquivoAtual, setNomeArquivoAtual] = useState('');
 
   // ============================================================
-  // Listener
+  // Listener de agendamentos
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
 
     let cancelado = false;
 
-    const q = query(
+  const q = modo === 'paciente'
+  ? query(
+      collection(db, 'agendamentos'),
+      where('pacienteId', '==', String(pacienteId || ''))
+    )
+  : query(
       collection(db, 'agendamentos'),
       where('uidEsteticista', '==', uidEsteticista)
     );
-
     const unsub = onSnapshot(
       q,
       (snap) => {
@@ -545,7 +498,7 @@ export default function HistoricoAgendamentosPaciente({
   }, [uidEsteticista, pacienteId, pacienteDocumento, pacienteNome, modo]);
 
   // ============================================================
-  // Filtro por período + status
+  // Filtro
   // ============================================================
   const filtrados = useMemo(() => {
     const hoje = new Date();
@@ -569,50 +522,27 @@ export default function HistoricoAgendamentosPaciente({
   }, [agendamentos, periodoDias, statusFiltro]);
 
   // ============================================================
-  // Geração do PDF via container RENDERIZADO PELO REACT
+  // Geração do PDF — usa o utilitário ISOLADO
   // ============================================================
   useEffect(() => {
     if (!renderizandoPDF) return;
 
+    let cancelado = false;
+
+    // Pequeno delay pro container montar no DOM
     const timer = setTimeout(async () => {
       try {
         const containerId = 'historico-pdf-container';
         const elemento = document.getElementById(containerId);
 
         if (!elemento) {
-          console.error('❌ Container #historico-pdf-container não encontrado');
-          alert('Erro: container do PDF não encontrado.');
-          setRenderizandoPDF(false);
-          setGerandoPDF(false);
-          return;
+          throw new Error('Container do PDF não encontrado.');
         }
 
-        // Força largura A4
-        elemento.style.width = '210mm';
-        elemento.style.maxWidth = 'none';
+        // ✅ Chama o gerador ISOLADO (html2canvas + jsPDF direto)
+        const blob = await gerarPdfHistorico(elemento);
 
-        const html2pdf = (await import('html2pdf.js')).default;
-
-        const blob = await html2pdf()
-          .from(elemento)
-          .set({
-            margin: 0,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
-              scale: 2,
-              useCORS: true,
-              letterRendering: true,
-              scrollY: 0,
-              scrollX: 0,
-              windowWidth: 794,
-            },
-            jsPDF: {
-              unit: 'mm',
-              format: 'a4',
-              orientation: 'portrait',
-            },
-          })
-          .outputPdf('blob');
+        if (cancelado) return;
 
         const url = URL.createObjectURL(blob);
         const nomeArquivo = `Historico-${(pacienteNome || 'Paciente').replace(/\s+/g, '-')}.pdf`;
@@ -622,14 +552,19 @@ export default function HistoricoAgendamentosPaciente({
         setNomeArquivoAtual(nomeArquivo);
       } catch (err) {
         console.error('Erro ao gerar PDF:', err);
-        alert('Erro ao gerar PDF. Tente novamente.');
+        alert('Erro ao gerar PDF: ' + (err?.message || 'Tente novamente.'));
       } finally {
-        setRenderizandoPDF(false);
-        setGerandoPDF(false);
+        if (!cancelado) {
+          setRenderizandoPDF(false);
+          setGerandoPDF(false);
+        }
       }
-    }, 900);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
   }, [renderizandoPDF, pacienteNome]);
 
   // ============================================================
@@ -645,7 +580,7 @@ export default function HistoricoAgendamentosPaciente({
   };
 
   // ============================================================
-  // Fechar modal (libera memória)
+  // Fechar modal
   // ============================================================
   const fecharPreview = () => {
     if (previewUrl) {
@@ -922,7 +857,7 @@ export default function HistoricoAgendamentosPaciente({
         )}
       </div>
 
-      {/* Container do PDF — renderizado pelo React */}
+      {/* Container do PDF — renderizado pelo React, escondido da tela */}
       {renderizandoPDF && (
         <RelatorioPDF
           id="historico-pdf-container"
