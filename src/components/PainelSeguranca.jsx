@@ -1,11 +1,13 @@
 // src/components/PainelSeguranca.jsx
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  collection, onSnapshot, orderBy, query, where,
+} from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from './firebase';
 import {
   MdWarning, MdShield, MdCheckCircle, MdBlock, MdUndo,
-  MdRefresh, MdAccessTime, MdDevices, MdEmail, MdLocationOff
+  MdRefresh, MdAccessTime, MdDevices, MdEmail, MdLocationOff,
 } from 'react-icons/md';
 import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocalizacao';
 
@@ -13,42 +15,71 @@ export default function PainelSeguranca() {
   const [tentativas, setTentativas] = useState([]);
   const [bloqueios, setBloqueios] = useState([]);
   const [dispositivosPendentes, setDispositivosPendentes] = useState([]);
+  const [dispositivosBloqueados, setDispositivosBloqueados] = useState([]);
+  const [estados, setEstados] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(null);
   const [motivo, setMotivo] = useState('');
 
-  // Listener — tentativas de login
-  useEffect(() => {
-    const q = query(
-      collection(db, 'tentativas_login'),
-      orderBy('atualizadoEm', 'desc')
-    );
+  // ============================================================
+  // 🧠 ÍNDICE DE PACIENTES — { pacienteId: { nome, documento } }
+  // ------------------------------------------------------------
+  // Carrega TODOS os pacientes das estetas (Samira + MbTech) pra
+  // poder mostrar nome/documento a partir do `pacienteId` que vem
+  // nos docs de segurança.
+  // ============================================================
+  const [indicePacientes, setIndicePacientes] = useState({});
 
-    const unsub = onSnapshot(q, (snap) => {
-      setTentativas(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setCarregando(false);
+  useEffect(() => {
+    const uids = [
+      'MZ5j3NpjlxY67yLRiEfg13TbPE32', // Samira
+      'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2', // MbTech
+    ];
+
+    const unsubs = uids.map((uid) => {
+      const colRef = collection(db, `usuarios/${uid}/pacientes`);
+      return onSnapshot(
+        colRef,
+        (snap) => {
+          setIndicePacientes((prev) => {
+            const novo = { ...prev };
+            snap.docs.forEach((d) => {
+              const data = d.data();
+              novo[d.id] = {
+                id: d.id,
+                nome: data.nome || data.anamnese?.nome || 'Sem nome',
+                documento:
+                  data.documento ||
+                  data.anamnese?.numeroDocumento ||
+                  data.anamnese?.documento ||
+                  '—',
+              };
+            });
+            return novo;
+          });
+        },
+        (e) => console.warn('Erro listener pacientes (índice):', e)
+      );
     });
 
-    return () => unsub();
+    return () => unsubs.forEach((u) => u && u());
   }, []);
 
-  // Listener — bloqueios
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'bloqueios_login'), (snap) => {
-      setBloqueios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsub();
-  }, []);
+  const nomeDoPaciente = (pacienteId) =>
+    indicePacientes[String(pacienteId)]?.nome || 'Paciente';
+  const documentoDoPaciente = (pacienteId) =>
+    indicePacientes[String(pacienteId)]?.documento || '—';
 
-  // Listener — dispositivos pendentes
+  // ============================================================
+  // Listener — dispositivos PENDENTES
+  // ============================================================
   useEffect(() => {
-    const q = query(
-      collection(db, 'alertas_dispositivo'),
-      where('status', '==', 'pendente')
-    );
     const unsub = onSnapshot(
-      q,
+      query(
+        collection(db, 'alertas_dispositivo'),
+        where('status', '==', 'pendente')
+      ),
       (snap) => {
         setDispositivosPendentes(
           snap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -59,8 +90,53 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
-  // Listener — estados de segurança
-  const [estados, setEstados] = useState([]);
+  // ============================================================
+  // Listener — dispositivos BLOQUEADOS (autorizado=false)
+  // ============================================================
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(
+        collection(db, 'dispositivos_autorizados'),
+        where('autorizado', '==', false)
+      ),
+      (snap) => {
+        setDispositivosBloqueados(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        );
+      },
+      (e) => console.warn('Erro listener dispositivos_autorizados:', e)
+    );
+    return () => unsub();
+  }, []);
+
+  // ============================================================
+  // Listener — tentativas de login
+  // ============================================================
+  useEffect(() => {
+    const q = query(
+      collection(db, 'tentativas_login'),
+      orderBy('atualizadoEm', 'desc')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setTentativas(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setCarregando(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // ============================================================
+  // Listener — bloqueios (tentativas erradas)
+  // ============================================================
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'bloqueios_login'), (snap) => {
+      setBloqueios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // ============================================================
+  // Listener — estados de segurança (localização)
+  // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'seguranca_estado'), (snap) => {
       setEstados(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -68,6 +144,9 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
+  // ============================================================
+  // Helpers
+  // ============================================================
   const estaBloqueado = (emailHash) => {
     const b = bloqueios.find((x) => x.id === emailHash);
     return b?.bloqueado === true;
@@ -104,7 +183,8 @@ export default function PainelSeguranca() {
   };
 
   const executarAcaoDispositivo = async (pacienteId, fingerprint, acao) => {
-    setProcessando(`${pacienteId}__${fingerprint}`);
+    const chave = `${pacienteId}__${fingerprint}`;
+    setProcessando(chave);
     try {
       const user = getAuth().currentUser;
       if (!user) throw new Error('Sem sessão');
@@ -140,10 +220,17 @@ export default function PainelSeguranca() {
   const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id));
   const bloqueadosLista = relevantes.filter((t) => estaBloqueado(t.id));
 
-  const semLocalizacao = estados.filter((e) =>
-    e.localizacaoStatus && e.localizacaoStatus !== 'ativa'
+  const semLocalizacao = useMemo(
+    () =>
+      estados.filter(
+        (e) => e.localizacaoStatus && e.localizacaoStatus !== 'ativa'
+      ),
+    [estados]
   );
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div style={{ padding: '10px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
@@ -153,89 +240,139 @@ export default function PainelSeguranca() {
         </h3>
       </div>
 
-      {/* ============================================== */}
-      {/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO       */}
-      {/* ============================================== */}
-      {dispositivosPendentes.length > 0 && (
-        <>
-          <h4 style={tituloSecao}>
-            <MdDevices size={16} color="#7e22ce" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-            Dispositivos novos ({dispositivosPendentes.length})
-          </h4>
-
-          {dispositivosPendentes.map((d) => {
-            const carregandoEste = processando === `${d.pacienteId}__${d.fingerprint}`;
-            return (
-              <div key={d.id} style={{
-                ...cardBase,
-                borderColor: '#d8b4fe',
-                background: '#faf5ff',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <MdDevices size={20} color="#7e22ce" />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: "'Cinzel', serif",
-                      color: '#7e22ce',
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}>
-                      {d.dispositivo || 'Dispositivo desconhecido'}
-                    </div>
-                    <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
-                      Paciente: {String(d.pacienteId).slice(0, 12)}…
-                    </div>
-                  </div>
-                </div>
-
-                {(d.cidade || d.pais) && (
-                  <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
-                    📍 {d.cidade || '—'}{d.pais ? `/${d.pais}` : ''}
-                  </div>
-                )}
-
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
-                  Detectado em {d.criadoEm ? new Date(d.criadoEm).toLocaleString('pt-BR') : '—'}
-                </div>
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
-                    disabled={carregandoEste}
-                    style={btnPrimario}
-                  >
-                    <MdCheckCircle size={14} />
-                    {carregandoEste ? 'PROCESSANDO…' : 'AUTORIZAR'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'bloquear')}
-                    disabled={carregandoEste}
-                    style={btnPerigo}
-                  >
-                    <MdBlock size={14} />
-                    BLOQUEAR
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </>
-      )}
-
       {carregando ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
-          Carregando…
-        </div>
+        <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Carregando…</div>
       ) : (
         <>
-          {/* BLOQUEADOS */}
+          {/* ============================================== */}
+          {/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO       */}
+          {/* ============================================== */}
+          {dispositivosPendentes.length > 0 && (
+            <>
+              <h4 style={tituloSecao}>
+                <MdDevices size={16} color="#7e22ce" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                Dispositivos novos ({dispositivosPendentes.length})
+              </h4>
+
+              {dispositivosPendentes.map((d) => {
+                const chave = `${d.pacienteId}__${d.fingerprint}`;
+                const carregandoEste = processando === chave;
+                return (
+                  <div key={d.id} style={{ ...cardBase, borderColor: '#d8b4fe', background: '#faf5ff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <MdDevices size={20} color="#7e22ce" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "'Cinzel', serif", color: '#7e22ce', fontSize: 13, fontWeight: 700 }}>
+                          {d.dispositivo || 'Dispositivo desconhecido'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#2c163a', fontWeight: 600, marginTop: 2 }}>
+                          {nomeDoPaciente(d.pacienteId)}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
+                          Doc: {documentoDoPaciente(d.pacienteId)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(d.cidade || d.pais) && (
+                      <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
+                        📍 {d.cidade || '—'}{d.pais ? `/${d.pais}` : ''}
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
+                      Detectado em {d.criadoEm ? new Date(d.criadoEm).toLocaleString('pt-BR') : '—'}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
+                        disabled={carregandoEste}
+                        style={btnPrimario}
+                      >
+                        <MdCheckCircle size={14} />
+                        {carregandoEste ? 'PROCESSANDO…' : 'AUTORIZAR'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'bloquear')}
+                        disabled={carregandoEste}
+                        style={btnPerigo}
+                      >
+                        <MdBlock size={14} />
+                        BLOQUEAR
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* ============================================== */}
+          {/* DISPOSITIVOS BLOQUEADOS — PERMITE DESBLOQUEAR  */}
+          {/* ============================================== */}
+          {dispositivosBloqueados.length > 0 && (
+            <>
+              <h4 style={tituloSecao}>
+                <MdBlock size={16} color="#c62828" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                Dispositivos bloqueados ({dispositivosBloqueados.length})
+              </h4>
+
+              {dispositivosBloqueados.map((d) => {
+                const chave = `${d.pacienteId}__${d.fingerprint}`;
+                const carregandoEste = processando === chave;
+                return (
+                  <div key={d.id} style={{ ...cardBase, borderColor: '#fca5a5', background: '#fef2f2' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <MdBlock size={20} color="#c62828" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "'Cinzel', serif", color: '#991b1b', fontSize: 13, fontWeight: 700 }}>
+                          {d.dispositivo || 'Dispositivo bloqueado'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#2c163a', fontWeight: 600, marginTop: 2 }}>
+                          {nomeDoPaciente(d.pacienteId)}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
+                          Doc: {documentoDoPaciente(d.pacienteId)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {d.motivoBloqueio && (
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' }}>
+                        Motivo: {d.motivoBloqueio}
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
+                      Bloqueado em {d.bloqueadoEm ? new Date(d.bloqueadoEm).toLocaleString('pt-BR') : '—'}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
+                      disabled={carregandoEste}
+                      style={btnPrimario}
+                    >
+                      <MdUndo size={14} />
+                      {carregandoEste ? 'PROCESSANDO…' : 'DESBLOQUEAR DISPOSITIVO'}
+                    </button>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* ============================================== */}
+          {/* CONTAS BLOQUEADAS (tentativas erradas)         */}
+          {/* ============================================== */}
           {bloqueadosLista.length > 0 && (
             <>
               <h4 style={tituloSecao}>
                 <MdBlock size={16} color="#c62828" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                Contas bloqueadas ({bloqueadosLista.length})
+                Contas bloqueadas por tentativas ({bloqueadosLista.length})
               </h4>
 
               {bloqueadosLista.map((t) => {
@@ -245,12 +382,7 @@ export default function PainelSeguranca() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                       <MdBlock size={20} color="#c62828" />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontFamily: "'Cinzel', serif",
-                          color: '#991b1b',
-                          fontSize: 13,
-                          fontWeight: 700,
-                        }}>
+                        <div style={{ fontFamily: "'Cinzel', serif", color: '#991b1b', fontSize: 13, fontWeight: 700 }}>
                           Conta bloqueada
                         </div>
                         <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace', wordBreak: 'break-all' }}>
@@ -284,7 +416,9 @@ export default function PainelSeguranca() {
             </>
           )}
 
-          {/* SUSPEITOS */}
+          {/* ============================================== */}
+          {/* ATIVIDADE SUSPEITA                             */}
+          {/* ============================================== */}
           <h4 style={tituloSecao}>
             <MdWarning size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
             Atividade suspeita ({suspeitos.length})
@@ -292,13 +426,9 @@ export default function PainelSeguranca() {
 
           {suspeitos.length === 0 ? (
             <div style={{
-              padding: '20px',
-              background: '#f0fdf4',
-              border: '1.5px solid #86efac',
-              borderRadius: 12,
-              textAlign: 'center',
-              fontSize: 13,
-              color: '#166534',
+              padding: '20px', background: '#f0fdf4',
+              border: '1.5px solid #86efac', borderRadius: 12,
+              textAlign: 'center', fontSize: 13, color: '#166534',
             }}>
               <MdCheckCircle size={20} style={{ verticalAlign: 'middle', marginRight: 6 }} />
               Nenhuma atividade suspeita detectada.
@@ -308,19 +438,14 @@ export default function PainelSeguranca() {
               const tent = t.tentativas || [];
               const total = tent.length;
               const ultima = tent[tent.length - 1];
-              const carregando = processando === t.id;
+              const carregandoEste = processando === t.id;
 
               return (
                 <div key={t.id} style={cardBase}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                     <MdWarning size={20} color="#92400e" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: "'Cinzel', serif",
-                        color: '#92400e',
-                        fontSize: 13,
-                        fontWeight: 700,
-                      }}>
+                      <div style={{ fontFamily: "'Cinzel', serif", color: '#92400e', fontSize: 13, fontWeight: 700 }}>
                         {total} tentativa{total > 1 ? 's' : ''} falha{total > 1 ? 's' : ''}
                       </div>
                       <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
@@ -330,10 +455,7 @@ export default function PainelSeguranca() {
                   </div>
 
                   {ultima && (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      fontSize: 11, color: '#666', marginBottom: 6,
-                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#666', marginBottom: 6 }}>
                       <MdAccessTime size={12} />
                       Última: {new Date(ultima).toLocaleString('pt-BR')}
                     </div>
@@ -353,7 +475,7 @@ export default function PainelSeguranca() {
                     <button
                       type="button"
                       onClick={() => setMostrarModal(t.id)}
-                      disabled={carregando}
+                      disabled={carregandoEste}
                       style={btnPerigo}
                     >
                       <MdBlock size={14} />
@@ -365,7 +487,9 @@ export default function PainelSeguranca() {
             })
           )}
 
-          {/* LOCALIZAÇÕES DESLIGADAS */}
+          {/* ============================================== */}
+          {/* LOCALIZAÇÕES DESLIGADAS / NEGADAS / NÃO DISP.  */}
+          {/* ============================================== */}
           <h4 style={tituloSecao}>
             <MdLocationOff size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
             Pacientes sem localização ativa ({semLocalizacao.length})
@@ -373,13 +497,9 @@ export default function PainelSeguranca() {
 
           {semLocalizacao.length === 0 ? (
             <div style={{
-              padding: '14px',
-              background: '#f0fdf4',
-              border: '1.5px solid #86efac',
-              borderRadius: 12,
-              fontSize: 12,
-              color: '#166534',
-              textAlign: 'center',
+              padding: '14px', background: '#f0fdf4',
+              border: '1.5px solid #86efac', borderRadius: 12,
+              fontSize: 12, color: '#166534', textAlign: 'center',
             }}>
               <MdCheckCircle size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />
               Todos os pacientes estão com localização ativa.
@@ -393,8 +513,11 @@ export default function PainelSeguranca() {
                     <div style={{ fontSize: 12, fontWeight: 700, color: corStatusLocalizacao(e.localizacaoStatus) }}>
                       {rotuloStatusLocalizacao(e.localizacaoStatus)}
                     </div>
+                    <div style={{ fontSize: 12, color: '#2c163a', fontWeight: 600, marginTop: 2 }}>
+                      {nomeDoPaciente(e.id)}
+                    </div>
                     <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
-                      ID: {String(e.id).slice(0, 16)}…
+                      Doc: {documentoDoPaciente(e.id)}
                     </div>
                   </div>
                 </div>
@@ -413,7 +536,9 @@ export default function PainelSeguranca() {
         </>
       )}
 
-      {/* MODAL DE BLOQUEIO */}
+      {/* ============================================== */}
+      {/* MODAL DE BLOQUEIO                              */}
+      {/* ============================================== */}
       {mostrarModal && (
         <div
           onClick={() => setMostrarModal(null)}
@@ -437,12 +562,7 @@ export default function PainelSeguranca() {
             }}
           >
             <MdBlock size={40} color="#c62828" />
-            <h3 style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#c62828',
-              fontSize: 17,
-              margin: '12px 0 8px',
-            }}>
+            <h3 style={{ fontFamily: "'Cinzel', serif", color: '#c62828', fontSize: 17, margin: '12px 0 8px' }}>
               Bloquear acesso?
             </h3>
             <p style={{ fontSize: 12, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
