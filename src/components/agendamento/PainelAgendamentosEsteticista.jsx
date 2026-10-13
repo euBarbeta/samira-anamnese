@@ -1427,33 +1427,37 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [agendamentoParaExcluir, excluindoAg]);
 
-    const contagens = useMemo(() => {
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
-      const limite = new Date(hoje);
-      limite.setDate(limite.getDate() - DIAS_HISTORICO);
+   const contagens = useMemo(() => {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const limite = new Date(hoje);
+  limite.setDate(limite.getDate() - DIAS_HISTORICO);
 
-      const cont = {
-        pendente: 0,
-        confirmado: 0,
-        cancelado: 0,
-        concluido: 0,
-        faltou: 0,
-      };
-      for (const a of agendamentos) {
-        if (!(a.status in cont)) continue;
-        if (
-          a.status === 'cancelado' ||
-          a.status === 'concluido' ||
-          a.status === 'faltou'
-        ) {
-          const d = new Date((a.data || '') + 'T12:00:00');
-          if (d < limite) continue;
-        }
-        cont[a.status]++;
-      }
-      return cont;
-    }, [agendamentos]);
+  const cont = {
+    pendente: 0,
+    confirmado: 0,
+    cancelado: 0,
+    concluido: 0,
+    faltou: 0,
+  };
+  for (const a of agendamentos) {
+    if (!(a.status in cont)) continue;
+
+    // ✅ Ignora ocultos — pra bater EXATAMENTE com a lista visível
+    if (a.ocultoParaEsteticista) continue;
+
+    if (
+      a.status === 'cancelado' ||
+      a.status === 'concluido' ||
+      a.status === 'faltou'
+    ) {
+      const d = new Date((a.data || '') + 'T12:00:00');
+      if (d < limite) continue;
+    }
+    cont[a.status]++;
+  }
+  return cont;
+}, [agendamentos]);
 
   const filtrados = useMemo(() => {
     const hoje = new Date();

@@ -59,8 +59,6 @@ exports.handler = async (event) => {
     const uidEsteticista = String(estetaUidRaw);
 
     // 4) Autorização: quem está enviando?
-    //    - A própria esteta dona OU
-    //    - O paciente dono do doc
     const ehEsteta = decoded.uid === uidEsteticista;
     const ehPaciente = decoded.uid === pacienteId;
 
@@ -118,7 +116,25 @@ exports.handler = async (event) => {
       uploadStream.end(fileBuffer);
     });
 
-    // 8) Salva no Firestore
+    // 8) Busca o nome REAL do paciente no Firestore
+    let pacienteNome = decoded.name || 'Paciente';
+    try {
+      const pacienteSnap = await db
+        .doc(`usuarios/${uidEsteticista}/pacientes/${pacienteId}`)
+        .get();
+      if (pacienteSnap.exists) {
+        const p = pacienteSnap.data();
+        pacienteNome =
+          p.nome ||
+          p.anamnese?.nome ||
+          decoded.name ||
+          'Paciente';
+      }
+    } catch (e) {
+      console.warn('Falha ao buscar nome do paciente:', e);
+    }
+
+    // 9) Salva no Firestore
     const urlBase = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`;
 
     const docRef = await db
@@ -133,18 +149,19 @@ exports.handler = async (event) => {
         vinculadoA: [],
         notificado: false,
         uidEsteticista,
-        pacienteNome: decoded.name || 'Paciente',
+        pacienteNome,
         pacienteId,
       });
 
-    // 9) Notifica a esteticista (não bloqueia a resposta)
+    // 10) Notifica a esteticista (não bloqueia a resposta)
     if (ehPaciente) {
       try {
         const baseUrl = process.env.URL || `https://${event.headers.host}`;
         await fetch(`${baseUrl}/.netlify/functions/notificar-foto`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome: decoded.name || 'Paciente' }),
+          // ✅ CORRIGIDO: usa pacienteNome em vez de decoded.name
+          body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome }),
         });
       } catch (e) {
         console.warn('Falha ao notificar foto:', e);
