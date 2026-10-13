@@ -12,32 +12,13 @@ import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocal
 export default function PainelSeguranca() {
   const [tentativas, setTentativas] = useState([]);
   const [bloqueios, setBloqueios] = useState([]);
+  const [dispositivosPendentes, setDispositivosPendentes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [processando, setProcessando] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(null);
   const [motivo, setMotivo] = useState('');
-  const [dispositivosPendentes, setDispositivosPendentes] = useState([]);
- 
 
-useEffect(() => {
-  const unsub = onSnapshot(
-    query(
-      collection(db, 'alertas_dispositivo'),
-      where('status', '==', 'pendente')
-    ),
-    (snap) => {
-      setDispositivosPendentes(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      );
-    },
-    (e) => console.warn('Erro listener alertas_dispositivo:', e)
-  );
-  return () => unsub();
-}, []);
-
-  // ============================================================
   // Listener — tentativas de login
-  // ============================================================
   useEffect(() => {
     const q = query(
       collection(db, 'tentativas_login'),
@@ -52,12 +33,37 @@ useEffect(() => {
     return () => unsub();
   }, []);
 
-  // ============================================================
   // Listener — bloqueios
-  // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'bloqueios_login'), (snap) => {
       setBloqueios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Listener — dispositivos pendentes
+  useEffect(() => {
+    const q = query(
+      collection(db, 'alertas_dispositivo'),
+      where('status', '==', 'pendente')
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setDispositivosPendentes(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        );
+      },
+      (e) => console.warn('Erro listener alertas_dispositivo:', e)
+    );
+    return () => unsub();
+  }, []);
+
+  // Listener — estados de segurança
+  const [estados, setEstados] = useState([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'seguranca_estado'), (snap) => {
+      setEstados(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
   }, []);
@@ -67,44 +73,11 @@ useEffect(() => {
     return b?.bloqueado === true;
   };
 
-  // ============================================================
-  // Bloquear / desbloquear
-  // ============================================================
-  const executarAcaoDispositivo = async (pacienteId, fingerprint, acao) => {
-  setProcessando(`${pacienteId}__${fingerprint}`);
-  try {
-    const user = getAuth().currentUser;
-    if (!user) throw new Error('Sem sessão');
-
-    const token = await user.getIdToken(true);
-
-    const res = await fetch('/.netlify/functions/gerenciar-dispositivo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ pacienteId, fingerprint, acao }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Falha');
-    }
-  } catch (e) {
-    console.error('Erro ação dispositivo:', e);
-    alert('Erro ao processar: ' + e.message);
-  } finally {
-    setProcessando(null);
-  }
-};
   const executarAcao = async (emailHash, acao, motivoTexto = '') => {
     setProcessando(emailHash);
-
     try {
       const user = getAuth().currentUser;
       if (!user) throw new Error('Sem sessão');
-
       const token = await user.getIdToken(true);
 
       const res = await fetch('/.netlify/functions/gerenciar-bloqueio-login', {
@@ -130,9 +103,34 @@ useEffect(() => {
     }
   };
 
-  // ============================================================
-  // Filtra tentativas relevantes (com falhas ou bloqueadas)
-  // ============================================================
+  const executarAcaoDispositivo = async (pacienteId, fingerprint, acao) => {
+    setProcessando(`${pacienteId}__${fingerprint}`);
+    try {
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('Sem sessão');
+      const token = await user.getIdToken(true);
+
+      const res = await fetch('/.netlify/functions/gerenciar-dispositivo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pacienteId, fingerprint, acao }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha');
+      }
+    } catch (e) {
+      console.error('Erro ação dispositivo:', e);
+      alert('Erro ao processar: ' + e.message);
+    } finally {
+      setProcessando(null);
+    }
+  };
+
   const relevantes = tentativas.filter((t) => {
     const temFalhas = (t.tentativas || []).length > 0;
     const bloqueado = estaBloqueado(t.id);
@@ -142,43 +140,89 @@ useEffect(() => {
   const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id));
   const bloqueadosLista = relevantes.filter((t) => estaBloqueado(t.id));
 
-  // ============================================================
-  // Listener — estados de segurança (localizações desligadas)
-  // ============================================================
-  const [estados, setEstados] = useState([]);
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'seguranca_estado'), (snap) => {
-      setEstados(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsub();
-  }, []);
-
   const semLocalizacao = estados.filter((e) =>
     e.localizacaoStatus && e.localizacaoStatus !== 'ativa'
   );
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   return (
     <div style={{ padding: '10px 0' }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 18,
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
         <MdShield size={24} color="#7e22ce" />
-        <h3 style={{
-          fontFamily: "'Cinzel', serif",
-          color: '#2c163a',
-          fontSize: 18,
-          margin: 0,
-        }}>
+        <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: 18, margin: 0 }}>
           Segurança
         </h3>
       </div>
+
+      {/* ============================================== */}
+      {/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO       */}
+      {/* ============================================== */}
+      {dispositivosPendentes.length > 0 && (
+        <>
+          <h4 style={tituloSecao}>
+            <MdDevices size={16} color="#7e22ce" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Dispositivos novos ({dispositivosPendentes.length})
+          </h4>
+
+          {dispositivosPendentes.map((d) => {
+            const carregandoEste = processando === `${d.pacienteId}__${d.fingerprint}`;
+            return (
+              <div key={d.id} style={{
+                ...cardBase,
+                borderColor: '#d8b4fe',
+                background: '#faf5ff',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <MdDevices size={20} color="#7e22ce" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: "'Cinzel', serif",
+                      color: '#7e22ce',
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}>
+                      {d.dispositivo || 'Dispositivo desconhecido'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
+                      Paciente: {String(d.pacienteId).slice(0, 12)}…
+                    </div>
+                  </div>
+                </div>
+
+                {(d.cidade || d.pais) && (
+                  <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
+                    📍 {d.cidade || '—'}{d.pais ? `/${d.pais}` : ''}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
+                  Detectado em {d.criadoEm ? new Date(d.criadoEm).toLocaleString('pt-BR') : '—'}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
+                    disabled={carregandoEste}
+                    style={btnPrimario}
+                  >
+                    <MdCheckCircle size={14} />
+                    {carregandoEste ? 'PROCESSANDO…' : 'AUTORIZAR'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'bloquear')}
+                    disabled={carregandoEste}
+                    style={btnPerigo}
+                  >
+                    <MdBlock size={14} />
+                    BLOQUEAR
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
 
       {carregando ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
@@ -186,9 +230,7 @@ useEffect(() => {
         </div>
       ) : (
         <>
-          {/* ============================================== */}
-          {/* BLOQUEADOS                                     */}
-          {/* ============================================== */}
+          {/* BLOQUEADOS */}
           {bloqueadosLista.length > 0 && (
             <>
               <h4 style={tituloSecao}>
@@ -241,75 +283,8 @@ useEffect(() => {
               })}
             </>
           )}
-{/* ============================================== */}
-{/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO       */}
-{/* ============================================== */}
-{dispositivosPendentes.length > 0 && (
-  <>
-    <h4 style={tituloSecao}>
-      <MdDevices size={16} color="#7e22ce" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-      Dispositivos novos ({dispositivosPendentes.length})
-    </h4>
 
-    {dispositivosPendentes.map((d) => (
-      <div key={d.id} style={{
-        ...cardBase,
-        borderColor: '#d8b4fe',
-        background: '#faf5ff',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <MdDevices size={20} color="#7e22ce" />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#7e22ce',
-              fontSize: 13,
-              fontWeight: 700,
-            }}>
-              {d.dispositivo || 'Dispositivo desconhecido'}
-            </div>
-            <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
-              Paciente ID: {String(d.pacienteId).slice(0, 12)}…
-            </div>
-          </div>
-        </div>
-
-        {(d.cidade || d.pais) && (
-          <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
-            📍 {d.cidade || '—'}{d.pais ? `/${d.pais}` : ''}
-          </div>
-        )}
-
-        <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
-          Detectado em {d.criadoEm ? new Date(d.criadoEm).toLocaleString('pt-BR') : '—'}
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
-            style={btnPrimario}
-          >
-            <MdCheckCircle size={14} />
-            AUTORIZAR
-          </button>
-          <button
-            type="button"
-            onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'bloquear')}
-            style={btnPerigo}
-          >
-            <MdBlock size={14} />
-            BLOQUEAR
-          </button>
-        </div>
-      </div>
-    ))}
-  </>
-)}
-
-          {/* ============================================== */}
-          {/* SUSPEITOS                                      */}
-          {/* ============================================== */}
+          {/* SUSPEITOS */}
           <h4 style={tituloSecao}>
             <MdWarning size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
             Atividade suspeita ({suspeitos.length})
@@ -390,9 +365,7 @@ useEffect(() => {
             })
           )}
 
-          {/* ============================================== */}
-          {/* LOCALIZAÇÕES DESLIGADAS                       */}
-          {/* ============================================== */}
+          {/* LOCALIZAÇÕES DESLIGADAS */}
           <h4 style={tituloSecao}>
             <MdLocationOff size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
             Pacientes sem localização ativa ({semLocalizacao.length})
@@ -440,9 +413,7 @@ useEffect(() => {
         </>
       )}
 
-      {/* ============================================== */}
-      {/* MODAL DE BLOQUEIO                              */}
-      {/* ============================================== */}
+      {/* MODAL DE BLOQUEIO */}
       {mostrarModal && (
         <div
           onClick={() => setMostrarModal(null)}
@@ -549,7 +520,7 @@ const cardBase = {
 };
 
 const btnPrimario = {
-  width: '100%',
+  flex: 1,
   background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
   color: '#fff', border: 'none',
   padding: '10px 14px', borderRadius: 14,

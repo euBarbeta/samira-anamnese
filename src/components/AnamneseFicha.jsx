@@ -14,6 +14,7 @@ import PainelEsteticistaMobile from './PainelEsteticistaMobile';
 import PainelPaciente from './PainelPaciente';
 import TelaAgendamentoPublico from './agendamento/TelaAgendamentoPublico';
 import PaginaNaoEncontrada from './PaginaNaoEncontrada';
+import TelaAcessoSuspenso from './TelaAcessoSuspenso';
 import { validarUIDPaciente } from '../utils/validarUID';
 import { EMAILS_ESTETICISTAS, UID_ESTETICISTA_PADRAO } from './constantes';
 import { secondaryAuth } from './firebaseSecondary';
@@ -41,6 +42,7 @@ export default function AnamneseFicha() {
   const [usuarioLogado, setUsuarioLogado] = useState(null);
   const [rota, setRota] = useState('verificando');
   const [mostrarModalSair, setMostrarModalSair] = useState(false);
+  const [motivoSuspensao, setMotivoSuspensao] = useState('');
   useBackButtonExit(() => {
   setMostrarModalSair(true);
 });
@@ -182,18 +184,34 @@ export default function AnamneseFicha() {
   // ============================================================
   // ROTEAMENTO INICIAL — prioriza hash #UID
   // ============================================================
+  // ============================================================
+// 🔒 Boot: se havia suspensão salva, mostra tela dedicada
+// ============================================================
+useEffect(() => {
+  try {
+    const motivoSalvo = sessionStorage.getItem('af_motivo_deslog');
+    if (motivoSalvo) {
+      setMotivoSuspensao(motivoSalvo);
+      setRota('acesso-suspenso');
+    }
+  } catch {}
+}, []);
   useEffect(() => {
     const path = window.location.pathname;
     const hash = window.location.hash.slice(1);
-
+   try {
+      const motivoSalvo = sessionStorage.getItem('af_motivo_deslog');
+      if (motivoSalvo) return;
+    } catch {}
     const temSessaoSalva = (() => {
-      try {
+        try {
         return (
           sessionStorage.getItem('af_autenticado') === '1' ||
           localStorage.getItem('af_autenticado') === '1'
         );
       } catch { return false; }
     })();
+    
 
     if (hash === 'consultar') {
       setRota('agendamento-consulta');
@@ -719,7 +737,7 @@ if (isNativo()) {
 // 🔒 VERIFICA SE ESTE DEVICE ESTÁ AUTORIZADO
 // ============================================================
 try {
-  const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import('./dispositivos');
+ const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import("../utils/dispositivos");
 
   const fingerprint = gerarFingerprintEstavel();
   const dispositivo = rotuloDispositivoCurto();
@@ -996,8 +1014,25 @@ try {
   // RENDER
    const renderizarConteudo = () => {
     const hashAtual = window.location.hash.slice(1);
+    
     const pathAtual = window.location.pathname;
     const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
+        // 🔒 TELA DE ACESSO SUSPENSO — prioridade máxima
+    if (rota === 'acesso-suspenso') {
+      return (
+        <TelaAcessoSuspenso
+          motivo={motivoSuspensao}
+          onVoltarLogin={() => {
+            try {
+              sessionStorage.removeItem('af_motivo_deslog');
+            } catch {}
+            setMotivoSuspensao('');
+            setRota('login-uid');
+          }}
+        />
+      );
+    }
+    
 
     // ✅ PRIORIDADE ABSOLUTA — se a rota já foi decidida como
     //    'não-encontrado' (conta excluída, link inválido, etc.),
@@ -1285,6 +1320,7 @@ return (
   <>
     <TelaSemInternet />
     {renderizarConteudo()}
+    
 
     {mostrarModalSair && (
       <ModalSairApp

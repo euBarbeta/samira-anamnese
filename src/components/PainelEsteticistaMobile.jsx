@@ -251,20 +251,43 @@ useEffect(() => {
 // ============================================================
 // ✅ Contador de alertas de segurança (tentativas suspeitas)
 // ============================================================
+// ============================================================
+// ✅ Contador de alertas de segurança (SOMA 2 FONTES)
+//    1) tentativas_login com requerBloqueio=true
+//    2) alertas_dispositivo com status='pendente'
+// ============================================================
+const [tentativasAlertaCount, setTentativasAlertaCount] = useState(0);
+const [dispositivosAlertaCount, setDispositivosAlertaCount] = useState(0);
+
 useEffect(() => {
   const q = query(
     collection(db, 'tentativas_login'),
     where('requerBloqueio', '==', true)
   );
-
   const unsub = onSnapshot(
     q,
-    (snap) => setSegurancaAlertaCount(snap.size),
+    (snap) => setTentativasAlertaCount(snap.size),
     (e) => logWarn('Erro contagem segurança:', e)
   );
-
   return () => unsub();
 }, []);
+
+useEffect(() => {
+  const q = query(
+    collection(db, 'alertas_dispositivo'),
+    where('status', '==', 'pendente')
+  );
+  const unsub = onSnapshot(
+    q,
+    (snap) => setDispositivosAlertaCount(snap.size),
+    (e) => logWarn('Erro contagem dispositivos:', e)
+  );
+  return () => unsub();
+}, []);
+
+useEffect(() => {
+  setSegurancaAlertaCount(tentativasAlertaCount + dispositivosAlertaCount);
+}, [tentativasAlertaCount, dispositivosAlertaCount]);
 useEffect(() => {
   if (!jaCarregou) return;
   if (!pacienteSelecionado) return;
