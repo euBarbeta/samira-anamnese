@@ -1,6 +1,7 @@
 // netlify/functions/remover-agendamento-publico.js
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { checkRateLimit } = require('./_utils/rate-limit');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,12 +18,17 @@ function normalizarNome(str) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
 }
-// 🚦 Rate limit: 5 por minuto
-const rate = checkRateLimit('cancelar-publico', event, { max: 5, janela: 60000 });
+
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
-  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
- const rate = checkRateLimit('criar-agendamento', event, { max: 5, janela: 60000 });
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: CORS, body: '' };
+  }
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
+  }
+
+  // 🚦 Rate limit: 5 remoções por minuto por IP
+  const rate = checkRateLimit('remover-publico', event, { max: 5, janela: 60000 });
   if (!rate.ok) {
     return {
       statusCode: 429,
@@ -30,6 +36,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: 'Muitas tentativas. Aguarde um pouco.' }),
     };
   }
+
   try {
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);

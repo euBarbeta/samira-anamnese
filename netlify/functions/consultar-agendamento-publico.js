@@ -1,6 +1,7 @@
 // netlify/functions/consultar-agendamento-publico.js
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { checkRateLimit } = require('./_utils/rate-limit');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -21,9 +22,7 @@ function normalizarNome(str) {
 function normalizarDoc(str) {
   return (str || '').replace(/\D/g, '');
 }
-// 🚦 Rate limit: 10 consultas por minuto por IP (evita enumeração)
-const rate = checkRateLimit('consultar-agendamento', event, { max: 10, janela: 60000 });
-if (!rate.ok) { /* retorna 429 */ }
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS, body: '' };
@@ -31,7 +30,9 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
   }
-   const rate = checkRateLimit('criar-agendamento', event, { max: 5, janela: 60000 });
+
+  // 🚦 Rate limit: 10 consultas por minuto por IP (evita enumeração)
+  const rate = checkRateLimit('consultar-agendamento', event, { max: 10, janela: 60000 });
   if (!rate.ok) {
     return {
       statusCode: 429,
