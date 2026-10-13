@@ -29,8 +29,7 @@ dist-ssr
 *.keystore
 *.jks
 # APK builds — nunca commitar (pesado, servido pelo Netlify)
-public/downloads/
-public/downloads/*.apk
+
 # Pasta temporária do filter-repo / mirror — não versionar
 repo-clean.git/
 *.git/
