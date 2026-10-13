@@ -1,6 +1,7 @@
 // src/components/PainelPaciente.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { gerarFingerprintEstavel } from '../utils/dispositivos';
 import ModalConsentimentoLocalizacao from './ModalConsentimentoLocalizacao';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import { db } from './firebase';
@@ -987,6 +988,42 @@ useEffect(() => {
     }
   });
 }, [pacienteData?.id]);
+// ============================================================
+// 🚨 BLOQUEIO EM TEMPO REAL
+// Se a esteta bloquear este device, o paciente é deslogado.
+// ============================================================
+useEffect(() => {
+  if (!pacienteData?.id) return;
+
+  const fingerprint = gerarFingerprintEstavel();
+  const chave = `${String(pacienteData.id)}__${fingerprint}`;
+
+  const unsub = onSnapshot(
+    doc(db, 'dispositivos_autorizados', chave),
+    (snap) => {
+      if (!snap.exists) return;
+
+      const data = snap.data();
+
+      // Se foi bloqueado → desloga
+      if (data.autorizado === false) {
+        // Marca no sessionStorage pra mostrar aviso pós-logout
+        try {
+          sessionStorage.setItem(
+            'af_motivo_deslog',
+            data.motivoBloqueio || 'Acesso suspenso pela profissional'
+          );
+        } catch {}
+
+        // Fecha o app / volta pra tela inicial
+        if (onLogout) onLogout();
+      }
+    },
+    (e) => console.warn('Erro listener dispositivos:', e)
+  );
+
+  return () => unsub();
+}, [pacienteData?.id, onLogout]);
 
 useEffect(() => {
   const telaInicial = abrirAnamneseInicial ? 'ver_anamnese' : 'detalhe_pasta';

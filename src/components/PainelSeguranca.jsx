@@ -1,6 +1,6 @@
 // src/components/PainelSeguranca.jsx
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from './firebase';
 import {
@@ -16,6 +16,24 @@ export default function PainelSeguranca() {
   const [processando, setProcessando] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(null);
   const [motivo, setMotivo] = useState('');
+  const [dispositivosPendentes, setDispositivosPendentes] = useState([]);
+ 
+
+useEffect(() => {
+  const unsub = onSnapshot(
+    query(
+      collection(db, 'alertas_dispositivo'),
+      where('status', '==', 'pendente')
+    ),
+    (snap) => {
+      setDispositivosPendentes(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      );
+    },
+    (e) => console.warn('Erro listener alertas_dispositivo:', e)
+  );
+  return () => unsub();
+}, []);
 
   // ============================================================
   // Listener — tentativas de login
@@ -52,6 +70,34 @@ export default function PainelSeguranca() {
   // ============================================================
   // Bloquear / desbloquear
   // ============================================================
+  const executarAcaoDispositivo = async (pacienteId, fingerprint, acao) => {
+  setProcessando(`${pacienteId}__${fingerprint}`);
+  try {
+    const user = getAuth().currentUser;
+    if (!user) throw new Error('Sem sessão');
+
+    const token = await user.getIdToken(true);
+
+    const res = await fetch('/.netlify/functions/gerenciar-dispositivo', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ pacienteId, fingerprint, acao }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha');
+    }
+  } catch (e) {
+    console.error('Erro ação dispositivo:', e);
+    alert('Erro ao processar: ' + e.message);
+  } finally {
+    setProcessando(null);
+  }
+};
   const executarAcao = async (emailHash, acao, motivoTexto = '') => {
     setProcessando(emailHash);
 
@@ -195,6 +241,71 @@ export default function PainelSeguranca() {
               })}
             </>
           )}
+{/* ============================================== */}
+{/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO       */}
+{/* ============================================== */}
+{dispositivosPendentes.length > 0 && (
+  <>
+    <h4 style={tituloSecao}>
+      <MdDevices size={16} color="#7e22ce" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+      Dispositivos novos ({dispositivosPendentes.length})
+    </h4>
+
+    {dispositivosPendentes.map((d) => (
+      <div key={d.id} style={{
+        ...cardBase,
+        borderColor: '#d8b4fe',
+        background: '#faf5ff',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <MdDevices size={20} color="#7e22ce" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: "'Cinzel', serif",
+              color: '#7e22ce',
+              fontSize: 13,
+              fontWeight: 700,
+            }}>
+              {d.dispositivo || 'Dispositivo desconhecido'}
+            </div>
+            <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
+              Paciente ID: {String(d.pacienteId).slice(0, 12)}…
+            </div>
+          </div>
+        </div>
+
+        {(d.cidade || d.pais) && (
+          <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>
+            📍 {d.cidade || '—'}{d.pais ? `/${d.pais}` : ''}
+          </div>
+        )}
+
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
+          Detectado em {d.criadoEm ? new Date(d.criadoEm).toLocaleString('pt-BR') : '—'}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
+            style={btnPrimario}
+          >
+            <MdCheckCircle size={14} />
+            AUTORIZAR
+          </button>
+          <button
+            type="button"
+            onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'bloquear')}
+            style={btnPerigo}
+          >
+            <MdBlock size={14} />
+            BLOQUEAR
+          </button>
+        </div>
+      </div>
+    ))}
+  </>
+)}
 
           {/* ============================================== */}
           {/* SUSPEITOS                                      */}

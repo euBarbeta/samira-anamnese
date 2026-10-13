@@ -715,6 +715,64 @@ if (isNativo()) {
         }
 
         setDadosPaciente(pacienteEncontrado);
+        // ============================================================
+// 🔒 VERIFICA SE ESTE DEVICE ESTÁ AUTORIZADO
+// ============================================================
+try {
+  const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import('./dispositivos');
+
+  const fingerprint = gerarFingerprintEstavel();
+  const dispositivo = rotuloDispositivoCurto();
+
+  // Pega localização aproximada (se autorizado)
+  let geo = { cidade: null, pais: null, lat: null, lng: null };
+  try {
+    const { obterLocalizacao } = await import('../utils/geolocalizacao');
+    const loc = await obterLocalizacao();
+    if (loc.status === 'ativa') {
+      geo = {
+        cidade: loc.cidade || null,
+        pais: loc.pais || null,
+        lat: loc.lat ?? null,
+        lng: loc.lng ?? null,
+      };
+    }
+  } catch {}
+
+  const res = await fetch('/.netlify/functions/verificar-dispositivo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      pacienteId: String(pacienteEncontrado.id),
+      fingerprint,
+      dispositivo,
+      plataforma: isNativo() ? 'apk' : 'pwa',
+      ...geo,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (data.status === 'bloqueado') {
+    // Esteta bloqueou este device → não deixa entrar
+    await signOut(auth);
+    setAutenticado(false);
+    setUsuarioLogado(null);
+    setDadosPaciente(null);
+    setBuscandoPaciente(false);
+    setErroLoginExterno(
+      data.motivo || 'Acesso suspenso pela profissional. Entre em contato.'
+    );
+    setRota('login-uid');
+    setAuthVerificado(true);
+    return;
+  }
+
+  // 'novo' (1º device) ou 'conhecido' ou 'pendente' → continua normal
+} catch (e) {
+  console.warn('Falha ao verificar dispositivo:', e);
+  // Não bloqueia o login se a verificação falhar (fail-open)
+}
         import('../utils/segurancaEstado')
   .then(({ atualizarEstadoSeguranca }) => {
     atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});

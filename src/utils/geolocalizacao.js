@@ -124,6 +124,160 @@ export async function obterLocalizacao() {
 }
 
 /**
+ * ✅ NOVO: Detecta o estado ATUAL do GPS (ligado/desligado) SEM pedir permissão.
+ *
+ * Retorna:
+ *   'ligado'        → permissão granted e GPS responde
+ *   'gps_desligado' → permissão granted mas GPS retorna erro 2 (POSITION_UNAVAILABLE)
+ *   'negada'        → permissão denied
+ *   'prompt'        → ainda não pediu permissão
+ *   'indisponivel'  → iOS sem distinção, ou navegador sem suporte
+ */
+export async function detectarEstadoGPS() {
+  if (!('geolocation' in navigator) && !isNativo()) {
+    return 'indisponivel';
+  }
+
+  // 1) Checa permissão primeiro
+  let estadoPermissao = 'prompt';
+  try {
+    if (isNativo()) {
+      const { Geolocation } = await import('@capacitor/geolocation');
+      const perm = await Geolocation.checkPermissions();
+      estadoPermissao = perm.location;
+    } else if (navigator.permissions?.query) {
+      const status = await navigator.permissions.query({ name: 'geolocation' });
+      estadoPermissao = status.state;
+    }
+  } catch (e) {
+    console.warn('Falha checando permissão:', e);
+  }
+
+  if (estadoPermissao === 'denied') return 'negada';
+  if (estadoPermissao === 'prompt') return 'prompt';
+
+  // 2) Permissão granted → testa se GPS está ligado (timeout curto)
+  try {
+    await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        reject,
+        { enableHighAccuracy: false, timeout: 3000, maximumAge: 0 }
+      );
+    });
+    return 'ligado';
+  } catch (err) {
+    if (err.code === 2) return 'gps_desligado'; // POSITION_UNAVAILABLE
+    if (err.code === 1) return 'negada';
+    if (err.code === 3) return 'timeout';
+
+    // iOS: sempre cai aqui quando GPS desligado — não dá pra distinguir
+    return 'indisponivel';
+  }
+}
+
+/**
+ * ✅ NOVO: Monitora a localização em tempo real.
+ *
+ * Chama `onUpdate(posicao)` toda vez que o GPS muda.
+ * Retorna uma função pra parar o monitoramento.
+ *
+ * ⚠️ Só funciona se a permissão já estiver concedida.
+ */
+export function monitorarLocalizacao(onUpdate, onError) {
+  if (!('geolocation' in navigator) && !isNativo()) {
+    onError?.('nao_suportado');
+    return () => {};
+  }
+
+  if (isNativo()) {
+    // Capacitor também tem watchPosition
+    let watchId = null;
+    let parado = false;
+
+    (async () => {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const perm = await Geolocation.checkPermissions();
+
+        if (perm.location !== 'granted') {
+          onError?.('negada');
+          return;
+        }
+
+        watchId = await Geolocation.watchPosition(
+          { enableHighAccuracy: false, timeout: 15000 },
+          (pos, err) => {
+            if (parado) return;
+            if (err) {
+              onError?.(err.code === 2 ? 'gps_desligado' : 'timeout');
+              return;
+            }
+            if (pos) {
+              onUpdate?.({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+              });
+            }
+          }
+        );
+      } catch (e) {
+        onError?.('nao_suportado');
+      }
+    })();
+
+    return () => {
+      parado = true;
+      if (watchId) {
+        import('@capacitor/geolocation').then(({ Geolocation }) => {
+          Geolocation.clearWatch({ id: watchId }).catch(() => {});
+        });
+      }
+    };
+  }
+
+  // Web / PWA
+  const watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      onUpdate?.({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+      });
+    },
+    (err) => {
+      if (err.code === 2) onError?.('gps_desligado');
+      else if (err.code === 1) onError?.('negada');
+      else onError?.('timeout');
+    },
+    { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+  );
+
+  return () => navigator.geolocation.clearWatch(watchId);
+}
+
+/**
+ * ✅ NOVO: Escuta mudanças no estado da PERMISSÃO (não do GPS).
+ * Útil pra saber quando o usuário autoriza/nega em tempo real.
+ */
+export function escutarMudancaPermissao(callback) {
+  if (!navigator.permissions?.query) return () => {};
+
+  let statusRef = null;
+  let cancelado = false;
+
+  navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+    if (cancelado) return;
+    statusRef = status;
+    status.onchange = () => callback?.(status.state);
+  }).catch(() => {});
+
+  return () => {
+    cancelado = true;
+    if (statusRef) statusRef.onchange = null;
+  };
+}
+
+/**
  * Retorna um rótulo legível pro status.
  */
 export function rotuloStatusLocalizacao(status) {
@@ -133,6 +287,9 @@ export function rotuloStatusLocalizacao(status) {
     gps_desligado: '⚠️ GPS desligado',
     timeout: '⏱️ Tempo esgotado',
     nao_suportado: '⚠️ Não disponível',
+    indisponivel: '⚠️ Indisponível',
+    ligado: '🟢 GPS ligado',
+    prompt: '⏳ Aguardando autorização',
   }[status] || '⚠️ Desconhecido';
 }
 
@@ -140,5 +297,5 @@ export function rotuloStatusLocalizacao(status) {
  * Retorna a cor do rótulo.
  */
 export function corStatusLocalizacao(status) {
-  return status === 'ativa' ? '#166534' : '#92400e';
+  return (status === 'ativa' || status === 'ligado') ? '#166534' : '#92400e';
 }

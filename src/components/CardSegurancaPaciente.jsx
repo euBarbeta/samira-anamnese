@@ -4,7 +4,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import {
   MdLocationOn, MdDevices, MdAccessTime, MdWarning,
-  MdCheckCircle, MdLock,
+  MdCheckCircle, MdLock, MdRefresh,
 } from 'react-icons/md';
 import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocalizacao';
 
@@ -14,18 +14,17 @@ export default function CardSegurancaPaciente({ pacienteId }) {
 
   useEffect(() => {
     if (!pacienteId) return;
-  const unsub = onSnapshot(
-  doc(db, 'seguranca_estado', String(pacienteId)),
-  (snap) => {
-    setEstado(snap.exists() ? snap.data() : null);
-    setCarregando(false);
-  },
-  (e) => {
-    // ✅ Silencioso: se não tem permissão, apenas não mostra o card
-    setEstado(null);
-    setCarregando(false);
-  }
-);
+    const unsub = onSnapshot(
+      doc(db, 'seguranca_estado', String(pacienteId)),
+      (snap) => {
+        setEstado(snap.exists() ? snap.data() : null);
+        setCarregando(false);
+      },
+      (e) => {
+        setEstado(null);
+        setCarregando(false);
+      }
+    );
     return () => unsub();
   }, [pacienteId]);
 
@@ -43,13 +42,45 @@ export default function CardSegurancaPaciente({ pacienteId }) {
   }
 
   const corStatus = corStatusLocalizacao(estado.localizacaoStatus);
+  const gpsLigado = estado.localizacaoStatus === 'ativa';
 
   return (
     <div style={card}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <MdLock size={16} color="#7e22ce" />
-        <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: 12, fontWeight: 700 }}>
-          Estado de Segurança
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <MdLock size={16} color="#7e22ce" />
+          <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: 12, fontWeight: 700 }}>
+            Estado de Segurança
+          </span>
+        </div>
+
+        {/* ✅ Badge em tempo real: GPS ligado/desligado */}
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 9.5,
+            fontWeight: 700,
+            padding: '3px 8px',
+            borderRadius: 10,
+            background: gpsLigado ? '#f0fdf4' : '#fff8e1',
+            color: gpsLigado ? '#166534' : '#92400e',
+            border: `1px solid ${gpsLigado ? '#86efac' : '#fcd34d'}`,
+            fontFamily: "'Cinzel', serif",
+          }}
+        >
+          {gpsLigado ? (
+            <>
+              <MdCheckCircle size={11} />
+              GPS LIGADO
+            </>
+          ) : (
+            <>
+              <MdWarning size={11} />
+              SEM GPS
+            </>
+          )}
         </span>
       </div>
 
@@ -80,7 +111,7 @@ export default function CardSegurancaPaciente({ pacienteId }) {
       </div>
 
       <div style={linha}>
-        <MdAccessTime size={14} color="#7e22ce" style={{ flexShrink: 0, marginTop: 2 }} />
+        <MdRefresh size={14} color="#7e22ce" style={{ flexShrink: 0, marginTop: 2 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={labelMini}>Última verificação</div>
           <div style={valorMini}>

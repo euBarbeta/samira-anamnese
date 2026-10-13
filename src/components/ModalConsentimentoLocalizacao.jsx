@@ -1,16 +1,22 @@
 // src/components/ModalConsentimentoLocalizacao.jsx
 import React, { useState } from 'react';
-import { MdLocationOn, MdWarning } from 'react-icons/md';
+import { MdLocationOn, MdWarning, MdInfoOutline } from 'react-icons/md';
 import { atualizarEstadoSeguranca } from '../utils/segurancaEstado';
 
 export default function ModalConsentimentoLocalizacao({ pacienteId, onFinalizar }) {
   const [processando, setProcessando] = useState(false);
   const [mostrarAviso, setMostrarAviso] = useState(false);
+  const [mostrarExplicacao, setMostrarExplicacao] = useState(false);
 
   const handleAutorizar = async () => {
+    // ✅ Mostra explicação ANTES de disparar o prompt nativo
+    if (!mostrarExplicacao) {
+      setMostrarExplicacao(true);
+      return;
+    }
+
     setProcessando(true);
     try {
-      // Tenta pegar a localização
       const resultado = await atualizarEstadoSeguranca(pacienteId, {
         incluirLocalizacao: true,
       });
@@ -18,7 +24,6 @@ export default function ModalConsentimentoLocalizacao({ pacienteId, onFinalizar 
       if (resultado?.localizacaoStatus === 'ativa') {
         onFinalizar({ autorizou: true, status: 'ativa' });
       } else {
-        // Usuário autorizou o modal mas o navegador negou → mostra aviso
         setMostrarAviso(true);
         setProcessando(false);
       }
@@ -35,7 +40,7 @@ export default function ModalConsentimentoLocalizacao({ pacienteId, onFinalizar 
     } catch (e) {
       console.warn(e);
     }
-    // Salva localizacaoStatus como negada
+
     try {
       const { doc, setDoc } = await import('firebase/firestore');
       const { db } = await import('./firebase');
@@ -58,6 +63,73 @@ export default function ModalConsentimentoLocalizacao({ pacienteId, onFinalizar 
     setMostrarAviso(false);
     onFinalizar({ autorizou: false, status: 'negada' });
   };
+
+  // ============================================================
+  // TELA DE EXPLICAÇÃO (aparece ANTES do prompt nativo)
+  // ============================================================
+  if (mostrarExplicacao) {
+    return (
+      <div style={overlay}>
+        <div style={card}>
+          <div style={{
+            width: 68, height: 68, margin: '0 auto 16px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #fdf4ff 0%, #f5e6ff 100%)',
+            border: '2px solid #a855f7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <MdInfoOutline size={34} color="#a855f7" />
+          </div>
+
+          <h3 style={titulo}>Uma última confirmação</h3>
+
+          <p style={texto}>
+            Agora o <strong>navegador vai abrir uma janela</strong> perguntando
+            se você permite o acesso à localização.
+          </p>
+
+          <div style={{
+            background: '#faf5ff',
+            border: '1.5px solid #d8b4fe',
+            borderRadius: 10,
+            padding: '12px 14px',
+            fontSize: 12,
+            color: '#55286f',
+            marginBottom: 16,
+            textAlign: 'left',
+            lineHeight: 1.6,
+          }}>
+            👉 Toque em <strong>"Permitir"</strong> nessa janela pra confirmar.
+            <br />
+            👉 Se você tocar em <strong>"Bloquear"</strong>, pode ativar depois
+            nas configurações do celular.
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleAutorizar}
+              disabled={processando}
+              style={botaoPrimario}
+            >
+              {processando ? 'ABRINDO…' : 'ABRIR JANELA DE PERMISSÃO'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarExplicacao(false);
+              }}
+              disabled={processando}
+              style={botaoSecundario}
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ============================================================
   // TELA DE AVISO PÓS-NEGAÇÃO
