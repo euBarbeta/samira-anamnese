@@ -218,6 +218,7 @@ const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
 //   automaticamente, mesmo se a esteta estava dentro da pasta dele.
 // ============================================================
 const [agendamentosPendentesCount, setAgendamentosPendentesCount] = useState(0);
+const [segurancaAlertaCount, setSegurancaAlertaCount] = useState(0);
 
 useEffect(() => {
   const user = auth.currentUser;
@@ -233,6 +234,23 @@ useEffect(() => {
     q,
     (snap) => setAgendamentosPendentesCount(snap.size),
     (e) => logWarn('Erro contagem pendentes:', e)
+  );
+
+  return () => unsub();
+}, []);
+// ============================================================
+// ✅ Contador de alertas de segurança (tentativas suspeitas)
+// ============================================================
+useEffect(() => {
+  const q = query(
+    collection(db, 'tentativas_login'),
+    where('requerBloqueio', '==', true)
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => setSegurancaAlertaCount(snap.size),
+    (e) => logWarn('Erro contagem segurança:', e)
   );
 
   return () => unsub();
@@ -1284,7 +1302,7 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
   </span>
 )}
                 </button>
-       <button
+   <button
   type="button"
   onClick={() => navegarPara('seguranca')}
   className="btn-efeito-hover"
@@ -1306,6 +1324,28 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
 >
   <MdSecurity size={16} />
   Segurança
+  {segurancaAlertaCount > 0 && (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 20,
+        height: 20,
+        padding: '0 6px',
+        borderRadius: 10,
+        background: '#dc2626',
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 800,
+        fontFamily: "'Montserrat', sans-serif",
+        marginLeft: 2,
+        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+      }}
+    >
+      {segurancaAlertaCount}
+    </span>
+  )}
 </button>
               </div>
             </div>

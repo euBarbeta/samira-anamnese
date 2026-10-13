@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
 import { sanitizarTexto } from '../../utils/sanitizar';
 import {
-  collection, query, where, getDocs, addDoc, doc, getDoc, onSnapshot,
+  collection, addDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -14,11 +14,16 @@ import {
 } from 'react-icons/md';
 import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 
+// ============================================================
+// CONSTANTES
+// ============================================================
+const POLLING_MS = 60 * 1000; // 60 segundos
+
 export default function ModalAgendarParaPaciente({
   paciente,
   uidEsteticista,
   origem = 'esteticista',
-   tipoNotificacao = 'criado',
+  tipoNotificacao = 'criado',
   onFechar,
   onSucesso,
 }) {
@@ -79,19 +84,36 @@ export default function ModalAgendarParaPaciente({
   const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
 
   // ============================================================
-  // Listener 1 — CONFIG da agenda (tempo real)
+  // ✅ POLLING 1 — CONFIG da agenda (a cada 60s)
+  // ------------------------------------------------------------
+  // Antes era `onSnapshot` direto em `agenda_config`.
+  // Agora, como as Firestore Rules fecharam a leitura pública,
+  // usamos a Function `buscar-agenda-publica` + polling 60s.
   // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
 
     let cancelado = false;
+    let intervaloId = null;
 
-    const unsub = onSnapshot(
-      doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
-      (snap) => {
+    const buscarConfig = async () => {
+      try {
+        const res = await fetch('/.netlify/functions/buscar-agenda-publica', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uidEsteticista }),
+        });
+
         if (cancelado) return;
 
-        if (!snap.exists()) {
+        if (!res.ok) {
+          console.error('Falha ao buscar config da agenda:', await res.text());
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!data.config) {
           setErro(
             isPaciente
               ? 'A agenda da profissional ainda não está configurada.'
@@ -103,75 +125,87 @@ export default function ModalAgendarParaPaciente({
           return;
         }
 
-        setConfigAgenda(snap.data());
+        setConfigAgenda(data.config);
         setErro('');
-      },
-      (err) => {
-        console.error('Erro listener config:', err);
-        setCarregando(false);
+      } catch (err) {
+        if (cancelado) return;
+        console.error('Erro ao buscar config:', err);
+        // Não fecha o modal — mantém a config antiga se já houver
       }
-    );
+    };
+
+    // 1ª chamada imediata
+    buscarConfig();
+
+    // Polling a cada 60s
+    intervaloId = setInterval(buscarConfig, POLLING_MS);
 
     return () => {
       cancelado = true;
-      unsub();
+      if (intervaloId) clearInterval(intervaloId);
     };
   }, [uidEsteticista, isPaciente]);
 
   // ============================================================
-  // Listener 2 — AGENDAMENTOS do período (tempo real)
+  // ✅ POLLING 2 — AGENDAMENTOS ocupados (a cada 60s)
+  // ------------------------------------------------------------
+  // O navegador não pode ler `agendamentos` direto — a Function
+  // devolve só os HORÁRIOS ocupados, sem PII.
   // ============================================================
-// ============================================================
-// ✅ Busca agendamentos ocupados via Netlify Function
-//    (o navegador não pode ler `agendamentos` direto — a
-//     function devolve só os HORÁRIOS ocupados, sem PII)
-// ============================================================
-useEffect(() => {
-  if (!uidEsteticista || !configAgenda) return;
+  useEffect(() => {
+    if (!uidEsteticista || !configAgenda) return;
 
-  let cancelado = false;
+    let cancelado = false;
+    let intervaloId = null;
 
-  const hoje = toISODateLocal(new Date());
-  const max = new Date();
-  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-  const dataFim = toISODateLocal(max);
+    const buscarOcupados = async () => {
+      const hoje = toISODateLocal(new Date());
+      const max = new Date();
+      max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+      const dataFim = toISODateLocal(max);
 
-  (async () => {
-    try {
-      const res = await fetch('/.netlify/functions/buscar-slots-ocupados', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uidEsteticista,
-          dataInicio: hoje,
-          dataFim,
-        }),
-      });
+      try {
+        const res = await fetch('/.netlify/functions/buscar-slots-ocupados', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uidEsteticista,
+            dataInicio: hoje,
+            dataFim,
+          }),
+        });
 
-      if (cancelado) return;
+        if (cancelado) return;
 
-      if (!res.ok) {
-        console.error('Falha ao buscar slots:', await res.text());
+        if (!res.ok) {
+          console.error('Falha ao buscar slots:', await res.text());
+          setAgendamentosOcupados([]);
+          setCarregando(false);
+          return;
+        }
+
+        const data = await res.json();
+        setAgendamentosOcupados(data.ocupados || []);
+        setCarregando(false);
+      } catch (err) {
+        if (cancelado) return;
+        console.error('Erro rede buscar slots:', err);
         setAgendamentosOcupados([]);
         setCarregando(false);
-        return;
       }
+    };
 
-      const data = await res.json();
-      setAgendamentosOcupados(data.ocupados || []);
-      setCarregando(false);
-    } catch (err) {
-      if (cancelado) return;
-      console.error('Erro rede buscar slots:', err);
-      setAgendamentosOcupados([]);
-      setCarregando(false);
-    }
-  })();
+    // 1ª chamada imediata
+    buscarOcupados();
 
-  return () => {
-    cancelado = true;
-  };
-}, [uidEsteticista, configAgenda]);
+    // Polling a cada 60s
+    intervaloId = setInterval(buscarOcupados, POLLING_MS);
+
+    return () => {
+      cancelado = true;
+      if (intervaloId) clearInterval(intervaloId);
+    };
+  }, [uidEsteticista, configAgenda]);
 
   // ============================================================
   // Recalcula slots sempre que config ou agendamentos mudarem
@@ -259,14 +293,14 @@ useEffect(() => {
         servicoId: null,
         servicoNome: null,
 
-              nome: sanitizarTexto(paciente?.nome || 'Paciente', { maxLength: 100 }),
-      documento: paciente?.documento || '',
-      telefone: paciente?.telefone || '',
-      email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
-      observacoes: sanitizarTexto(observacoes, {
-        maxLength: 500,
-        permitirQuebraLinha: true,
-      }),
+        nome: sanitizarTexto(paciente?.nome || 'Paciente', { maxLength: 100 }),
+        documento: paciente?.documento || '',
+        telefone: paciente?.telefone || '',
+        email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
+        observacoes: sanitizarTexto(observacoes, {
+          maxLength: 500,
+          permitirQuebraLinha: true,
+        }),
 
         status: novoStatus,
         criadoPor: isPaciente ? 'paciente' : 'esteticista',
@@ -289,7 +323,6 @@ useEffect(() => {
       //    - Esteta agendou SEM app (público)        → NÃO notifica
       // ============================================================
       if (isPaciente) {
-        // Paciente agendou → notifica a esteticista
         notificarAgendamento({
           tipoEvento: 'novo',
           uidEsteticista,
@@ -301,13 +334,12 @@ useEffect(() => {
           },
         });
       } else if (temPacienteNoSistema) {
-        // Esteta agendou pra paciente que TEM app → notifica o paciente
         fetch('/.netlify/functions/notificar-paciente-agendamento', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             pacienteId: paciente.id,
-             tipoEvento: tipoNotificacao, 
+            tipoEvento: tipoNotificacao,
             agendamento: {
               id: docRef.id,
               data: slotSelecionado.data,
@@ -317,28 +349,27 @@ useEffect(() => {
           }),
         }).catch((e) => console.warn('Falha ao notificar paciente:', e));
       }
-      // else: reagendamento público → nada a notificar (não tem app)
 
       onSucesso?.({
-  id: docRef.id,
-  data: slotSelecionado.data,
-  horaInicio: slotSelecionado.horaInicio,
-  horaFim: slotSelecionado.horaFim,
-  duracaoMin: calcularDuracao(slotSelecionado),
-  nome: paciente?.nome || 'Paciente',
-  documento: paciente?.documento || '',
-  telefone: paciente?.telefone || '',
-  email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
-  observacoes: observacoes.trim(),
-  status: novoStatus,
-  pacienteId: temPacienteNoSistema ? String(paciente.id) : null,
-  uidEsteticista,
-  servicoId: null,
-  servicoNome: null,
-  aguardandoConsentimento: isPaciente
-    ? false
-    : !paciente?.consentimentoLGPD?.aceito,
-});
+        id: docRef.id,
+        data: slotSelecionado.data,
+        horaInicio: slotSelecionado.horaInicio,
+        horaFim: slotSelecionado.horaFim,
+        duracaoMin: calcularDuracao(slotSelecionado),
+        nome: paciente?.nome || 'Paciente',
+        documento: paciente?.documento || '',
+        telefone: paciente?.telefone || '',
+        email: (paciente?.email || paciente?.emailAcesso || '').toLowerCase(),
+        observacoes: observacoes.trim(),
+        status: novoStatus,
+        pacienteId: temPacienteNoSistema ? String(paciente.id) : null,
+        uidEsteticista,
+        servicoId: null,
+        servicoNome: null,
+        aguardandoConsentimento: isPaciente
+          ? false
+          : !paciente?.consentimentoLGPD?.aceito,
+      });
     } catch (e) {
       console.error('Erro ao criar agendamento:', e);
       setErro(
@@ -680,14 +711,14 @@ useEffect(() => {
                         slotSelecionado?.data === s.data &&
                         slotSelecionado?.horaInicio === s.horaInicio;
                       return (
-                       <button
-  key={i}
-  type="button"
-  onClick={() => setSlotSelecionado(s)}
-  className={`map-slot-btn${ativo ? ' ativo' : ''}`}
->
-  {s.horaInicio}
-</button>
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setSlotSelecionado(s)}
+                          className={`map-slot-btn${ativo ? ' ativo' : ''}`}
+                        >
+                          {s.horaInicio}
+                        </button>
                       );
                     })}
                   </div>

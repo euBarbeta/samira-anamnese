@@ -228,6 +228,7 @@ const [temMais, setTemMais] = useState(true);
 //   automaticamente, mesmo se a esteta estava dentro da pasta dele.
 // ============================================================
 const [agendamentosPendentesCount, setAgendamentosPendentesCount] = useState(0);
+const [segurancaAlertaCount, setSegurancaAlertaCount] = useState(0);
 
 useEffect(() => {
   const user = auth.currentUser;
@@ -243,6 +244,23 @@ useEffect(() => {
     q,
     (snap) => setAgendamentosPendentesCount(snap.size),
     (e) => logWarn('Erro contagem pendentes:', e)
+  );
+
+  return () => unsub();
+}, []);
+// ============================================================
+// ✅ Contador de alertas de segurança (tentativas suspeitas)
+// ============================================================
+useEffect(() => {
+  const q = query(
+    collection(db, 'tentativas_login'),
+    where('requerBloqueio', '==', true)
+  );
+
+  const unsub = onSnapshot(
+    q,
+    (snap) => setSegurancaAlertaCount(snap.size),
+    (e) => logWarn('Erro contagem segurança:', e)
   );
 
   return () => unsub();
@@ -1270,112 +1288,147 @@ if (!jaCarregou) {
         </h2>
 
         {/* Container com os 2 botões */}
-        <div style={{ display: 'flex', gap: '8px', flexDirection: 'row' }}>
-          <button
-            type="button"
-            onClick={() => navegarPara('criar_anamnese')}
-            className="btn-efeito-hover"
-            style={{
-              flex: 1,
-              fontFamily: "'Cinzel', serif",
-              background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-              color: '#fff',
-              border: 'none',
-              padding: '12px 10px',
-              borderRadius: '20px',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '5px',
-              boxShadow: '0 4px 12px rgba(200, 162, 74, 0.3)',
-              lineHeight: 1.2,
-              textAlign: 'center',
-            }}
-          >
-            <MdAssignment size={15} style={{ flexShrink: 0 }} />
-            Ficha de Anamnese
-          </button>
+      {/* Container com os 3 botões — EMPILHADOS no mobile */}
+<div style={{
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '10px',
+  width: '100%',
+}}>
 
-          <button
-            type="button"
-            onClick={() => navegarPara('agendamentos')}
-            className="btn-efeito-hover"
-            style={{
-              flex: 1,
-              fontFamily: "'Cinzel', serif",
-              background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-              color: '#fff',
-              border: 'none',
-              padding: '12px 10px',
-              borderRadius: '20px',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '5px',
-              boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
-              lineHeight: 1.2,
-              textAlign: 'center',
-            }}
-          >
-            <MdCalendarMonth size={15} style={{ flexShrink: 0 }} />
-            Agendamentos
-          {agendamentosPendentesCount > 0 && (
-  <span
+  {/* BOTÃO 1 — Ficha de Anamnese */}
+  <button
+    type="button"
+    onClick={() => navegarPara('criar_anamnese')}
+    className="btn-efeito-hover"
     style={{
-      display: 'inline-flex',
+      width: '100%',
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '14px 16px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      minWidth: 20,
-      height: 20,
-      padding: '0 6px',
-      borderRadius: 10,
-      background: '#dc2626',
-      color: '#fff',
-      fontSize: 10,
-      fontWeight: 800,
-      fontFamily: "'Montserrat', sans-serif",
-      marginLeft: 2,
-      boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+      gap: '8px',
+      boxShadow: '0 4px 12px rgba(200, 162, 74, 0.3)',
+      lineHeight: 1.2,
     }}
   >
-    {agendamentosPendentesCount}
-  </span>
-)}
-          </button>
-      <button
-  type="button"
-  onClick={() => navegarPara('seguranca')}
-  className="btn-efeito-hover"
-  style={{
-    flex: 1,
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-    color: '#fff',
-    border: 'none',
-    padding: '12px 10px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '5px',
-    boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
-    lineHeight: 1.2,
-    textAlign: 'center',
-  }}
->
-  <MdSecurity size={15} style={{ flexShrink: 0 }} />
-  Segurança
-</button>
-        </div>
+    <MdAssignment size={16} style={{ flexShrink: 0 }} />
+    Ficha de Anamnese
+  </button>
+
+  {/* BOTÃO 2 — Agendamentos (com badge) */}
+  <button
+    type="button"
+    onClick={() => navegarPara('agendamentos')}
+    className="btn-efeito-hover"
+    style={{
+      width: '100%',
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '14px 16px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
+      lineHeight: 1.2,
+      position: 'relative',
+    }}
+  >
+    <MdCalendarMonth size={16} style={{ flexShrink: 0 }} />
+    Agendamentos
+
+    {agendamentosPendentesCount > 0 && (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: 20,
+          height: 20,
+          padding: '0 6px',
+          borderRadius: 10,
+          background: '#dc2626',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 800,
+          fontFamily: "'Montserrat', sans-serif",
+          marginLeft: 2,
+          boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+        }}
+      >
+        {agendamentosPendentesCount}
+      </span>
+    )}
+  </button>
+
+  {/* BOTÃO 3 — Segurança (com badge) */}
+  <button
+    type="button"
+    onClick={() => navegarPara('seguranca')}
+    className="btn-efeito-hover"
+    style={{
+      width: '100%',
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '14px 16px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
+      lineHeight: 1.2,
+      position: 'relative',
+    }}
+  >
+    <MdSecurity size={16} style={{ flexShrink: 0 }} />
+    Segurança
+
+    {segurancaAlertaCount > 0 && (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: 20,
+          height: 20,
+          padding: '0 6px',
+          borderRadius: 10,
+          background: '#dc2626',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 800,
+          fontFamily: "'Montserrat', sans-serif",
+          marginLeft: 2,
+          boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+        }}
+      >
+        {segurancaAlertaCount}
+      </span>
+    )}
+  </button>
+
+</div>
       </div>
 
       {/* BARRA DE PESQUISA — colada no cabeçalho */}

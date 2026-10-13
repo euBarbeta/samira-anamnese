@@ -24,8 +24,13 @@ dist-ssr
 *.sw?
 .env.local
 .env*.local
-samira-cron-2026-x7k9p3
-com.samira.estetica
-Enter keystore password:060925
-samira-release.keystore
 .env
+# 🔒 Chaves de assinatura Android
+*.keystore
+*.jks
+# APK builds — nunca commitar (pesado, servido pelo Netlify)
+public/downloads/
+public/downloads/*.apk
+# Pasta temporária do filter-repo / mirror — não versionar
+repo-clean.git/
+*.git/

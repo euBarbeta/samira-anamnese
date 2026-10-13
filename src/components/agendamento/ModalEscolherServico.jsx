@@ -173,7 +173,7 @@ export default function ModalEscolherServico({
   }, [servicos, agendamento, config, agendamentosDoDia]);
 
   // ============================================================
-  // 5) Confirmar (1º passo) — calcula gaps REAIS
+  // 5) Confirmar (1º passo) — calcula gaps REAIS (SEM fatiar)
   // ============================================================
   const confirmar = async () => {
     if (!servicoSelecionado || typeof servicoSelecionado.duracaoMin !== 'number') {
@@ -194,10 +194,9 @@ export default function ModalEscolherServico({
 
     const inicioBlocoMin = toMin(inicioBloco);
     const fimBlocoMin = toMin(fimBloco);
-    const inicioAgMin = toMin(agendamento.horaInicio);
     const fimAgMin = toMin(info.novaFim);
 
-    // ✅ Outros agendamentos ativos no mesmo dia (dentro do bloco)
+    // ✅ Outros agendamentos ativos no MESMO bloco (ordenados por início)
     const outrosOcupados = agendamentosDoDia
       .filter((a) => a.id !== agendamento.id)
       .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
@@ -206,41 +205,38 @@ export default function ModalEscolherServico({
         const fM = a.horaFim ? toMin(a.horaFim) : iM + (a.duracaoMin || 60);
         return { inicioMin: iM, fimMin: fM };
       })
-      .filter((o) => o.fimMin > inicioBlocoMin && o.inicioMin < fimBlocoMin);
+      .filter((o) => o.fimMin > inicioBlocoMin && o.inicioMin < fimBlocoMin)
+      .sort((a, b) => a.inicioMin - b.inicioMin);
 
-    // ✅ Próximo início ocupado após o fim do serviço atual
+    // ✅ Próximo início ocupado APÓS o fim do atendimento atual
     const proximoInicioOcupado = outrosOcupados
       .filter((o) => o.inicioMin >= fimAgMin)
       .map((o) => o.inicioMin)
       .sort((a, b) => a - b)[0];
 
-    // ✅ Limite do gap = próximo ocupado OU fim do bloco
+    // ✅ Limite final = próximo ocupado OU fim do bloco
     const limiteFimMin = proximoInicioOcupado != null
       ? Math.min(proximoInicioOcupado, fimBlocoMin)
       : fimBlocoMin;
 
+    // ✅ GAP REAL — sem fatiar em blocos fixos
     const gapTotalMin = limiteFimMin - fimAgMin;
 
-    // Se nem 10 min sobrou, nem pergunta
-    if (gapTotalMin < 10) {
+    // ✅ Se sobrar MENOS de 5 min, nem pergunta
+    if (gapTotalMin < 5) {
       await salvarConfirmacao({ liberarSobra: false });
       return;
     }
 
-    // ✅ Fragmenta o gap em fatias de duracaoPadrao
-    const slotsLivres = [];
-    let cur = fimAgMin;
-    while (cur < limiteFimMin) {
-      const proximo = Math.min(cur + duracaoPadrao, limiteFimMin);
-      slotsLivres.push({
-        inicio: toHHMM(cur),
-        fim: toHHMM(proximo),
-        duracaoMin: proximo - cur,
-      });
-      cur = proximo;
-    }
+    // ✅ MOSTRA O GAP COMPLETO — sempre 1 slot, do fim do atendimento
+    //    até o próximo compromisso (ou fim do bloco)
+    const slotsLivres = [{
+      inicio: toHHMM(fimAgMin),
+      fim: toHHMM(limiteFimMin),
+      duracaoMin: gapTotalMin,
+    }];
 
-    // ✅ Serviços que cabem em cada slot
+    // ✅ Serviços que cabem neste gap
     const servicosPorSlot = {};
     slotsLivres.forEach((slot) => {
       const chave = `${slot.inicio}-${slot.fim}`;
@@ -807,9 +803,7 @@ export default function ModalEscolherServico({
                     letterSpacing: '0.3px',
                     textTransform: 'uppercase',
                   }}>
-                    {passoSobrou.slotsLivres.length === 1
-                      ? 'Tempo livre disponível'
-                      : `${passoSobrou.slotsLivres.length} tempos livres`}
+                    Tempo livre após este atendimento
                   </span>
                 </div>
 
@@ -973,7 +967,7 @@ export default function ModalEscolherServico({
               margin: '16px 0 12px 0',
               textAlign: 'center',
             }}>
-              Quer liberar {passoSobrou.slotsLivres.length === 1 ? 'esse horário' : 'esses horários'}?
+              Quer liberar esse horário?
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1000,11 +994,7 @@ export default function ModalEscolherServico({
                 }}
               >
                 <MdCheckCircle size={16} />
-                {enviando
-                  ? 'SALVANDO…'
-                  : passoSobrou.slotsLivres.length === 1
-                    ? 'SIM, LIBERAR ESSE HORÁRIO'
-                    : 'SIM, LIBERAR OS HORÁRIOS'}
+                {enviando ? 'SALVANDO…' : 'SIM, LIBERAR ESSE HORÁRIO'}
               </button>
 
               <button

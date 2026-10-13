@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdWarning, MdDelete } from 'react-icons/md';
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from './firebase';  // ⬅️ importa a instância pronta
+
 import {
   doc, getDoc, getDocs, deleteDoc, collection, setDoc,
 } from 'firebase/firestore';
@@ -39,7 +38,7 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
     }
 
     setExcluindo(true);
-    const auth = getAuth();
+   
 
     try {
       const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;

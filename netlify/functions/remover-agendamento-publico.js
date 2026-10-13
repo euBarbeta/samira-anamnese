@@ -17,11 +17,19 @@ function normalizarNome(str) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
 }
-
+// 🚦 Rate limit: 5 por minuto
+const rate = checkRateLimit('cancelar-publico', event, { max: 5, janela: 60000 });
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
-
+ const rate = checkRateLimit('criar-agendamento', event, { max: 5, janela: 60000 });
+  if (!rate.ok) {
+    return {
+      statusCode: 429,
+      headers: { ...CORS, 'Retry-After': String(rate.retryAfter) },
+      body: JSON.stringify({ error: 'Muitas tentativas. Aguarde um pouco.' }),
+    };
+  }
   try {
     if (getApps().length === 0) {
       const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);

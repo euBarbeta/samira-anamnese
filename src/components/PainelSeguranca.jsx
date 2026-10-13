@@ -25,13 +25,18 @@ export default function PainelSeguranca() {
       orderBy('atualizadoEm', 'desc')
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      setTentativas(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setCarregando(false);
-    }, (e) => {
-      console.error('Erro listener tentativas:', e);
-      setCarregando(false);
-    });
+    const unsub = onSnapshot(
+  doc(db, 'seguranca_estado', String(pacienteId)),
+  (snap) => {
+    setEstado(snap.exists() ? snap.data() : null);
+    setCarregando(false);
+  },
+  (e) => {
+    // ✅ Silencioso: se não tem permissão, apenas não mostra o card
+    setEstado(null);
+    setCarregando(false);
+  }
+);
 
     return () => unsub();
   }, []);

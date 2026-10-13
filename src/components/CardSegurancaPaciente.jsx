@@ -14,17 +14,18 @@ export default function CardSegurancaPaciente({ pacienteId }) {
 
   useEffect(() => {
     if (!pacienteId) return;
-    const unsub = onSnapshot(
-      doc(db, 'seguranca_estado', String(pacienteId)),
-      (snap) => {
-        setEstado(snap.exists() ? snap.data() : null);
-        setCarregando(false);
-      },
-      (e) => {
-        console.warn('Erro card segurança:', e);
-        setCarregando(false);
-      }
-    );
+  const unsub = onSnapshot(
+  doc(db, 'seguranca_estado', String(pacienteId)),
+  (snap) => {
+    setEstado(snap.exists() ? snap.data() : null);
+    setCarregando(false);
+  },
+  (e) => {
+    // ✅ Silencioso: se não tem permissão, apenas não mostra o card
+    setEstado(null);
+    setCarregando(false);
+  }
+);
     return () => unsub();
   }, [pacienteId]);
 

@@ -85,14 +85,15 @@ exports.handler = async (event) => {
       };
     }
 
-    await ref.update({
-      status: 'reagendado',
-      reagendadoPara: String(novoAgendamentoId),
-      reagendadoEm: new Date().toISOString(),
-      ocultoParaPaciente: true,
-      ocultadoPacienteEm: new Date().toISOString(),
-      atualizadoEm: new Date().toISOString(),
-    });
+   await ref.update({
+  status: 'cancelado',
+  foiReagendado: true,           // ← flag nova
+  reagendadoPara: String(novoAgendamentoId),
+  reagendadoEm: new Date().toISOString(),
+  ocultoParaPaciente: true,
+  ocultadoPacienteEm: new Date().toISOString(),
+  atualizadoEm: new Date().toISOString(),
+});
 
     return {
       statusCode: 200,

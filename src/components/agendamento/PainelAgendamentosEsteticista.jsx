@@ -1468,7 +1468,7 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
       if (a.ocultoParaEsteticista) return false;
 
       // ✅ Esconde reagendados — eles aparecem só no histórico
-      if (a.status === 'reagendado') return false;
+      const statusContagem = a.status === 'reagendado' ? 'cancelado' : a.status;
 
       if (a.status !== filtroStatus) return false;
       // ...resto igual (o resto do bloco você mantém)
@@ -2352,6 +2352,7 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
   >
     <MdDelete size={13} /> REMOVER DA VISUALIZAÇÃO
   </button>
+  
                       )}
                     </div>
                   </div>

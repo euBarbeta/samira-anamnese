@@ -2,14 +2,22 @@
 import imageCompression from 'browser-image-compression';
 import { auth } from '../components/firebase';
 
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+// ============================================================
+// CONFIGURAÇÃO DE TIMEOUTS
+// ------------------------------------------------------------
+// Valores calibrados para celulares intermediários com 4G ruim:
+//   - Canvas: rápido (10s é suficiente)
+//   - Compressão: se demorar mais, cancela (15s)
+//   - Upload: upload final (45s) — se estourar, libera a UI
+// ============================================================
+const TIMEOUT_CANVAS_MS = 10000;
+const TIMEOUT_COMPRESSAO_MS = 15000;
+const TIMEOUT_UPLOAD_MS = 45000;
 
-const TIMEOUT_CANVAS_MS = 10000;   // reduzir com canvas
-const TIMEOUT_COMPRESSAO_MS = 15000; // browser-image-compression
-const TIMEOUT_UPLOAD_MS = 45000;   // fetch pro Cloudinary
-
-/** Corrida: resolve com o valor OU rejeita após X ms */
+/**
+ * Corrida: resolve com o valor OU rejeita após X ms.
+ * Útil para não travar a UI quando algum passo pendurar.
+ */
 function comTimeout(promise, ms, msgErro) {
   return Promise.race([
     promise,
@@ -59,8 +67,7 @@ function reduzirComCanvas(file, maxDim = 1280, qualidade = 0.82) {
           (blob) => {
             URL.revokeObjectURL(url);
             if (!blob) {
-              // Fallback: se não conseguiu converter, usa o original
-              resolve(file);
+              resolve(file); // fallback: se falhar, usa o original
               return;
             }
             const novo = new File(
@@ -95,7 +102,7 @@ function reduzirComCanvas(file, maxDim = 1280, qualidade = 0.82) {
  * Pipeline: canvas (rápido) → browser-image-compression (leve refinamento).
  */
 async function comprimirImagem(file) {
-  // 1) Reduz com canvas (rápido, síncrono-ish)
+  // 1) Reduz com canvas (rápido)
   let reduzida;
   try {
     reduzida = await comTimeout(
@@ -113,7 +120,7 @@ async function comprimirImagem(file) {
     return reduzida;
   }
 
-  // 3) Refina com browser-image-compression (agora sobre uma imagem já pequena)
+  // 3) Refina com browser-image-compression
   try {
     const comprimida = await comTimeout(
       imageCompression(reduzida, {
@@ -134,47 +141,80 @@ async function comprimirImagem(file) {
 }
 
 /**
- * Faz upload para o Cloudinary.
+ * ✅ Faz upload da foto via Netlify Function (upload ASSINADO).
+ *
+ * Por que assim?
+ *  - O upload direto para Cloudinary com preset não-assinado permite que
+ *    qualquer pessoa que descubra o `cloud_name` faça uploads ilimitados.
+ *  - Agora o upload passa por uma Function que:
+ *      1. Verifica o Firebase ID Token do usuário.
+ *      2. Confere se o usuário é a esteta dona OU o paciente dono.
+ *      3. Faz o upload assinado no Cloudinary.
+ *      4. Grava a foto no Firestore automaticamente.
+ *      5. Notifica a esteticista (se foi o paciente que enviou).
+ *
  * Retorna { url, thumbUrl, publicId, tamanho }.
  */
-export async function uploadFoto(file, pacienteId) {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error('Cloudinary não configurado (.env)');
+export async function uploadFoto(file, pacienteId, uidEsteticista) {
+  if (!pacienteId || !uidEsteticista) {
+    throw new Error('pacienteId e uidEsteticista são obrigatórios.');
   }
 
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Você precisa estar logado para enviar fotos.');
+  }
+
+  // 1) Comprime a imagem (reduz de MB para KB antes de enviar)
   const comprimida = await comprimirImagem(file);
 
+  // 2) Pega o token Firebase (a Function exige isso)
+  const token = await user.getIdToken();
+
+  // 3) Monta o multipart/form-data
   const formData = new FormData();
   formData.append('file', comprimida);
-  formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('folder', `samira/fotos/${pacienteId}`);
-  formData.append('context', `pacienteId=${pacienteId}`);
 
-  // ✅ AbortController + timeout — evita ficar pendurado para sempre
+  // 4) Timeout duro para não deixar a UI travada
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_UPLOAD_MS);
 
   try {
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-      { method: 'POST', body: formData, signal: controller.signal }
+      `/.netlify/functions/upload-foto?pacienteId=${encodeURIComponent(
+        pacienteId
+      )}&uidEsteticista=${encodeURIComponent(uidEsteticista)}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+        signal: controller.signal,
+      }
     );
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Falha no upload: ${err}`);
+      let detalhe = '';
+      try {
+        const err = await response.json();
+        detalhe = err.error || err.message || '';
+      } catch {
+        detalhe = await response.text().catch(() => '');
+      }
+      throw new Error(
+        `Falha no upload${detalhe ? `: ${detalhe}` : ''} (HTTP ${response.status})`
+      );
     }
 
     const data = await response.json();
-    const urlBase = `https://res.cloudinary.com/${CLOUD_NAME}/image/upload`;
 
     return {
-      url: `${urlBase}/q_auto,f_auto,w_1200/${data.public_id}.${data.format}`,
-      thumbUrl: `${urlBase}/q_auto,f_auto,w_300,h_300,c_fill/${data.public_id}.${data.format}`,
-      publicId: data.public_id,
+      url: data.url,
+      thumbUrl: data.thumbUrl,
+      publicId: data.publicId,
       tamanho: comprimida.size,
-      largura: data.width,
-      altura: data.height,
+      id: data.id, // ID do doc no Firestore (a Function já criou)
     };
   } catch (e) {
     if (e.name === 'AbortError') {
@@ -188,10 +228,7 @@ export async function uploadFoto(file, pacienteId) {
 
 /**
  * Deleta uma foto do Cloudinary.
- */
-/**
- * Deleta uma foto do Cloudinary.
- * Agora exige usuário logado + manda o Firebase ID Token.
+ * Exige usuário logado + envia o Firebase ID Token.
  */
 export async function deletarFotoCloudinary(publicId) {
   const user = auth.currentUser;
@@ -205,7 +242,7 @@ export async function deletarFotoCloudinary(publicId) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ publicId }),
   });

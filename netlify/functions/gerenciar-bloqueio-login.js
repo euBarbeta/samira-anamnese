@@ -9,7 +9,14 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
-const UID_ESTETA_DONA = 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+// ============================================================
+// Esteticistas autorizadas a bloquear/desbloquear contas
+// (mesmo padrão do firestore.rules)
+// ============================================================
+const UIDS_ESTETICISTAS = [
+  'MZ5j3NpjlxY67yLRiEfg13TbPE32',  // Samira
+  'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2',  // MbTech
+];
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
@@ -39,7 +46,8 @@ exports.handler = async (event) => {
     const { getAuth } = require('firebase-admin/auth');
     const decoded = await getAuth().verifyIdToken(token);
 
-    if (decoded.uid !== UID_ESTETA_DONA) {
+    // ✅ Aceita Samira OU MbTech
+    if (!UIDS_ESTETICISTAS.includes(decoded.uid)) {
       return { statusCode: 403, headers: CORS, body: JSON.stringify({ error: 'não autorizado' }) };
     }
 
@@ -51,6 +59,7 @@ exports.handler = async (event) => {
     const ref = db.collection('bloqueios_login').doc(emailHash);
 
     if (acao === 'bloquear') {
+      // 1) Grava o bloqueio
       await ref.set(
         {
           emailHash,
@@ -61,7 +70,18 @@ exports.handler = async (event) => {
         },
         { merge: true }
       );
+
+      // ✅ OPÇÃO B: zera o contador ao BLOQUEAR também
+      //    (o alerta = "ações pendentes"; a esteta já tomou ação)
+      await db.collection('tentativas_login').doc(emailHash).set(
+        {
+          requerBloqueio: false,
+          atualizadoEm: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } else {
+      // 1) Desbloqueia
       await ref.set(
         {
           emailHash,
@@ -72,9 +92,14 @@ exports.handler = async (event) => {
         { merge: true }
       );
 
-      // Limpa tentativas ao desbloquear
+      // 2) Limpa tentativas ao desbloquear
       await db.collection('tentativas_login').doc(emailHash).set(
-        { tentativas: [], atualizadoEm: new Date().toISOString() },
+        {
+          tentativas: [],
+          totalTentativas: 0,
+          requerBloqueio: false,   // ← ESSENCIAL pro contador voltar a 0
+          atualizadoEm: new Date().toISOString(),
+        },
         { merge: true }
       );
     }

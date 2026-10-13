@@ -174,12 +174,22 @@ useEffect(() => {
 
   let cancelado = false;
 
-  const unsub = onSnapshot(
-    doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
-    (snap) => {
+  (async () => {
+    try {
+      const res = await fetch('/.netlify/functions/buscar-agenda-publica', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uidEsteticista }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Falha ao buscar agenda');
+      }
+
+      const data = await res.json();
       if (cancelado) return;
 
-      if (!snap.exists()) {
+      if (!data.config) {
         setErro('Agenda ainda não configurada pela profissional.');
         setConfigAgenda(null);
         setSlots([]);
@@ -187,18 +197,16 @@ useEffect(() => {
         return;
       }
 
-      setConfigAgenda(snap.data());
-    },
-    (err) => {
-      console.error('Erro listener config:', err);
+      setConfigAgenda(data.config);
+    } catch (err) {
+      if (cancelado) return;
+      console.error('Erro ao buscar agenda:', err);
+      setErro('Não foi possível carregar a agenda.');
       setCarregando(false);
     }
-  );
+  })();
 
-  return () => {
-    cancelado = true;
-    unsub();
-  };
+  return () => { cancelado = true; };
 }, [uidEsteticista]);
 
 // ============================================================
@@ -339,32 +347,31 @@ useEffect(() => {
         userAgent: (navigator.userAgent || '').slice(0, 200),
       };
 
-         const docRef = await addDoc(collection(db, 'agendamentos'), {
-  uidEsteticista,
-  profissionalId: uidEsteticista,
-
-  data: slotSelecionado.data,
-  horaInicio: slotSelecionado.horaInicio,
-  horaFim: slotSelecionado.horaFim,
-  duracaoMin: calcularDuracao(slotSelecionado),
-
-  servicoId: null,
-  servicoNome: null,
-
-  nome: nomeLimpo,                    // ← sanitizado
-  documento: documentoLimpo,          // ← sanitizado
-  telefone: telefone,
-
-  email: emailLimpo,                  // ← sanitizado
-  observacoes: observacoesLimpo,      // ← sanitizado
-  status: 'pendente',
-  criadoPor: 'publico',
-  canceladoPor: null,
-  consentimentoLGPD: consentimento,
-  codigoAutenticidade: codigo,
-  criadoEm: new Date().toISOString(),
-  atualizadoEm: new Date().toISOString(),
+  const res = await fetch('/.netlify/functions/criar-agendamento-publico', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    uidEsteticista,
+    data: slotSelecionado.data,
+    horaInicio: slotSelecionado.horaInicio,
+    horaFim: slotSelecionado.horaFim,
+    duracaoMin: calcularDuracao(slotSelecionado),
+    nome: nomeLimpo,
+    documento: documentoLimpo,
+    telefone,
+    email: emailLimpo,
+    observacoes: observacoesLimpo,
+    consentimentoLGPD: consentimento,
+  }),
 });
+
+if (!res.ok) {
+  const err = await res.json().catch(() => ({}));
+  throw new Error(err.error || 'Falha ao agendar');
+}
+
+const data = await res.json();
+const docRef = { id: data.id };
 try {
  await fetch('/.netlify/functions/vincular-paciente-agendamento', {
   method: 'POST',

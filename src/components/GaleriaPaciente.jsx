@@ -3,8 +3,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { isNativo } from './push-notifications-native';
 import {
-  collection, addDoc, deleteDoc, doc, onSnapshot,
-  query, orderBy, serverTimestamp, updateDoc, arrayUnion, arrayRemove
+  collection, deleteDoc, doc, onSnapshot,
+  query, orderBy, updateDoc, arrayUnion, arrayRemove
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { uploadFoto, deletarFotoCloudinary } from '../utils/uploadFoto';
@@ -84,17 +84,16 @@ export default function GaleriaPaciente({
     // ============================================================
     try {
       const photo = await Camera.getPhoto({
-        quality: 75,                          // menos bytes
+        quality: 75,
         allowEditing: false,
-        resultType: CameraResultType.Uri,     // usa URI — não carrega base64 na RAM
+        resultType: CameraResultType.Uri,
         source: source === 'camera' ? CameraSource.Camera : CameraSource.Photos,
-        width: 1600,                          // menor que 1920
-        saveToGallery: false,                 // não salva na galeria do device
+        width: 1600,
+        saveToGallery: false,
         correctOrientation: true,
         preserveAspectRatio: true,
       });
 
-      // Usa webPath (Uri → arquivo no cache do app)
       const caminho = photo.webPath || photo.path;
       if (!caminho) throw new Error('Nenhum caminho de imagem recebido');
 
@@ -104,9 +103,6 @@ export default function GaleriaPaciente({
         type: blob.type || 'image/jpeg',
       });
 
-      // ✅ Usa a MESMA função do branch web — faz upload, salva no
-      //    Firestore com todos os campos e notifica a esteticista.
-      //    (Antes usava uma variável `resultado` que não existia → bug.)
       await enviarFoto(file);
     } catch (err) {
       const msg = (err?.message || '').toLowerCase();
@@ -117,16 +113,21 @@ export default function GaleriaPaciente({
   };
 
   const enviarFoto = async (file) => {
-    // Guarda contra toques duplos (usa ref, não state, pra não ficar preso)
+    // Guarda contra toques duplos
     if (enviandoRef.current) return;
     enviandoRef.current = true;
     setEnviando(true);
 
     try {
-      // Timeout MESTRE — se o upload pendurar por qualquer razão,
-      // libera a UI depois de 60s (o worker/upload terá estourado antes)
-      const resultado = await Promise.race([
-        uploadFoto(file, pacienteId),
+      // Timeout MESTRE — se o upload pendurar, libera a UI depois de 60s.
+      // ⚠️ A Function `upload-foto` já:
+      //    1. Valida o token do usuário
+      //    2. Assina o upload para o Cloudinary
+      //    3. Cria o doc no Firestore com todos os campos
+      //    4. Notifica a esteticista (se foi o paciente que enviou)
+      //    Por isso NÃO fazemos mais addDoc nem fetch de notificação aqui.
+      await Promise.race([
+        uploadFoto(file, pacienteId, uidEsteticista),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error('O envio demorou demais. Verifique sua conexão.')),
@@ -134,36 +135,6 @@ export default function GaleriaPaciente({
           )
         ),
       ]);
-
-      await addDoc(
-        collection(db, `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`),
-        {
-          url: resultado.url,
-          thumbUrl: resultado.thumbUrl,
-          publicId: resultado.publicId,
-          tamanho: resultado.tamanho,
-          enviadoEm: serverTimestamp(),
-          enviadoPor: modo,
-          vinculadoA: [],
-          // ✅ Campos que o PainelEsteticista usa pra mostrar o banner
-          //    "Nova foto de X" (query where('notificado', '==', false)).
-          //    Sem eles, o banner nunca aparece.
-          notificado: false,
-          uidEsteticista: uidEsteticista,
-          pacienteNome: pacienteNome,
-          // ✅ Campo usado pelo collectionGroup do painel para agrupar
-          //    fotos por paciente sem precisar parsear o path.
-          pacienteId: String(pacienteId),
-        }
-      );
-
-      if (modo === 'paciente') {
-        fetch('/.netlify/functions/notificar-foto', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uidEsteticista, pacienteId, pacienteNome }),
-        }).catch((e) => console.warn('Falha ao notificar esteticista:', e));
-      }
     } catch (err) {
       console.error('Erro ao enviar foto:', err);
       alert('Erro ao enviar foto: ' + (err?.message || err));
@@ -229,7 +200,6 @@ export default function GaleriaPaciente({
     });
   };
 
-  // Filtro de evoluções pelo termo de busca
   const evolucoesFiltradas = useMemo(() => {
     const termo = buscaEvolucao.toLowerCase().trim();
     if (!termo) return evolucoes;
@@ -354,7 +324,6 @@ export default function GaleriaPaciente({
               Selecione as evoluções que devem mostrar esta foto:
             </p>
 
-            {/* Barra de busca com ícone */}
             {evolucoes.length > 0 && (
               <div style={estilo.barraBusca}>
                 <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
