@@ -8,6 +8,7 @@ import {
   MdRefresh, MdAccessTime, MdDevices, MdEmail, MdLocationOff
 } from 'react-icons/md';
 import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocalizacao';
+
 export default function PainelSeguranca() {
   const [tentativas, setTentativas] = useState([]);
   const [bloqueios, setBloqueios] = useState([]);
@@ -25,18 +26,10 @@ export default function PainelSeguranca() {
       orderBy('atualizadoEm', 'desc')
     );
 
-    const unsub = onSnapshot(
-  doc(db, 'seguranca_estado', String(pacienteId)),
-  (snap) => {
-    setEstado(snap.exists() ? snap.data() : null);
-    setCarregando(false);
-  },
-  (e) => {
-    // ✅ Silencioso: se não tem permissão, apenas não mostra o card
-    setEstado(null);
-    setCarregando(false);
-  }
-);
+    const unsub = onSnapshot(q, (snap) => {
+      setTentativas(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setCarregando(false);
+    });
 
     return () => unsub();
   }, []);
@@ -102,18 +95,23 @@ export default function PainelSeguranca() {
 
   const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id));
   const bloqueadosLista = relevantes.filter((t) => estaBloqueado(t.id));
-const [estados, setEstados] = useState([]);
 
-useEffect(() => {
-  const unsub = onSnapshot(collection(db, 'seguranca_estado'), (snap) => {
-    setEstados(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  });
-  return () => unsub();
-}, []);
+  // ============================================================
+  // Listener — estados de segurança (localizações desligadas)
+  // ============================================================
+  const [estados, setEstados] = useState([]);
 
-const semLocalizacao = estados.filter((e) =>
-  e.localizacaoStatus && e.localizacaoStatus !== 'ativa'
-);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'seguranca_estado'), (snap) => {
+      setEstados(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  const semLocalizacao = estados.filter((e) =>
+    e.localizacaoStatus && e.localizacaoStatus !== 'ativa'
+  );
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -280,53 +278,54 @@ const semLocalizacao = estados.filter((e) =>
               );
             })
           )}
-          {/* ============================================== */}
-{/* LOCALIZAÇÕES DESLIGADAS                       */}
-{/* ============================================== */}
-<h4 style={tituloSecao}>
-  <MdLocationOff size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
-  Pacientes sem localização ativa ({semLocalizacao.length})
-</h4>
 
-{semLocalizacao.length === 0 ? (
-  <div style={{
-    padding: '14px',
-    background: '#f0fdf4',
-    border: '1.5px solid #86efac',
-    borderRadius: 12,
-    fontSize: 12,
-    color: '#166534',
-    textAlign: 'center',
-  }}>
-    <MdCheckCircle size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-    Todos os pacientes estão com localização ativa.
-  </div>
-) : (
-  semLocalizacao.map((e) => (
-    <div key={e.id} style={cardBase}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <MdLocationOff size={16} color={corStatusLocalizacao(e.localizacaoStatus)} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: corStatusLocalizacao(e.localizacaoStatus) }}>
-            {rotuloStatusLocalizacao(e.localizacaoStatus)}
-          </div>
-          <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
-            ID: {String(e.id).slice(0, 16)}…
-          </div>
-        </div>
-      </div>
-      <div style={{ fontSize: 10.5, color: '#555' }}>
-        <strong>Dispositivo:</strong> {e.dispositivo || '—'}
-      </div>
-      <div style={{ fontSize: 10.5, color: '#555', marginTop: 2 }}>
-        <strong>Última verificação:</strong>{' '}
-        {e.ultimaVerificacao
-          ? new Date(e.ultimaVerificacao).toLocaleString('pt-BR')
-          : '—'}
-      </div>
-    </div>
-  ))
-)}
+          {/* ============================================== */}
+          {/* LOCALIZAÇÕES DESLIGADAS                       */}
+          {/* ============================================== */}
+          <h4 style={tituloSecao}>
+            <MdLocationOff size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Pacientes sem localização ativa ({semLocalizacao.length})
+          </h4>
+
+          {semLocalizacao.length === 0 ? (
+            <div style={{
+              padding: '14px',
+              background: '#f0fdf4',
+              border: '1.5px solid #86efac',
+              borderRadius: 12,
+              fontSize: 12,
+              color: '#166534',
+              textAlign: 'center',
+            }}>
+              <MdCheckCircle size={18} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              Todos os pacientes estão com localização ativa.
+            </div>
+          ) : (
+            semLocalizacao.map((e) => (
+              <div key={e.id} style={cardBase}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <MdLocationOff size={16} color={corStatusLocalizacao(e.localizacaoStatus)} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: corStatusLocalizacao(e.localizacaoStatus) }}>
+                      {rotuloStatusLocalizacao(e.localizacaoStatus)}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#666', fontFamily: 'monospace' }}>
+                      ID: {String(e.id).slice(0, 16)}…
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10.5, color: '#555' }}>
+                  <strong>Dispositivo:</strong> {e.dispositivo || '—'}
+                </div>
+                <div style={{ fontSize: 10.5, color: '#555', marginTop: 2 }}>
+                  <strong>Última verificação:</strong>{' '}
+                  {e.ultimaVerificacao
+                    ? new Date(e.ultimaVerificacao).toLocaleString('pt-BR')
+                    : '—'}
+                </div>
+              </div>
+            ))
+          )}
         </>
       )}
 
