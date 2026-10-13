@@ -499,18 +499,21 @@ if (h && h !== 'agendar') {
 useEffect(() => {
   if (!dadosPaciente?.id) return;
 
-  const handleVisibilidade = () => {
-    if (document.visibilityState !== 'visible') return;
+  let pararMonitor = null;
 
-    import('../utils/segurancaEstado')
-      .then(({ atualizarEstadoSeguranca }) => {
-        atualizarEstadoSeguranca(dadosPaciente.id).catch(() => {});
-      })
-      .catch(() => {});
+  import('../utils/monitorLocalizacao').then(({ iniciarMonitorLocalizacao }) => {
+    pararMonitor = iniciarMonitorLocalizacao(() => {
+      import('../utils/segurancaEstado')
+        .then(({ atualizarEstadoSeguranca }) => {
+          atualizarEstadoSeguranca(dadosPaciente.id).catch(() => {});
+        })
+        .catch(() => {});
+    });
+  });
+
+  return () => {
+    if (pararMonitor) pararMonitor();
   };
-
-  document.addEventListener('visibilitychange', handleVisibilidade);
-  return () => document.removeEventListener('visibilitychange', handleVisibilidade);
 }, [dadosPaciente?.id]);
 
   useEffect(() => {

@@ -992,6 +992,10 @@ useEffect(() => {
 // 🚨 BLOQUEIO EM TEMPO REAL
 // Se a esteta bloquear este device, o paciente é deslogado.
 // ============================================================
+// ============================================================
+// 🚨 BLOQUEIO EM TEMPO REAL
+// Se a esteta bloquear este device, o paciente é deslogado.
+// ============================================================
 useEffect(() => {
   if (!pacienteData?.id) return;
 
