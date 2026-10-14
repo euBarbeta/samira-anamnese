@@ -1166,13 +1166,19 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
       if (!agendamentoParaCancelar) return;
       const ag = agendamentoParaCancelar;
       setCancelando(true);
+
       try {
         await updateDoc(doc(db, 'agendamentos', ag.id), {
           status: 'cancelado',
           canceladoPor: 'esteticista',
           atualizadoEm: new Date().toISOString(),
         });
-
+// ✅ Sincroniza o slot público
+fetch('/.netlify/functions/sincronizar-slot-publico', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ agendamentoId: ag.id }),
+}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
         if (ag.pacienteId) {
           fetch('/.netlify/functions/notificar-paciente-agendamento', {
             method: 'POST',
@@ -1325,6 +1331,12 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
         horaRealFim,                              // "10:15" — pra exibir
         atualizadoEm: agora.toISOString(),
       });
+      // ✅ Sincroniza o slot público
+fetch('/.netlify/functions/sincronizar-slot-publico', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ agendamentoId: ag.id }),
+}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
     } catch (e) {
       alert('Erro ao concluir: ' + e.message);
     }
@@ -1338,6 +1350,12 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
           faltouEm: new Date().toISOString(),
           atualizadoEm: new Date().toISOString(),
         });
+        // ✅ Sincroniza o slot público
+fetch('/.netlify/functions/sincronizar-slot-publico', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ agendamentoId: ag.id }),
+}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
       } catch (e) {
         alert('Erro ao marcar falta: ' + e.message);
       }
@@ -1397,6 +1415,12 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
         ocultadoEsteticistaEm: new Date().toISOString(),
         atualizadoEm: new Date().toISOString(),
       });
+      // ✅ Sincroniza o slot público
+fetch('/.netlify/functions/sincronizar-slot-publico', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ agendamentoId: ag.id }),
+}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
       setAgendamentoParaExcluir(null);
     } catch (e) {
       console.error('Erro ao remover da visualização:', e);
@@ -1729,6 +1753,12 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
           patch.concluidoEm = new Date().toISOString();
         }
         await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
+        // ✅ Sincroniza o slot público
+fetch('/.netlify/functions/sincronizar-slot-publico', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ agendamentoId: ag.id }),
+}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
       }
 
       setFichaPreenchida(null);

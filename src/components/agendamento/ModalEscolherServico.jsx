@@ -263,71 +263,84 @@ export default function ModalEscolherServico({
   // ============================================================
   // 6) Salva o agendamento confirmado
   // ============================================================
-  const salvarConfirmacao = async ({ liberarSobra }) => {
-    if (!servicoSelecionado) return;
-    const info = previews[servicoSelecionado.id];
+ 
+const salvarConfirmacao = async ({ liberarSobra }) => {
+  if (!servicoSelecionado) return;
+  const info = previews[servicoSelecionado.id];
 
-    setEnviando(true);
-    setErro('');
+  setEnviando(true);
+  setErro('');
 
-    try {
-      const patch = {
-        servicoId: servicoSelecionado.id,
-        servicoNome: servicoSelecionado.nome,
-        duracaoMin: servicoSelecionado.duracaoMin,
-        horaFim: info.novaFim,
-        status: 'confirmado',
-        aguardandoConsentimento: false,
-        observacoesConfirmacao: observacao.trim() || null,
-        confirmadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-      };
+  try {
+    const patch = {
+      servicoId: servicoSelecionado.id,
+      servicoNome: servicoSelecionado.nome,
+      duracaoMin: servicoSelecionado.duracaoMin,
+      horaFim: info.novaFim,
+      status: 'confirmado',
+      aguardandoConsentimento: false,
+      observacoesConfirmacao: observacao.trim() || null,
+      confirmadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    };
 
-      if (
-        liberarSobra &&
-        passoSobrou?.slotsLivres &&
-        passoSobrou.slotsLivres.length > 0
-      ) {
-        patch.liberacoesExtras = passoSobrou.slotsLivres.map((s) => ({
-          inicio: s.inicio,
-          fim: s.fim,
-          duracaoMin: s.duracaoMin,
-          criadoEm: new Date().toISOString(),
-        }));
-      } else {
-        patch.liberacoesExtras = [];
-      }
-
-      await updateDoc(doc(db, 'agendamentos', agendamento.id), patch);
-
-      if (agendamento.pacienteId) {
-        fetch('/.netlify/functions/notificar-paciente-agendamento', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pacienteId: agendamento.pacienteId,
-            tipoEvento: 'confirmado',
-            agendamento: {
-              id: agendamento.id,
-              data: agendamento.data,
-              horaInicio: agendamento.horaInicio,
-              horaFim: info.novaFim,
-              servicoNome: servicoSelecionado.nome,
-              nome: agendamento.nome,
-            },
-          }),
-        }).catch((e) => console.warn('Falha ao notificar paciente:', e));
-      }
-
-      setPassoSobrou(null);
-      onConfirmado?.();
-    } catch (e) {
-      console.error('Erro ao confirmar:', e);
-      setErro('Erro ao confirmar. Tente novamente.');
-      setEnviando(false);
+    if (
+      liberarSobra &&
+      passoSobrou?.slotsLivres &&
+      passoSobrou.slotsLivres.length > 0
+    ) {
+      patch.liberacoesExtras = passoSobrou.slotsLivres.map((s) => ({
+        inicio: s.inicio,
+        fim: s.fim,
+        duracaoMin: s.duracaoMin,
+        criadoEm: new Date().toISOString(),
+      }));
+    } else {
+      patch.liberacoesExtras = [];
     }
-  };
 
+    await updateDoc(doc(db, 'agendamentos', agendamento.id), patch);
+
+    // ✅ AWAIT — garante que o slot público reflita o estado novo
+    //    ANTES de o modal fechar (senão o calendário público
+    //    mostra o slot antigo por alguns segundos).
+    try {
+      await fetch('/.netlify/functions/sincronizar-slot-publico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamentoId: agendamento.id }),
+      });
+    } catch (e) {
+      console.warn('Falha ao sincronizar slot público:', e);
+    }
+
+    if (agendamento.pacienteId) {
+      fetch('/.netlify/functions/notificar-paciente-agendamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pacienteId: agendamento.pacienteId,
+          tipoEvento: 'confirmado',
+          agendamento: {
+            id: agendamento.id,
+            data: agendamento.data,
+            horaInicio: agendamento.horaInicio,
+            horaFim: info.novaFim,
+            servicoNome: servicoSelecionado.nome,
+            nome: agendamento.nome,
+          },
+        }),
+      }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+    }
+
+    setPassoSobrou(null);
+    onConfirmado?.();
+  } catch (e) {
+    console.error('Erro ao confirmar:', e);
+    setErro('Erro ao confirmar. Tente novamente.');
+    setEnviando(false);
+  }
+};
   // ============================================================
   // RENDER
   // ============================================================

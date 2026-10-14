@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { notificarAgendamento } from '../../utils/agendamentoNotify';
 import { sanitizarTexto } from '../../utils/sanitizar';
+import { escutarSlotsPublicos } from '../../utils/slotsPublicos';
 import {
   collection, addDoc,
 } from 'firebase/firestore';
@@ -152,60 +153,23 @@ export default function ModalAgendarParaPaciente({
   // O navegador não pode ler `agendamentos` direto — a Function
   // devolve só os HORÁRIOS ocupados, sem PII.
   // ============================================================
-  useEffect(() => {
-    if (!uidEsteticista || !configAgenda) return;
+// ============================================================
+// ✅ LISTENER 2 — SLOTS OCUPADOS em tempo real (Firestore)
+// ------------------------------------------------------------
+// Em vez de polling em Function, escutamos a coleção pública
+// `slots_ocupados_publicos` diretamente.
+// Latência típica: 100-300ms.
+// ============================================================
+useEffect(() => {
+  if (!uidEsteticista) return;
 
-    let cancelado = false;
-    let intervaloId = null;
+  const unsub = escutarSlotsPublicos(uidEsteticista, (slots) => {
+    setAgendamentosOcupados(slots);
+    setCarregando(false);
+  });
 
-    const buscarOcupados = async () => {
-      const hoje = toISODateLocal(new Date());
-      const max = new Date();
-      max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-      const dataFim = toISODateLocal(max);
-
-      try {
-        const res = await fetch('/.netlify/functions/buscar-slots-ocupados', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            uidEsteticista,
-            dataInicio: hoje,
-            dataFim,
-          }),
-        });
-
-        if (cancelado) return;
-
-        if (!res.ok) {
-          console.error('Falha ao buscar slots:', await res.text());
-          setAgendamentosOcupados([]);
-          setCarregando(false);
-          return;
-        }
-
-        const data = await res.json();
-        setAgendamentosOcupados(data.ocupados || []);
-        setCarregando(false);
-      } catch (err) {
-        if (cancelado) return;
-        console.error('Erro rede buscar slots:', err);
-        setAgendamentosOcupados([]);
-        setCarregando(false);
-      }
-    };
-
-    // 1ª chamada imediata
-    buscarOcupados();
-
-    // Polling a cada 60s
-    intervaloId = setInterval(buscarOcupados, POLLING_MS);
-
-    return () => {
-      cancelado = true;
-      if (intervaloId) clearInterval(intervaloId);
-    };
-  }, [uidEsteticista, configAgenda]);
+  return () => unsub();
+}, [uidEsteticista]);
 
   // ============================================================
   // Recalcula slots sempre que config ou agendamentos mudarem

@@ -8,7 +8,38 @@ html, body {
   margin: 0;
   padding: 0;
 }
+/* ============================================================
+   🚫 TAP HIGHLIGHT — remove o "rastro azul" ao tocar em
+   botões, links, cards no mobile (Chrome Android / iOS Safari)
+   ============================================================ */
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
 
+button,
+a,
+input,
+select,
+textarea,
+label,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* Mantém acessibilidade: foco visível apenas por teclado */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #a855f7;
+  outline-offset: 2px;
+}
 /* Garante que todos os inputs mantenham a consistência visual */
 input, select, textarea, label, span {
   color-scheme: light !important;

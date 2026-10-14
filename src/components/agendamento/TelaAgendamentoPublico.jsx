@@ -1,7 +1,8 @@
 // src/components/agendamento/TelaAgendamentoPublico.jsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { escutarSlotsPublicos } from '../../utils/slotsPublicos';
 import {
-  collection, query, where, getDocs, addDoc, doc, getDoc,onSnapshot,
+  collection, query, where, getDocs, addDoc, doc, getDoc, onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { sanitizarTexto, sanitizarEmail, sanitizarDocumento } from '../../utils/sanitizar';
@@ -167,7 +168,9 @@ const [configAgenda, setConfigAgenda] = useState(null);
 const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
 
 // ============================================================
-// Listener 1 — CONFIG da agenda (tempo real)
+// ✅ Listener 1 — CONFIG da agenda (via Function, imutável)
+//    Config não muda com frequência — buscamos uma vez via
+//    Function (regras fecharam leitura pública direta).
 // ============================================================
 useEffect(() => {
   if (!uidEsteticista) return;
@@ -182,26 +185,21 @@ useEffect(() => {
         body: JSON.stringify({ uidEsteticista }),
       });
 
-      if (!res.ok) {
-        throw new Error('Falha ao buscar agenda');
-      }
-
-      const data = await res.json();
       if (cancelado) return;
 
-      if (!data.config) {
-        setErro('Agenda ainda não configurada pela profissional.');
+      if (!res.ok) {
+        console.error('Falha ao buscar config:', await res.text());
         setConfigAgenda(null);
-        setSlots([]);
         setCarregando(false);
         return;
       }
 
-      setConfigAgenda(data.config);
+      const data = await res.json();
+      setConfigAgenda(data.config || null);
     } catch (err) {
       if (cancelado) return;
-      console.error('Erro ao buscar agenda:', err);
-      setErro('Não foi possível carregar a agenda.');
+      console.error('Erro rede buscar config:', err);
+      setConfigAgenda(null);
       setCarregando(false);
     }
   })();
@@ -210,57 +208,27 @@ useEffect(() => {
 }, [uidEsteticista]);
 
 // ============================================================
-// Listener 2 — AGENDAMENTOS do período (tempo real)
+// ✅ Listener 2 — SLOTS OCUPADOS EM TEMPO REAL (Firestore)
+// ------------------------------------------------------------
+// Fonte ÚNICA de verdade para ocupação. Substitui o antigo
+// `buscar-slots-ocupados` (que sobrescrevia com dados velhos).
+// Latência típica: 100-300ms.
 // ============================================================
 useEffect(() => {
-  if (!uidEsteticista || !configAgenda) return;
+  if (!uidEsteticista) return;
 
-  let cancelado = false;
+  const unsub = escutarSlotsPublicos(uidEsteticista, (slotsOcupados) => {
+    setAgendamentosOcupados(slotsOcupados);
+    setCarregando(false);
+  });
 
-  const hoje = toISODateLocal(new Date());
-  const max = new Date();
-  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-  const dataFim = toISODateLocal(max);
-
-  (async () => {
-    try {
-      const res = await fetch('/.netlify/functions/buscar-slots-ocupados', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uidEsteticista,
-          dataInicio: hoje,
-          dataFim,
-        }),
-      });
-
-      if (cancelado) return;
-
-      if (!res.ok) {
-        console.error('Falha ao buscar slots:', await res.text());
-        setAgendamentosOcupados([]);
-        setCarregando(false);
-        return;
-      }
-
-      const data = await res.json();
-      setAgendamentosOcupados(data.ocupados || []);
-      setCarregando(false);
-    } catch (err) {
-      if (cancelado) return;
-      console.error('Erro rede buscar slots:', err);
-      setAgendamentosOcupados([]);
-      setCarregando(false);
-    }
-  })();
-
-  return () => {
-    cancelado = true;
-  };
-}, [uidEsteticista, configAgenda]);
+  return () => unsub();
+}, [uidEsteticista]);
 
 // ============================================================
-// Recalcula slots SEMPRE que config ou agendamentos mudarem
+// Recalcula slots SEMPRE que config ou agendamentos ocupados
+// mudarem (o listener em tempo real garante que isso aconteça
+// automaticamente quando a esteta libera/bloqueia um slot).
 // ============================================================
 useEffect(() => {
   if (!configAgenda) return;
@@ -320,10 +288,6 @@ useEffect(() => {
       setErro('Você precisa autorizar o tratamento dos seus dados (LGPD).');
       return;
     }
-      if (!lgpdAceito) {
-    setErro('Você precisa autorizar o tratamento dos seus dados (LGPD).');
-    return;
-  }
 
   // ✅ NOVO: sanitiza tudo antes de salvar (evita XSS no PDF e no painel)
   const nomeLimpo = sanitizarTexto(nome, { maxLength: 100 });
@@ -336,7 +300,6 @@ useEffect(() => {
 
   setEnviando(true);
 
-    setEnviando(true);
     try {
       const codigo = gerarCodigoAutenticidade();
       const consentimento = {
