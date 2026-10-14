@@ -317,25 +317,33 @@ useEffect(() => {
 }, [pacientes, jaCarregou]);
 
   // Adicione esta função auxiliar no topo do componente PainelEsteticista
-  const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
-    if (!Array.isArray(lembretes)) return;
+// ============================================================
+// ✅ Envia lembretes para o backend
+//    Repassa também o offsetMin do dispositivo da esteta, para
+//    o backend converter datetime-local → UTC corretamente.
+// ============================================================
+const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
+  if (!Array.isArray(lembretes)) return;
 
-    try {
-      const response = await fetch('/.netlify/functions/agendar-lembretes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pacienteId, lembretes }),
-      });
+  try {
+    // ✅ Offset do dispositivo atual (BRT = -180)
+    const offsetMin = new Date().getTimezoneOffset() * -1;
 
-      const data = await response.json();
+    const response = await fetch('/.netlify/functions/agendar-lembretes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pacienteId, lembretes, offsetMin }),
+    });
 
-      if (!response.ok) {
-        console.error('❌ Falha ao agendar lembretes:', data);
-      }
-    } catch (err) {
-      console.error('❌ Erro ao agendar lembretes:', err);
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('❌ Falha ao agendar lembretes:', data);
     }
-  };
+  } catch (err) {
+    console.error('❌ Erro ao agendar lembretes:', err);
+  }
+};
 
   // ============================================================
   // NAVEGAÇÃO COM HISTÓRICO — botão voltar funciona

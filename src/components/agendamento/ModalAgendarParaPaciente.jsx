@@ -269,10 +269,10 @@ export default function ModalAgendarParaPaciente({
               ? 'agendamento-feito-pelo-paciente'
               : 'agendamento-feito-pela-profissional',
           };
-
-      const novoStatus = isPaciente
-        ? 'pendente'
-        : (paciente?.consentimentoLGPD?.aceito ? 'confirmado' : 'pendente');
+// ✅ SEMPRE 'pendente' — só vira 'confirmado' quando a esteta
+//    escolher o serviço via ModalEscolherServico
+const novoStatus = 'pendente';
+      
 
       // ============================================================
       // ✅ pacienteId só é gravado se o paciente EXISTE no sistema
@@ -286,9 +286,11 @@ export default function ModalAgendarParaPaciente({
         pacienteId: temPacienteNoSistema ? String(paciente.id) : null,
 
         data: slotSelecionado.data,
-        horaInicio: slotSelecionado.horaInicio,
-        horaFim: slotSelecionado.horaFim,
-        duracaoMin: calcularDuracao(slotSelecionado),
+horaInicio: slotSelecionado.horaInicio,
+// ✅ horaFim e duracaoMin são definidos DEPOIS quando a esteta
+//    escolher o serviço. Aqui gravamos só a hora de início.
+horaFim: null,
+duracaoMin: null,
 
         servicoId: null,
         servicoNome: null,
@@ -353,9 +355,11 @@ export default function ModalAgendarParaPaciente({
       onSucesso?.({
         id: docRef.id,
         data: slotSelecionado.data,
-        horaInicio: slotSelecionado.horaInicio,
-        horaFim: slotSelecionado.horaFim,
-        duracaoMin: calcularDuracao(slotSelecionado),
+horaInicio: slotSelecionado.horaInicio,
+// ✅ horaFim e duracaoMin são definidos DEPOIS quando a esteta
+//    escolher o serviço. Aqui gravamos só a hora de início.
+horaFim: null,
+duracaoMin: null,
         nome: paciente?.nome || 'Paciente',
         documento: paciente?.documento || '',
         telefone: paciente?.telefone || '',

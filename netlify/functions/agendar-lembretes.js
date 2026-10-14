@@ -11,16 +11,55 @@ const MS = {
   dias: 24 * 60 * 60 * 1000,
 };
 
-// ✅ Stagger entre envios imediatos (ms)
 const STAGGER_MS = 250;
-
-// ✅ Envio imediato APENAS se sendAt estiver nos próximos 5s
 const TOLERANCIA_FUTURO_MS = 5000;
-
-// ✅ Tolerância para trás: se sendAt está nos últimos 30s, ainda consideramos
-//    "recente" e enviamos agora (cobre o caso do cron ter atrasado).
-//    Mais antigo que 30s → IGNORA (data no passado, já foi enviada ou perdida).
 const TOLERANCIA_PASSADO_MS = 30 * 1000;
+
+// ============================================================
+// ✅ Offset PADRÃO (Brasil, UTC-3) — usado quando o cliente
+//    não envia o offset dele. Mantém compatibilidade retroativa.
+// ============================================================
+const OFFSET_PADRAO_MIN = -180;
+
+// ============================================================
+// ✅ Converte string "YYYY-MM-DDTHH:MM" (datetime-local) para
+//    timestamp UTC, respeitando o fuso do cliente.
+//
+//    O navegador envia a string SEM timezone (ex: "2026-10-14T14:30")
+//    interpretada como hora LOCAL do dispositivo.
+//
+//    Para converter para UTC:
+//      UTC = local - offset
+//    Se offsetMin = -180 (BRT), então:
+//      UTC = 14:30 - (-180min) = 14:30 + 3h = 17:30 UTC ✅
+//
+//    Se offsetMin = 0 (Lisboa):
+//      UTC = 14:30 - 0 = 14:30 UTC
+//
+//    Se offsetMin = -540 (Tóquio, UTC+9):
+//      UTC = 14:30 - (-540min) = 14:30 + 9h = 23:30 UTC
+// ============================================================
+function parseDataHoraLocalParaUTC(valor, offsetMin) {
+  if (!valor) return NaN;
+
+  // Espera formato "YYYY-MM-DDTHH:MM" ou "YYYY-MM-DD HH:MM"
+  const match = String(valor).match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/
+  );
+  if (!match) return NaN;
+
+  const [, ano, mes, dia, hora, min] = match.map(Number);
+
+  // Timestamp UTC do horário "local"
+  const utcDoLocal = Date.UTC(ano, mes - 1, dia, hora, min);
+
+  // Offset em ms (ex: -180 * 60000 = -10800000)
+  // UTC = local - offset
+  const offsetMs = offsetMin * 60 * 1000;
+  const utcReal = utcDoLocal - offsetMs;
+
+  return utcReal;
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -46,7 +85,15 @@ exports.handler = async (event) => {
       process.env.VAPID_PRIVATE_KEY
     );
 
-    const { pacienteId, lembretes } = JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
+    const { pacienteId, lembretes } = body;
+
+    // ============================================================
+    // ✅ Lê o offset do cliente (novo) ou usa o padrão BRT (legado)
+    // ============================================================
+    const offsetMin =
+      typeof body.offsetMin === 'number' ? body.offsetMin : OFFSET_PADRAO_MIN;
+
     if (!pacienteId || !Array.isArray(lembretes)) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Dados incompletos' }) };
     }
@@ -75,11 +122,18 @@ exports.handler = async (event) => {
       let sendAt;
       const isDataHora = lembrete.tipo === 'data_hora';
 
+      // ============================================================
+      // ✅ Offset específico deste lembrete (permite override por lembrete)
+      //    Se não vier, usa o do payload ou o padrão BRT.
+      // ============================================================
+      const offsetDesteLembrete =
+        typeof lembrete.offsetMin === 'number'
+          ? lembrete.offsetMin
+          : offsetMin;
+
       if (isDataHora) {
         if (!lembrete.valor) continue;
-        const partes = lembrete.valor.split(/[-T:]/);
-        const [ano, mes, dia, hora, min] = partes.map(Number);
-        sendAt = Date.UTC(ano, mes - 1, dia, hora + 3, min);
+        sendAt = parseDataHoraLocalParaUTC(lembrete.valor, offsetDesteLembrete);
       } else {
         const num = parseInt(lembrete.intervaloNumero, 10) || 1;
         const unidade = lembrete.intervaloUnidade || 'horas';
@@ -88,9 +142,7 @@ exports.handler = async (event) => {
 
       if (isNaN(sendAt)) continue;
 
-      // ============================================================
-      // ✅ Se é data_hora e já passou há MAIS de 30s → IGNORA
-      // ============================================================
+      // Se é data_hora e já passou há mais de 30s → ignora
       if (isDataHora && sendAt < agora - TOLERANCIA_PASSADO_MS) {
         console.log(`⏭️ Ignorado (data passada): "${lembrete.titulo}" → ${new Date(sendAt).toISOString()}`);
         resultados.push({
@@ -102,9 +154,7 @@ exports.handler = async (event) => {
         continue;
       }
 
-      // ============================================================
-      // ✅ Envio imediato: sendAt entre (agora - 30s) e (agora + 5s)
-      // ============================================================
+      // Envio imediato: sendAt entre (agora - 30s) e (agora + 5s)
       const deveEnviarAgora =
         sendAt <= agora + TOLERANCIA_FUTURO_MS &&
         sendAt >= agora - TOLERANCIA_PASSADO_MS;
@@ -122,7 +172,6 @@ exports.handler = async (event) => {
           continue;
         }
 
-        // ✅ Stagger entre envios imediatos
         if (idxImediato > 0) {
           await new Promise((r) => setTimeout(r, idxImediato * STAGGER_MS));
         }
@@ -132,16 +181,11 @@ exports.handler = async (event) => {
         const tagUnica = `lembrete-${pacienteId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const corpo = 'Você tem um lembrete da Samira Estética';
 
-        // ============================================================
-        // ✅ Envia para TODOS os canais disponíveis (multi-dispositivo)
-        //    Não usa "else if" — envia para os dois se ambos existirem
-        // ============================================================
         const resultadosCanal = {
           fcm: { ok: false, erro: null },
           webpush: { ok: false, erro: null },
         };
 
-        // 1️⃣ FCM (APK — celular)
         if (subData.fcmToken) {
           try {
             await getMessaging().send({
@@ -168,7 +212,6 @@ exports.handler = async (event) => {
           }
         }
 
-        // 2️⃣ Web-push (PWA — PC e/ou celular) — sempre tenta se existir
         if (subData.subscription) {
           try {
             const payloadWeb = JSON.stringify({
@@ -201,7 +244,7 @@ exports.handler = async (event) => {
             : (resultadosCanal.fcm.erro || resultadosCanal.webpush.erro),
         });
       } else {
-        // ✅ Agendado (futuro) → vai pra lembretes_pendentes
+        // Agendado (futuro) → vai pra lembretes_pendentes
         const docRef = await db.collection('lembretes_pendentes').add({
           pacienteId: String(pacienteId),
           titulo: lembrete.titulo,
@@ -209,6 +252,7 @@ exports.handler = async (event) => {
           tipo: lembrete.tipo,
           intervaloNumero: lembrete.intervaloNumero || null,
           intervaloUnidade: lembrete.intervaloUnidade || null,
+          offsetMin: offsetDesteLembrete, // ✅ guarda pra debug
           enviado: false,
           tentativas: 0,
           criadoEm: new Date().toISOString(),

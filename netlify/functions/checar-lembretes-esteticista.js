@@ -19,14 +19,44 @@ const JANELA_1H = {
 // Timezone do Brasil (UTC-3)
 const TZ_OFFSET_MIN = -3 * 60;
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Content-Type': 'application/json',
+};
+
 function agoraEmMinutosDesdeMeiaNoite(data) {
   return data.getHours() * 60 + data.getMinutes();
 }
 
 exports.handler = async (event) => {
-  // Só aceita POST do próprio agendador
+  // OPTIONS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+  }
+
   if (event.httpMethod !== 'POST' && event.httpMethod !== 'GET') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return {
+      statusCode: 405,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+    };
+  }
+
+  // ============================================================
+  // 🔒 VALIDAÇÃO DO SECRET (cron externo)
+  // ============================================================
+  let secret = event.queryStringParameters?.secret;
+  if (!secret && event.body) {
+    try { secret = JSON.parse(event.body).secret; } catch (e) {}
+  }
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return {
+      statusCode: 401,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: 'Unauthorized' }),
+    };
   }
 
   try {
@@ -71,6 +101,7 @@ exports.handler = async (event) => {
     if (snap.empty) {
       return {
         statusCode: 200,
+        headers: CORS_HEADERS,
         body: JSON.stringify({ ok: true, checados: 0 }),
       };
     }
@@ -82,15 +113,10 @@ exports.handler = async (event) => {
     for (const doc of snap.docs) {
       const ag = doc.data();
 
-      // Só confirmados
       if (ag.status !== 'confirmado') continue;
-      // Só se tem uidEsteticista
       if (!ag.uidEsteticista) continue;
-
-      // ============================================================
-      // 3. Calcula minutos até o início do agendamento
-      // ============================================================
       if (!ag.data || !ag.horaInicio) continue;
+
       const [ano, mes, dia] = ag.data.split('-').map(Number);
       const [hora, minuto] = ag.horaInicio.split(':').map(Number);
       const dataAgendamentoUTC = new Date(
@@ -98,20 +124,13 @@ exports.handler = async (event) => {
       );
       const diffMin = (dataAgendamentoUTC.getTime() - agoraUTC.getTime()) / 60000;
 
-      // Ignora se já passou
       if (diffMin < 0) continue;
 
-      // ============================================================
-      // 4. Verifica se precisa enviar lembrete de 24h
-      // ============================================================
       const precisa24h =
         !ag.lembrete24hEnviado &&
         diffMin >= JANELA_24H.min &&
         diffMin <= JANELA_24H.max;
 
-      // ============================================================
-      // 5. Verifica se precisa enviar lembrete de 1h
-      // ============================================================
       const precisa1h =
         !ag.lembrete1hEnviado &&
         diffMin >= JANELA_1H.min &&
@@ -119,25 +138,15 @@ exports.handler = async (event) => {
 
       if (!precisa24h && !precisa1h) continue;
 
-      // ============================================================
-      // 6. Busca a sub do esteticista
-      // ============================================================
       const subDoc = await db
         .collection('push_subscriptions_esteticistas')
         .doc(String(ag.uidEsteticista))
         .get();
 
-      if (!subDoc.exists) {
-        // Sem sub — marca como "não enviado" para tentar de novo
-        // no próximo ciclo (mas sem bloquear o processo)
-        continue;
-      }
+      if (!subDoc.exists) continue;
 
       const subData = subDoc.data();
 
-      // ============================================================
-      // 7. Monta o push (24h ou 1h)
-      // ============================================================
       let titulo, corpo;
       if (precisa24h) {
         titulo = '📅 Lembrete: consulta amanhã';
@@ -150,7 +159,6 @@ exports.handler = async (event) => {
       const tagUnica = `lembrete-${precisa24h ? '24h' : '1h'}-${doc.id}`;
       const resultadosCanal = { fcm: false, webpush: false };
 
-      // FCM (APK)
       if (subData.fcmToken) {
         try {
           await getMessaging().send({
@@ -177,7 +185,6 @@ exports.handler = async (event) => {
         }
       }
 
-      // Web-push (PWA)
       if (subData.subscription) {
         try {
           await webpush.sendNotification(
@@ -199,9 +206,6 @@ exports.handler = async (event) => {
 
       const envioOk = resultadosCanal.fcm || resultadosCanal.webpush;
 
-      // ============================================================
-      // 8. Marca a flag apenas se o envio foi bem-sucedido
-      // ============================================================
       if (envioOk) {
         const update = { atualizadoEm: new Date().toISOString() };
         if (precisa24h) update.lembrete24hEnviado = true;
@@ -225,6 +229,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         ok: true,
         checados: snap.size,
@@ -237,6 +242,7 @@ exports.handler = async (event) => {
     console.error('❌ Erro:', err.stack);
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: err.message }),
     };
   }

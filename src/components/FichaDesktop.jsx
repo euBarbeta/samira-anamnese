@@ -560,7 +560,8 @@ const converterBRParaISO = (valorBR) => {
       alteracoesCutaneas,
       habitosComIcones: habitosParaSalvar,
       observacoes,
-      lembretes
+      lembretes,
+        offsetMin: new Date().getTimezoneOffset() * -1,
     };
 
     setSalvando(true);

@@ -44,23 +44,21 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados incompletos' }) };
     }
 
-    // Busca o nome do paciente pra mensagem
+    // ============================================================
+    // ✅ Busca o nome do paciente direto em cada esteta
+    //    (removido o collectionGroup inútil que sempre retornava vazio)
+    // ============================================================
     let pacienteNome = 'Um paciente';
-    try {
-      const pacientesSnap = await db.collectionGroup('pacientes')
-        .where('__name__', '==', `__null__`) // placeholder — vamos buscar direto
-        .limit(1)
-        .get();
-      // Busca direta — tenta em cada esteta
-      for (const uid of UIDS_ESTETICISTAS) {
+    for (const uid of UIDS_ESTETICISTAS) {
+      try {
         const s = await db.doc(`usuarios/${uid}/pacientes/${pacienteId}`).get();
         if (s.exists) {
           pacienteNome = s.data().nome || pacienteNome;
           break;
         }
+      } catch (e) {
+        console.warn(`Falha buscando paciente em ${uid}:`, e.message);
       }
-    } catch (e) {
-      console.warn('Falha buscando nome do paciente:', e);
     }
 
     const titulo = '🚨 Login em dispositivo novo';
@@ -79,7 +77,7 @@ exports.handler = async (event) => {
         if (!subDoc.exists) return;
         const subData = subDoc.data();
 
-        // FCM
+        // FCM (APK)
         if (subData.fcmToken) {
           try {
             await getMessaging().send({
@@ -104,10 +102,20 @@ exports.handler = async (event) => {
             resultados.fcm++;
           } catch (e) {
             console.error(`FCM falhou (${uidEsteta}):`, e.message);
+            if (
+              e.message.includes('registration-token-not-registered') ||
+              e.message.includes('invalid-registration-token') ||
+              e.message.includes('invalid-argument')
+            ) {
+              await subDoc.ref.update({
+                fcmToken: null,
+                atualizadoEm: new Date().toISOString(),
+              });
+            }
           }
         }
 
-        // Web-push
+        // Web-push (PWA)
         if (subData.subscription) {
           try {
             await webpush.sendNotification(
