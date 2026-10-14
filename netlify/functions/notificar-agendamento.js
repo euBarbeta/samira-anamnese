@@ -39,11 +39,15 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados incompletos' }) };
     }
 
+    // ============================================================
     // Títulos conforme o evento
+    // ✅ 'novo' agora avisa que é PENDENTE e a esteta precisa
+    //    escolher o serviço para confirmar
+    // ============================================================
     const mapa = {
       novo: {
-        titulo: '🗓️ Novo agendamento',
-        corpo: `${agendamento.nome} agendou para ${agendamento.data} às ${agendamento.horaInicio}`,
+        titulo: '🗓️ Novo agendamento (pendente)',
+        corpo: `${agendamento.nome} agendou para ${agendamento.data} às ${agendamento.horaInicio}. Abra o painel para escolher o serviço.`,
       },
       cancelado_paciente: {
         titulo: '❌ Agendamento cancelado',
