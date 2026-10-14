@@ -15,20 +15,28 @@ function pad(n) {
   return String(n).padStart(2, '0');
 }
 
+function toMin(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string') return 0;
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
 /**
  * Gera slots disponíveis. Agora respeita:
  *   - blocosSemanais    → padrão recorrente (dia da semana)
  *   - datasEspecificas  → override por data exata
- *                        { 'YYYY-MM-DD': { bloqueado: bool, blocos: [...] } }
  *   - bloqueios         → lista de folgas { data, motivo }
  *   - liberacoesAvulsas → horários extras { data, inicio, fim }
  *   - antecedenciaMinimaHoras
  *
- *   ✅ Colisão por SOBREPOSIÇÃO de intervalo (não só igualdade)
- *      → bloqueia qualquer slot que caia dentro da duração de um serviço confirmado
+ *   ✅ Colisão por SOBREPOSIÇÃO de intervalo
+ *   ✅ Processa `liberacoesExtras` com CORTE INTELIGENTE:
+ *      Se um agendamento cai DENTRO de uma sobra liberada,
+ *      a sobra é DIVIDIDA em pedaços ao redor dele — em vez
+ *      de ser descartada inteira.
  *
- *   ✅ Processa `liberacoesExtras` de cada agendamento
- *      → quando a esteta libera a sobra de um bloco, aquele tempo vira slot avulso
+ *      Ex: sobra 09:08→12:00 com agendamento 10:00→10:45
+ *      → vira 09:08→10:00 e 10:45→12:00
  */
 export function gerarSlotsDisponiveis(
   config,
@@ -47,43 +55,26 @@ export function gerarSlotsDisponiveis(
 
   // ============================================================
   // ✅ Agrupa os agendamentos por data, guardando o INTERVALO ocupado
-  //    (para bloquear qualquer slot que colida com a duração do serviço)
   // ------------------------------------------------------------
   // ⚠️ ACEITA 2 FORMATOS DE ENTRADA:
-  //
-  //   1) Docs da coleção pública `slots_ocupados_publicos` (TEMPO REAL)
-  //      → NÃO têm campo `status`. Se estão nessa coleção, É porque
-  //        são ocupados (a Function só grava quem ocupa).
-  //
-  //   2) Docs do painel/agenda (legado, caso alguém chame com a
-  //      coleção `agendamentos` direto)
-  //      → TÊM campo `status`, e filtramos pendente/confirmado.
-  //
-  // Sem esse fallback, quando o slot em tempo real chega sem `status`,
-  // o agendamento é descartado e o horário confirmado NUNCA some.
+  //   1) Docs da coleção pública `slots_ocupados_publicos` (sem `status`)
+  //   2) Docs de `agendamentos` (com `status`)
   // ============================================================
   const ocupadosPorData = {};
   agendamentosOcupados
     .filter((a) => {
-      // Se NÃO tem `status` → veio de `slots_ocupados_publicos`
-      // → já é considerado ocupado por definição.
-      if (a.status == null) return true;
-
-      // Se tem `status` → respeita a regra antiga.
+      if (a.status == null) return true; // veio da coleção pública
       return a.status === 'pendente' || a.status === 'confirmado';
     })
     .forEach((a) => {
       if (!a.data || !a.horaInicio) return;
 
-      const [hI, mI] = a.horaInicio.split(':').map(Number);
-      const inicioMin = hI * 60 + mI;
+      const inicioMin = toMin(a.horaInicio);
 
       let fimMin;
       if (a.horaFim) {
-        const [hF, mF] = a.horaFim.split(':').map(Number);
-        fimMin = hF * 60 + mF;
+        fimMin = toMin(a.horaFim);
       } else {
-        // Pendente (sem serviço definido) → assume 60min como reserva
         fimMin = inicioMin + (a.duracaoMin || 60);
       }
 
@@ -101,29 +92,27 @@ export function gerarSlotsDisponiveis(
   const fim = new Date(dataFimISO + 'T23:59:59');
 
   for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
-    // ✅ Data LOCAL
     const iso = toISODateLocal(d);
 
-    // Folga global (lista de bloqueios)
+    // Folga global
     if (bloqueiosSet.has(iso)) continue;
 
-    const diaSemana = d.getDay(); // 0..6 (local)
+    const diaSemana = d.getDay();
 
-    // ✅ Prioridade 1: override por data específica
+    // Override por data específica
     const override = config.datasEspecificas?.[iso];
     let blocos;
 
     if (override) {
-      if (override.bloqueado) continue; // folga só desse dia
+      if (override.bloqueado) continue;
       blocos = override.blocos || [];
     } else {
-      // ✅ Prioridade 2: padrão semanal
       blocos = (config.blocosSemanais || []).filter(
         (b) => b.diaSemana === diaSemana
       );
     }
 
-    // Liberações avulsas (extras) da CONFIG (fora do fluxo de agendamento)
+    // Liberações avulsas da config
     const avulsos = (config.liberacoesAvulsas || [])
       .filter((l) => l.data === iso)
       .map((l) => ({ inicio: l.inicio, fim: l.fim, duracaoMin: 60 }));
@@ -151,7 +140,6 @@ export function gerarSlotsDisponiveis(
         const inicioSlotMin = cursor.getHours() * 60 + cursor.getMinutes();
         const fimSlotMin = inicioSlotMin + duracao;
 
-        // ✅ Colisão por sobreposição de intervalo
         const jaOcupado = (ocupadosPorData[iso] || []).some(
           (o) => inicioSlotMin < o.fimMin && o.inicioMin < fimSlotMin
         );
@@ -166,8 +154,11 @@ export function gerarSlotsDisponiveis(
     }
 
     // ============================================================
-    // ✅ LIBERAÇÕES EXTRAS — sobrou tempo do bloco padrão e a esteta
-    //    autorizou liberar pra outro paciente. Vira slot avulso.
+    // ✅ LIBERAÇÕES EXTRAS — corte inteligente
+    // ------------------------------------------------------------
+    // Cada `liberacaoExtra` é um INTERVALO que a esteta autorizou
+    // liberar. Se outro agendamento cair dentro, DIVIDE a sobra
+    // em pedaços em vez de descartar tudo.
     // ============================================================
     const agsDoDia = agendamentosOcupados.filter((a) => a.data === iso);
     for (const a of agsDoDia) {
@@ -176,44 +167,86 @@ export function gerarSlotsDisponiveis(
       for (const lib of a.liberacoesExtras) {
         if (!lib.inicio || !lib.fim) continue;
 
-        const [lI, lM] = lib.inicio.split(':').map(Number);
-        const [lF, lM2] = lib.fim.split(':').map(Number);
-        const libInicioMin = lI * 60 + lM;
-        const libFimMin = lF * 60 + lM2;
+        const libInicioMin = toMin(lib.inicio);
+        const libFimMin = toMin(lib.fim);
 
         // Já passou? Pula
         const cursorLib = new Date(d);
-        cursorLib.setHours(lI, lM, 0, 0);
+        cursorLib.setHours(Math.floor(libInicioMin / 60), libInicioMin % 60, 0, 0);
         if (cursorLib < minAntecedencia) continue;
 
-        // Colide com outro agendamento? Pula
-        const colideComOutro = (ocupadosPorData[iso] || []).some(
-          (o) => libInicioMin < o.fimMin && o.inicioMin < libFimMin
-        );
-        if (colideComOutro) continue;
+        // ------------------------------------------------------------
+        // Encontra agendamentos que caem DENTRO da sobra
+        // (ignora o próprio agendamento do qual essa sobra veio)
+        // ------------------------------------------------------------
+        const proprioInicioMin = toMin(a.horaInicio);
+        const proprioFimMin = a.horaFim
+          ? toMin(a.horaFim)
+          : proprioInicioMin + (a.duracaoMin || 60);
 
-        // ✅ Já existe um slot idêntico gerado pelo bloco? Pula (evita duplicata)
-        const jaExiste = slots.some(
-          (s) =>
-            s.data === iso &&
-            s.horaInicio === lib.inicio &&
-            s.horaFim === lib.fim
-        );
-        if (jaExiste) continue;
+        const obstaculos = (ocupadosPorData[iso] || [])
+          .filter((o) => {
+            // Ignora o próprio agendamento
+            if (o.inicioMin === proprioInicioMin && o.fimMin === proprioFimMin) {
+              return false;
+            }
+            // Só considera se SOBREPÕE a sobra
+            return libInicioMin < o.fimMin && o.inicioMin < libFimMin;
+          })
+          .sort((x, y) => x.inicioMin - y.inicioMin);
 
-        slots.push({
-          data: iso,
-          horaInicio: lib.inicio,
-          horaFim: lib.fim,
-          _liberado: true,
-        });
+        // ------------------------------------------------------------
+        // Monta os PEDAÇOS da sobra que sobraram
+        // ------------------------------------------------------------
+        const pedacos = [];
+        let cursor2 = libInicioMin;
+
+        for (const o of obstaculos) {
+          if (o.inicioMin > cursor2) {
+            pedacos.push({
+              inicioMin: cursor2,
+              fimMin: Math.min(o.inicioMin, libFimMin),
+            });
+          }
+          cursor2 = Math.max(cursor2, o.fimMin);
+        }
+
+        if (cursor2 < libFimMin) {
+          pedacos.push({ inicioMin: cursor2, fimMin: libFimMin });
+        }
+
+        // ------------------------------------------------------------
+        // Empurra cada pedaço válido (> 5 min) como slot avulso
+        // ------------------------------------------------------------
+        for (const p of pedacos) {
+          const duracaoPedaco = p.fimMin - p.inicioMin;
+          if (duracaoPedaco < 5) continue;
+
+          const horaInicio = `${pad(Math.floor(p.inicioMin / 60))}:${pad(p.inicioMin % 60)}`;
+          const horaFim = `${pad(Math.floor(p.fimMin / 60))}:${pad(p.fimMin % 60)}`;
+
+          // Já existe um slot idêntico? Pula (evita duplicata)
+          const jaExiste = slots.some(
+            (s) =>
+              s.data === iso &&
+              s.horaInicio === horaInicio &&
+              s.horaFim === horaFim
+          );
+          if (jaExiste) continue;
+
+          slots.push({
+            data: iso,
+            horaInicio,
+            horaFim,
+            _liberado: true,
+          });
+        }
       }
     }
   }
 
   // ============================================================
-  // ✅ Deduplicação final — remove slots com mesmo data+horaInicio
-  //    (protege contra liberacoesExtras duplicadas ou overlap com bloco)
+  // ✅ Deduplicação final
   // ============================================================
   const slotsUnicos = [];
   const chavesVistas = new Set();
@@ -225,7 +258,6 @@ export function gerarSlotsDisponiveis(
     slotsUnicos.push(s);
   }
 
-  // Ordena por data + hora
   slotsUnicos.sort((a, b) => {
     const ka = `${a.data} ${a.horaInicio}`;
     const kb = `${b.data} ${b.horaInicio}`;

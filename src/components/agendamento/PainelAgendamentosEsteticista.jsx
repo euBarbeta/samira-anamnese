@@ -6,6 +6,7 @@
   import ConfiguradorAgenda from './ConfiguradorAgenda';
   import FichaDesktop from '../FichaDesktop';
   import FichaMobile from '../FichaMobile';
+  import ModalEditarSobra from './ModalEditarSobra';
 
   import {
     collection, query, where, onSnapshot, doc, getDoc, setDoc,
@@ -29,7 +30,7 @@
   MdCalendarMonth, MdSettings, MdPhone, MdBadge,
   MdEmail, MdChatBubbleOutline, MdClear, MdHourglassEmpty,
   MdContentCopy, MdCheck, MdDelete, MdAssignment, MdEvent,
-  MdPersonOff, MdRefresh, MdPictureAsPdf,
+  MdPersonOff, MdRefresh, MdPictureAsPdf,MdLock
 } from 'react-icons/md';
 // ============================================================
 // ✅ Escapa texto pra uso seguro dentro de HTML
@@ -960,6 +961,7 @@ function ModalExportarAgendamentos({ agendamentos, filtroStatus, onFechar }) {
     const [agendamentoParaConfirmar, setAgendamentoParaConfirmar] = useState(null);
     const [agendamentoParaCancelar, setAgendamentoParaCancelar] = useState(null);
     const [cancelando, setCancelando] = useState(false);
+    const [agendamentoParaEditarSobra, setAgendamentoParaEditarSobra] = useState(null);
 
     const [pacientesExistentes, setPacientesExistentes] = useState(new Set());
     const [pacientesPorId, setPacientesPorId] = useState({});
@@ -2121,6 +2123,69 @@ try {
       )}
     </div>
   )}
+  {/* ✅ ESTADO DA SOBRA — liberada ou bloqueada */}
+{(ag.status === 'confirmado' || ag.status === 'concluido') && ag.horaFim && (
+  (() => {
+    const temSobra = Array.isArray(ag.liberacoesExtras) && ag.liberacoesExtras.length > 0;
+    const sobra = temSobra ? ag.liberacoesExtras[0] : null;
+
+    return (
+      <div style={{
+        marginTop: 8,
+        padding: '8px 12px',
+        background: temSobra ? '#f0fdf4' : '#fafafa',
+        border: `1px solid ${temSobra ? '#86efac' : '#e0e0e0'}`,
+        borderRadius: 10,
+        fontSize: 11,
+        color: temSobra ? '#166534' : '#666',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        flexWrap: 'wrap',
+      }}>
+        {temSobra ? (
+          <MdCheckCircle size={14} color="#16a34a" />
+        ) : (
+          <MdLock size={14} color="#666" />
+        )}
+
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {temSobra ? (
+            <>
+              <strong>Sobra liberada:</strong> {sobra.inicio} → {sobra.fim}
+              {sobra.duracaoMin ? ` (${sobra.duracaoMin} min)` : ''}
+            </>
+          ) : (
+            <>
+              <strong>Sobra bloqueada</strong>
+              {' '}— o restante do bloco não aparece na agenda
+            </>
+          )}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setAgendamentoParaEditarSobra(ag)}
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: temSobra ? '#fff8e1' : '#f0fdf4',
+            color: temSobra ? '#92400e' : '#166534',
+            border: `1px solid ${temSobra ? '#fcd34d' : '#86efac'}`,
+            padding: '4px 10px',
+            borderRadius: 10,
+            fontSize: 10,
+            fontWeight: 700,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {temSobra ? 'BARRAR' : 'LIBERAR'}
+        </button>
+      </div>
+    );
+  })()
+)}
 
                     {/* ✅ Painel de divergências — MANTER/SUBSTITUIR independentes */}
                     {(() => {
@@ -2415,6 +2480,15 @@ try {
             }}
           />
         )}
+        {/* ✅ Modal de editar sobra */}
+{agendamentoParaEditarSobra && (
+  <ModalEditarSobra
+    agendamento={agendamentoParaEditarSobra}
+    uidEsteticista={uidEsteticista}
+    onFechar={() => setAgendamentoParaEditarSobra(null)}
+    onSucesso={() => setAgendamentoParaEditarSobra(null)}
+  />
+)}
 
         {/* Modal de escolher serviço */}
         {agendamentoParaConfirmar && (
