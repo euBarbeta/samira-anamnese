@@ -1403,32 +1403,35 @@ fetch('/.netlify/functions/sincronizar-slot-publico', {
       setAgendamentoParaExcluir(ag);
     };
 
-  const confirmarExclusaoAgendamento = async () => {
-    if (!agendamentoParaExcluir) return;
-    setExcluindoAg(true);
+ const confirmarExclusaoAgendamento = async () => {
+  if (!agendamentoParaExcluir) return;
+  setExcluindoAg(true);
+  try {
+    await updateDoc(doc(db, 'agendamentos', agendamentoParaExcluir.id), {
+      ocultoParaEsteticista: true,
+      ocultadoEsteticistaEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    });
+
+    // ✅ Sincroniza o slot público (usa o ID correto)
     try {
-      // ✅ NUNCA apaga — apenas esconde da visualização da esteta.
-      //    O registro fica preservado no histórico do paciente
-      //    (atende LGPD art. 16 — retenção mínima obrigatória).
-      await updateDoc(doc(db, 'agendamentos', agendamentoParaExcluir.id), {
-        ocultoParaEsteticista: true,
-        ocultadoEsteticistaEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
+      await fetch('/.netlify/functions/sincronizar-slot-publico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamentoId: agendamentoParaExcluir.id }),
       });
-      // ✅ Sincroniza o slot público
-fetch('/.netlify/functions/sincronizar-slot-publico', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ agendamentoId: ag.id }),
-}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
-      setAgendamentoParaExcluir(null);
     } catch (e) {
-      console.error('Erro ao remover da visualização:', e);
-      alert('Erro ao remover. Tente novamente.');
-    } finally {
-      setExcluindoAg(false);
+      console.warn('Falha ao sincronizar slot público:', e);
     }
-  };
+
+    setAgendamentoParaExcluir(null);
+  } catch (e) {
+    console.error('Erro ao remover da visualização:', e);
+    alert('Erro ao remover. Tente novamente.');
+  } finally {
+    setExcluindoAg(false);
+  }
+};
 
     // ============================================================
     // ✅ Atalhos de teclado do modal de exclusão: Enter / Esc
@@ -1752,13 +1755,18 @@ fetch('/.netlify/functions/sincronizar-slot-publico', {
           patch.concluidoPor = 'esteticista';
           patch.concluidoEm = new Date().toISOString();
         }
-        await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
-        // ✅ Sincroniza o slot público
-fetch('/.netlify/functions/sincronizar-slot-publico', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ agendamentoId: ag.id }),
-}).catch((e) => console.warn('Falha ao sincronizar slot público:', e));
+      await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
+
+// ✅ Sincroniza o slot público (usando o ID correto do agendamento)
+try {
+  await fetch('/.netlify/functions/sincronizar-slot-publico', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agendamentoId: fichaPreenchida._agendamentoOrigemId }),
+  });
+} catch (e) {
+  console.warn('Falha ao sincronizar slot público:', e);
+}
       }
 
       setFichaPreenchida(null);

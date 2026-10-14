@@ -45,11 +45,33 @@ export function gerarSlotsDisponiveis(
     (config.bloqueios || []).map((b) => b.data)
   );
 
+  // ============================================================
   // ✅ Agrupa os agendamentos por data, guardando o INTERVALO ocupado
   //    (para bloquear qualquer slot que colida com a duração do serviço)
+  // ------------------------------------------------------------
+  // ⚠️ ACEITA 2 FORMATOS DE ENTRADA:
+  //
+  //   1) Docs da coleção pública `slots_ocupados_publicos` (TEMPO REAL)
+  //      → NÃO têm campo `status`. Se estão nessa coleção, É porque
+  //        são ocupados (a Function só grava quem ocupa).
+  //
+  //   2) Docs do painel/agenda (legado, caso alguém chame com a
+  //      coleção `agendamentos` direto)
+  //      → TÊM campo `status`, e filtramos pendente/confirmado.
+  //
+  // Sem esse fallback, quando o slot em tempo real chega sem `status`,
+  // o agendamento é descartado e o horário confirmado NUNCA some.
+  // ============================================================
   const ocupadosPorData = {};
   agendamentosOcupados
-    .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
+    .filter((a) => {
+      // Se NÃO tem `status` → veio de `slots_ocupados_publicos`
+      // → já é considerado ocupado por definição.
+      if (a.status == null) return true;
+
+      // Se tem `status` → respeita a regra antiga.
+      return a.status === 'pendente' || a.status === 'confirmado';
+    })
     .forEach((a) => {
       if (!a.data || !a.horaInicio) return;
 
