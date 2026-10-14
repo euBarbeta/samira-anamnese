@@ -94,7 +94,16 @@ exports.handler = async (event) => {
   ocultadoPacienteEm: new Date().toISOString(),
   atualizadoEm: new Date().toISOString(),
 });
-
+try {
+  const baseUrl = process.env.URL || `https://${event.headers.host}`;
+  await fetch(`${baseUrl}/.netlify/functions/sincronizar-slot-publico`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agendamentoId }),
+  });
+} catch (e) {
+  console.warn('Falha ao sincronizar slot público:', e);
+}
     return {
       statusCode: 200,
       headers: CORS,
