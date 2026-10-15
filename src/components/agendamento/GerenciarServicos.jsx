@@ -24,17 +24,42 @@ const PALETA = [
 
 const DURACOES_RAPIDAS = [15, 30, 45, 60, 90, 120, 180];
 
+/**
+ * ✅ Converte string (com vírgula ou ponto) em número.
+ * Aceita "150", "150,50", "150.50", "1.234,56"
+ */
+function parseMoeda(str) {
+  if (typeof str === 'number') return str;
+  if (!str) return 0;
+  const limpo = String(str).replace(/[^\d.,]/g, '');
+  if (!limpo) return 0;
+  const normalizado = limpo.replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(normalizado);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * ✅ Formata número para exibição "150,50" (BR)
+ */
+function formatarMoedaBR(num) {
+  const n = Number(num) || 0;
+  return n.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function GerenciarServicos({ uidEsteticista }) {
   const [servicos, setServicos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
-  const [editando, setEditando] = useState(null); // serviço em edição
+  const [editando, setEditando] = useState(null);
   const [form, setForm] = useState({
     nome: '',
     duracaoMin: 60,
     cor: PALETA[0],
     ativo: true,
-     preco: 0,
+    preco: '',   // ✅ STRING vazia (não número 0)
   });
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState('');
@@ -75,7 +100,7 @@ export default function GerenciarServicos({ uidEsteticista }) {
       duracaoMin: 60,
       cor: PALETA[0],
       ativo: true,
-       preco: 0,
+      preco: '',   // ✅ vazio
     });
     setErroForm('');
     setModalAberto(true);
@@ -83,12 +108,14 @@ export default function GerenciarServicos({ uidEsteticista }) {
 
   const abrirEdicao = (servico) => {
     setEditando(servico);
+    // ✅ Se tiver preço > 0, formata como string. Se for 0, deixa vazio
+    const precoNum = typeof servico.preco === 'number' ? servico.preco : 0;
     setForm({
       nome: servico.nome || '',
       duracaoMin: servico.duracaoMin || 60,
       cor: servico.cor || PALETA[0],
       ativo: servico.ativo !== false,
-      preco: typeof servico.preco === 'number' ? servico.preco : 0,
+      preco: precoNum > 0 ? formatarMoedaBR(precoNum) : '',   // ✅
     });
     setErroForm('');
     setModalAberto(true);
@@ -104,72 +131,72 @@ export default function GerenciarServicos({ uidEsteticista }) {
   // ============================================================
   // Salvar (novo ou editado)
   // ============================================================
- const salvar = async () => {
-  const nomeLimpo = form.nome.trim();
-  if (!nomeLimpo) {
-    setErroForm('Digite um nome para o serviço.');
-    return;
-  }
-  if (nomeLimpo.length > 60) {
-    setErroForm('Nome muito longo (máx 60 caracteres).');
-    return;
-  }
-  const dur = parseInt(form.duracaoMin, 10);
-  if (!dur || dur < 5 || dur > 480) {
-    setErroForm('Duração precisa estar entre 5 e 480 minutos.');
-    return;
-  }
-
-  // ✅ Valida preço
-  const precoNum = typeof form.preco === 'number' ? form.preco : parseFloat(form.preco) || 0;
-  if (precoNum < 0) {
-    setErroForm('Preço não pode ser negativo.');
-    return;
-  }
-  if (precoNum > 99999.99) {
-    setErroForm('Preço muito alto (máx R$ 99.999,99).');
-    return;
-  }
-
-  setSalvando(true);
-  setErroForm('');
-
-  try {
-    const dadosServico = {
-      nome: nomeLimpo,
-      duracaoMin: dur,
-      cor: form.cor,
-      ativo: form.ativo,
-      preco: Number(precoNum.toFixed(2)),   // ✅ sempre 2 casas
-      profissionalId: uidEsteticista,
-      atualizadoEm: serverTimestamp(),
-    };
-
-    if (editando) {
-      await updateDoc(
-        doc(db, `usuarios/${uidEsteticista}/servicos`, editando.id),
-        dadosServico
-      );
-    } else {
-      const maiorOrdem = servicos.reduce(
-        (max, s) => Math.max(max, s.ordem || 0),
-        0
-      );
-      await addDoc(collection(db, `usuarios/${uidEsteticista}/servicos`), {
-        ...dadosServico,
-        ordem: maiorOrdem + 1,
-        criadoEm: serverTimestamp(),
-      });
+  const salvar = async () => {
+    const nomeLimpo = form.nome.trim();
+    if (!nomeLimpo) {
+      setErroForm('Digite um nome para o serviço.');
+      return;
+    }
+    if (nomeLimpo.length > 60) {
+      setErroForm('Nome muito longo (máx 60 caracteres).');
+      return;
+    }
+    const dur = parseInt(form.duracaoMin, 10);
+    if (!dur || dur < 5 || dur > 480) {
+      setErroForm('Duração precisa estar entre 5 e 480 minutos.');
+      return;
     }
 
-    fecharModal();
-  } catch (e) {
-    console.error('Erro ao salvar serviço:', e);
-    setErroForm('Erro ao salvar. Tente novamente.');
-  } finally {
-    setSalvando(false);
-  }
-};
+    // ✅ Converte string → número
+    const precoNum = parseMoeda(form.preco);
+    if (precoNum < 0) {
+      setErroForm('Preço não pode ser negativo.');
+      return;
+    }
+    if (precoNum > 99999.99) {
+      setErroForm('Preço muito alto (máx R$ 99.999,99).');
+      return;
+    }
+
+    setSalvando(true);
+    setErroForm('');
+
+    try {
+      const dadosServico = {
+        nome: nomeLimpo,
+        duracaoMin: dur,
+        cor: form.cor,
+        ativo: form.ativo,
+        preco: Number(precoNum.toFixed(2)),   // ✅ sempre 2 casas
+        profissionalId: uidEsteticista,
+        atualizadoEm: serverTimestamp(),
+      };
+
+      if (editando) {
+        await updateDoc(
+          doc(db, `usuarios/${uidEsteticista}/servicos`, editando.id),
+          dadosServico
+        );
+      } else {
+        const maiorOrdem = servicos.reduce(
+          (max, s) => Math.max(max, s.ordem || 0),
+          0
+        );
+        await addDoc(collection(db, `usuarios/${uidEsteticista}/servicos`), {
+          ...dadosServico,
+          ordem: maiorOrdem + 1,
+          criadoEm: serverTimestamp(),
+        });
+      }
+
+      fecharModal();
+    } catch (e) {
+      console.error('Erro ao salvar serviço:', e);
+      setErroForm('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSalvando(false);
+    }
+  };
 
   // ============================================================
   // Toggle ativo/inativo
@@ -327,7 +354,6 @@ export default function GerenciarServicos({ uidEsteticista }) {
                 boxShadow: '0 3px 10px rgba(44, 22, 58, 0.04)',
               }}
             >
-              {/* Ponto colorido */}
               <span style={{
                 width: 14,
                 height: 14,
@@ -338,7 +364,6 @@ export default function GerenciarServicos({ uidEsteticista }) {
                 flexShrink: 0,
               }} />
 
-              {/* Nome + duração */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontFamily: "'Cinzel', serif",
@@ -368,12 +393,19 @@ export default function GerenciarServicos({ uidEsteticista }) {
                   fontSize: 11,
                   color: '#666',
                   marginTop: 2,
+                  display: 'flex',
+                  gap: 10,
+                  flexWrap: 'wrap',
                 }}>
-                  ⏱️ {s.duracaoMin} min
+                  <span>⏱️ {s.duracaoMin} min</span>
+                  {typeof s.preco === 'number' && s.preco > 0 && (
+                    <span style={{ color: '#16a34a', fontWeight: 700 }}>
+                      R$ {formatarMoedaBR(s.preco)}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Reordenar */}
               <div style={{
                 display: 'flex', flexDirection: 'column',
                 gap: 1, flexShrink: 0,
@@ -398,7 +430,6 @@ export default function GerenciarServicos({ uidEsteticista }) {
                 </button>
               </div>
 
-              {/* Ações */}
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 <button
                   type="button"
@@ -432,14 +463,8 @@ export default function GerenciarServicos({ uidEsteticista }) {
 
       {/* ============ MODAL: NOVO / EDITAR ============ */}
       {modalAberto && (
-        <div
-          onClick={fecharModal}
-          style={overlayEstilo}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={cardEstilo}
-          >
+        <div onClick={fecharModal} style={overlayEstilo}>
+          <div onClick={(e) => e.stopPropagation()} style={cardEstilo}>
             {/* Header */}
             <div style={{
               display: 'flex',
@@ -537,48 +562,58 @@ export default function GerenciarServicos({ uidEsteticista }) {
                 </button>
               ))}
             </div>
-{/* ✅ NOVO: Preço */}
-<label style={{ ...labelEstilo, marginTop: 14 }}>
-  Preço (R$)
-</label>
-<div style={{
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 14,
-}}>
-  <span style={{
-    fontFamily: "'Cinzel', serif",
-    color: '#2c163a',
-    fontSize: 16,
-    fontWeight: 700,
-  }}>
-    R$
-  </span>
-  <input
-    type="number"
-    min="0"
-    step="0.01"
-    value={form.preco}
-    onChange={(e) => {
-      // ✅ Bloqueia valor negativo — filtra o "-" digitado
-      const raw = e.target.value;
-      if (raw.startsWith('-')) return;
-      const num = raw === '' ? 0 : parseFloat(raw);
-      if (isNaN(num) || num < 0) return;
-      setForm({ ...form, preco: num });
-    }}
-    onKeyDown={(e) => {
-      // ✅ Bloqueia teclas "-" e "e" no input number
-      if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
-        e.preventDefault();
-      }
-    }}
-    disabled={salvando}
-    style={{ ...inputEstilo, flex: 1 }}
-    placeholder="0,00"
-  />
-</div>
+
+            {/* ✅ NOVO: Preço (corrigido) */}
+            <label style={{ ...labelEstilo, marginTop: 14 }}>
+              Preço (R$)
+            </label>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 14,
+            }}>
+              <span style={{
+                fontFamily: "'Cinzel', serif",
+                color: '#2c163a',
+                fontSize: 16,
+                fontWeight: 700,
+              }}>
+                R$
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={form.preco}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // ✅ Bloqueia negativo
+                  if (raw.startsWith('-')) return;
+                  // ✅ Aceita apenas dígitos, vírgula e ponto
+                  const limpo = raw.replace(/[^\d.,]/g, '');
+                  setForm({ ...form, preco: limpo });
+                }}
+                onKeyDown={(e) => {
+                  // ✅ Bloqueia teclas "-", "e", "E", "+"
+                  if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault();
+                  }
+                }}
+                onBlur={() => {
+                  // ✅ Ao sair, formata bonito (ex: "150" → "150,00")
+                  const num = parseMoeda(form.preco);
+                  if (num > 0) {
+                    setForm({ ...form, preco: formatarMoedaBR(num) });
+                  } else {
+                    setForm({ ...form, preco: '' });
+                  }
+                }}
+                disabled={salvando}
+                style={{ ...inputEstilo, flex: 1 }}
+                placeholder="0,00"
+              />
+            </div>
+
             {/* Cor */}
             <label style={{ ...labelEstilo, marginTop: 6 }}>Cor</label>
             <div style={{
