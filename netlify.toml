@@ -5,14 +5,14 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "zisi"
+  external_node_modules = ["jose", "jwks-rsa", "firebase-admin"]
 
   [functions."checar-lembretes-esteticista"]
     schedule = "*/15 * * * *"
 
 # ============================================================
-# SPA FALLBACK — qualquer rota cai no index.html
+# SPA FALLBACK
 # ============================================================
-
 [[redirects]]
   from = "/admin"
   to = "/index.html"

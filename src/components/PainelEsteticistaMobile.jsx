@@ -453,18 +453,20 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
  
 // ✅ Publica o UID real da esteticista num doc global
 //    A agenda pública lê daqui pra saber de quem buscar a config
+// ✅ NÃO sobrescrever mais. Só escreve se NÃO existir.
 useEffect(() => {
   const user = auth.currentUser;
   if (!user) return;
-  setDoc(
-    doc(db, 'sistema', 'esteticista_ativa'),
-    {
-      uid: user.uid,
-      email: user.email || null,
-      atualizadoEm: new Date().toISOString(),
-    },
-    { merge: true }
-  ).catch((e) => logWarn('Falha publicando UID global:', e));
+  const ref = doc(db, 'sistema', 'esteticista_ativa');
+  getDoc(ref).then((snap) => {
+    if (!snap.exists()) {
+      setDoc(ref, {
+        uid: UID_ESTETICISTA_PADRAO, // ← Samira
+        email: 'samira.ferreira@sistema.local',
+        atualizadoEm: new Date().toISOString(),
+      });
+    }
+  }).catch((e) => logWarn('Falha checando UID global:', e));
 }, []);
 
 // ✅ Checa fotos não notificadas

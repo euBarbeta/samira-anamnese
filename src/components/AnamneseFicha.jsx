@@ -169,11 +169,10 @@ export default function AnamneseFicha() {
     let cancelado = false;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'sistema', 'esteticista_ativa'));
-        if (!cancelado && snap.exists()) {
-          const uid = snap.data().uid;
-          if (uid) setUidEsteticistaGlobal(uid);
-        }
+      const snap = await getDoc(doc(db, 'sistema', 'esteticista_ativa'));
+const uid = snap.exists() ? snap.data().uid : null;
+// ✅ FALLBACK: se nada estiver publicado, usa a Samira
+setUidEsteticistaGlobal(uid || UID_ESTETICISTA_PADRAO);
       } catch (e) {
         logWarn('Falha lendo UID global:', e);
       }

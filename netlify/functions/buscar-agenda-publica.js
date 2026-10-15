@@ -9,6 +9,9 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
+// ✅ UID da Samira como fallback final
+const UID_SAMIRA = 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
@@ -27,22 +30,34 @@ exports.handler = async (event) => {
     const db = getFirestore();
 
     const { uidEsteticista } = JSON.parse(event.body || '{}');
-    if (!uidEsteticista) {
-      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'uidEsteticista obrigatório' }) };
-    }
 
-    const snap = await db
-      .doc(`usuarios/${uidEsteticista}/agenda_config/principal`)
+    // ✅ Fallback: se o front não mandou uid, tenta a Samira
+    let uidParaUsar = uidEsteticista || UID_SAMIRA;
+
+    // ✅ Busca a config do uid recebido
+    let snap = await db
+      .doc(`usuarios/${uidParaUsar}/agenda_config/principal`)
       .get();
 
+    // ✅ Se não achou e não é a Samira, tenta a Samira
+    if (!snap.exists && uidParaUsar !== UID_SAMIRA) {
+      snap = await db
+        .doc(`usuarios/${UID_SAMIRA}/agenda_config/principal`)
+        .get();
+      uidParaUsar = UID_SAMIRA;
+    }
+
+    // ✅ Só retorna null se NENHUMA agenda (nem a Samira) estiver configurada
     if (!snap.exists) {
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, config: null }) };
+      return {
+        statusCode: 200,
+        headers: CORS,
+        body: JSON.stringify({ ok: true, config: null, uidUsado: uidParaUsar }),
+      };
     }
 
     const cfg = snap.data();
 
-    // 🔒 Devolve SÓ o necessário para calcular slots.
-    //    NÃO devolve: motivo dos bloqueios, histórico de edições, etc.
     const configPublica = {
       blocosSemanais: (cfg.blocosSemanais || []).map((b) => ({
         diaSemana: b.diaSemana,
@@ -50,9 +65,6 @@ exports.handler = async (event) => {
         fim: b.fim,
         duracaoMin: b.duracaoMin || 60,
       })),
-      // Datas específicas: só o que é público (blocos disponíveis).
-      // Se for folga (bloqueado: true), só devolve a data bloqueada —
-      // sem motivo, sem nada pessoal.
       datasEspecificas: Object.fromEntries(
         Object.entries(cfg.datasEspecificas || {})
           .filter(([, v]) => v && typeof v === 'object')
@@ -70,7 +82,6 @@ exports.handler = async (event) => {
                 },
           ])
       ),
-      // Bloqueios globais: só as datas, sem motivo.
       bloqueios: (cfg.bloqueios || []).map((b) => ({ data: b.data })),
       diasFuturosMaximo: cfg.diasFuturosMaximo ?? 60,
       antecedenciaMinimaHoras: cfg.antecedenciaMinimaHoras ?? 4,
@@ -79,10 +90,14 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: CORS,
-      body: JSON.stringify({ ok: true, config: configPublica }),
+      body: JSON.stringify({
+        ok: true,
+        config: configPublica,
+        uidUsado: uidParaUsar,
+      }),
     };
   } catch (err) {
     console.error('❌ Erro buscar-agenda-publica:', err);
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message }) };
   }
-}; 
+};
