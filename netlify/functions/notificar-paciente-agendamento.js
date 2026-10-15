@@ -11,6 +11,17 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
+// ============================================================
+// ✅ Formata 'YYYY-MM-DD' → 'DD/MM/YYYY'
+// ============================================================
+function formatarDataBR(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const partes = iso.split('-');
+  if (partes.length !== 3) return iso;
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
@@ -40,31 +51,32 @@ exports.handler = async (event) => {
     }
 
     // ============================================================
-    // Mapa de mensagens por tipo de evento
+    // ✅ Datas formatadas em DD/MM/YYYY (não ISO)
     // ============================================================
+    const dataFormatada = formatarDataBR(agendamento.data);
+
     const mapa = {
       criado: {
         titulo: '📅 Novo agendamento com a Samira',
-        corpo: `Marcado para ${agendamento.data} às ${agendamento.horaInicio}. Toque para ver.`,
+        corpo: `Marcado para ${dataFormatada} às ${agendamento.horaInicio}. Toque para ver.`,
         tipoData: 'agendamento_criado',
       },
       confirmado: {
         titulo: '✅ Agendamento confirmado',
-        corpo: `Sua consulta em ${agendamento.data} às ${agendamento.horaInicio} foi confirmada.`,
+        corpo: `Sua consulta em ${dataFormatada} às ${agendamento.horaInicio} foi confirmada.`,
         tipoData: 'agendamento_confirmado',
       },
       remarcado: {
-  titulo: '🔄 Consulta remarcada',
-  corpo: `Sua consulta foi remarcada para ${agendamento.data} às ${agendamento.horaInicio}.`,
-  tipoData: 'agendamento_remarcado',
-},
+        titulo: '🔄 Consulta remarcada',
+        corpo: `Sua consulta foi remarcada para ${dataFormatada} às ${agendamento.horaInicio}.`,
+        tipoData: 'agendamento_remarcado',
+      },
       cancelado: {
         titulo: '❌ Agendamento cancelado',
-        corpo: `Sua consulta em ${agendamento.data} às ${agendamento.horaInicio} foi cancelada.`,
+        corpo: `Sua consulta em ${dataFormatada} às ${agendamento.horaInicio} foi cancelada.`,
         tipoData: 'agendamento_cancelado',
       },
     };
-
 
     const info = mapa[tipoEvento] || mapa.criado;
 

@@ -85,10 +85,10 @@ export default function ModalEscolherServico({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
 
-  // ✅ Novo: mini-modal de conflito
+  // ✅ Mini-modal de conflito
   const [conflitoAberto, setConflitoAberto] = useState(null);
 
-  // ✅ Novo: reagendar paciente impactado
+  // ✅ Reagendar paciente impactado
   const [pacienteReagendar, setPacienteReagendar] = useState(null);
 
   // ============================================================
@@ -221,9 +221,21 @@ export default function ModalEscolherServico({
       .map((o) => o.inicioMin)
       .sort((a, b) => a - b)[0];
 
-    const limiteFimMin = proximoInicioOcupado != null
-      ? Math.min(proximoInicioOcupado, fimBlocoMin)
-      : fimBlocoMin;
+    // ============================================================
+    // ✅ Limite final da sobra = próximo agendamento OU
+    //    o fim do slot atual do bloco (NÃO o fim do bloco todo)
+    // ------------------------------------------------------------
+    // Ex: bloco 09:00–12:00 com 60min.
+    //     Agendamento 09:00–09:08 → sobra até 10:00 (não 12:00)
+    // ============================================================
+    const offsetDoSlot = (fimAgMin - inicioBlocoMin) % duracaoPadrao;
+    const fimSlotAtual = fimAgMin + (duracaoPadrao - offsetDoSlot);
+
+    const limiteFimMin = Math.min(
+      proximoInicioOcupado ?? Infinity,
+      fimSlotAtual,
+      fimBlocoMin
+    );
 
     const gapTotalMin = limiteFimMin - fimAgMin;
 
@@ -356,7 +368,6 @@ export default function ModalEscolherServico({
         atualizadoEm: new Date().toISOString(),
       });
 
-      // Sincroniza slot público
       try {
         await fetch('/.netlify/functions/sincronizar-slot-publico', {
           method: 'POST',
@@ -367,7 +378,6 @@ export default function ModalEscolherServico({
         console.warn('Falha ao sincronizar slot público:', e);
       }
 
-      // Notifica paciente
       if (ag.pacienteId) {
         fetch('/.netlify/functions/notificar-paciente-agendamento', {
           method: 'POST',
@@ -414,7 +424,6 @@ export default function ModalEscolherServico({
         atualizadoEm: new Date().toISOString(),
       });
 
-      // Sincroniza slot público do antigo
       try {
         await fetch('/.netlify/functions/sincronizar-slot-publico', {
           method: 'POST',

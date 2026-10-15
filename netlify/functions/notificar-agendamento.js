@@ -11,6 +11,17 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
+// ============================================================
+// ✅ Formata 'YYYY-MM-DD' → 'DD/MM/YYYY'
+// ============================================================
+function formatarDataBR(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const partes = iso.split('-');
+  if (partes.length !== 3) return iso;
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
@@ -43,29 +54,32 @@ exports.handler = async (event) => {
     // Títulos conforme o evento
     // ✅ 'novo' agora avisa que é PENDENTE e a esteta precisa
     //    escolher o serviço para confirmar
+    // ✅ Datas formatadas em DD/MM/YYYY (não ISO)
     // ============================================================
+    const dataFormatada = formatarDataBR(agendamento.data);
+
     const mapa = {
       novo: {
         titulo: '🗓️ Novo agendamento (pendente)',
-        corpo: `${agendamento.nome} agendou para ${agendamento.data} às ${agendamento.horaInicio}. Abra o painel para escolher o serviço.`,
+        corpo: `${agendamento.nome} agendou para ${dataFormatada} às ${agendamento.horaInicio}. Abra o painel para escolher o serviço.`,
       },
       cancelado_paciente: {
         titulo: '❌ Agendamento cancelado',
-        corpo: `${agendamento.nome} cancelou o horário de ${agendamento.data} às ${agendamento.horaInicio}`,
+        corpo: `${agendamento.nome} cancelou o horário de ${dataFormatada} às ${agendamento.horaInicio}`,
       },
       cancelado_esteticista: {
         titulo: '❌ Você cancelou um agendamento',
-        corpo: `Horário ${agendamento.data} às ${agendamento.horaInicio} liberado`,
+        corpo: `Horário ${dataFormatada} às ${agendamento.horaInicio} liberado`,
       },
       confirmado: {
         titulo: '✅ Agendamento confirmado',
-        corpo: `${agendamento.nome} — ${agendamento.data} às ${agendamento.horaInicio}`,
+        corpo: `${agendamento.nome} — ${dataFormatada} às ${agendamento.horaInicio}`,
       },
     };
 
     const info = mapa[tipoEvento] || {
       titulo: 'Atualização de agendamento',
-      corpo: `${agendamento.nome} — ${agendamento.data} ${agendamento.horaInicio}`,
+      corpo: `${agendamento.nome} — ${dataFormatada} ${agendamento.horaInicio}`,
     };
 
     const subDoc = await db
@@ -132,18 +146,6 @@ exports.handler = async (event) => {
     // ============================================================
     // 📧 E-MAIL — Placeholder para configurar depois
     // ============================================================
-    // Aqui você vai plugar Resend/SendGrid/EmailJS depois.
-    // Exemplo (Resend):
-    // await fetch('https://api.resend.com/emails', {
-    //   method: 'POST',
-    //   headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-    //   body: JSON.stringify({
-    //     from: 'agenda@samira.com',
-    //     to: process.env.EMAIL_SAMIRA,
-    //     subject: info.titulo,
-    //     html: `<p>${info.corpo}</p>`,
-    //   }),
-    // });
     console.log('📧 [placeholder] E-mail não enviado ainda:', info.titulo, '-', info.corpo);
 
     return {
