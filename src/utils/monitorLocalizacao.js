@@ -10,42 +10,66 @@ function isNativo() {
 }
 
 /**
- * Inicia um monitor de localização que revalida o estado quando:
- *  1) O app volta pro foreground (appStateChange no APK / visibilitychange no PWA)
- *  2) A PERMISSÃO muda em tempo real (permissions.onchange)
- *  3) Fallback: a cada 60s enquanto o app está aberto
+ * Monitor de localização em TEMPO REAL (5s).
  *
- * Chama `onRevalidar()` toda vez que um desses gatilhos dispara.
+ * Dispara `onMudanca(novoEstado, estadoAnterior)` sempre que o
+ * estado da localização MUDAR. Estados possíveis:
+ *
+ *   - 'ativa'          → GPS ligado e permissão concedida
+ *   - 'gps_desligado'  → permissão OK, mas GPS off
+ *   - 'negada'         → permissão negada
+ *   - 'prompt'         → ainda não pediu permissão
+ *   - 'nao_suportado'  → navegador sem suporte
+ *   - 'timeout'        → GPS não respondeu
+ *   - 'indisponivel'   → iOS sem distinção
+ *
+ * Também dispara em eventos nativos (appStateChange, visibilitychange)
+ * e quando a permissão muda (permissions.onchange).
  *
  * Retorna uma função para parar o monitor.
  */
-export function iniciarMonitorLocalizacao(onRevalidar) {
+export function iniciarMonitorLocalizacao(onMudanca) {
   if (typeof window === 'undefined') return () => {};
 
   let cancelado = false;
   let statusPermissaoRef = null;
   let listenerAppState = null;
   let intervalId = null;
+  let ultimoEstado = null;
 
-  const disparar = () => {
+  const verificarEComparar = async () => {
     if (cancelado) return;
     try {
-      onRevalidar?.();
+      // Importa sob demanda (evita carregar libs se não usar)
+      const { detectarEstadoGPS } = await import('./geolocalizacao');
+      const novo = await detectarEstadoGPS();
+
+      if (cancelado) return;
+
+      // Só dispara se MUDOU (evita spam)
+      if (novo !== ultimoEstado) {
+        const anterior = ultimoEstado;
+        ultimoEstado = novo;
+        try {
+          onMudanca?.(novo, anterior);
+        } catch (e) {
+          console.warn('Erro no onMudanca:', e);
+        }
+      }
     } catch (e) {
-      console.warn('Erro no onRevalidar:', e);
+      console.warn('Erro verificando GPS:', e);
     }
   };
 
   // ============================================================
-  // 1) App voltou pro foreground
+  // 1) App voltou pro foreground (APK)
   // ============================================================
-  // APK → App.addListener('appStateChange')
   if (isNativo()) {
     (async () => {
       try {
         const { App } = await import('@capacitor/app');
         listenerAppState = await App.addListener('appStateChange', (state) => {
-          if (state.isActive) disparar();
+          if (state.isActive) verificarEComparar();
         });
       } catch (e) {
         console.warn('Falha registrando appStateChange:', e);
@@ -53,14 +77,16 @@ export function iniciarMonitorLocalizacao(onRevalidar) {
     })();
   }
 
-  // PWA/Web → visibilitychange (funciona sempre, inclusive dentro do APK)
+  // ============================================================
+  // 2) PWA/Web → visibilitychange
+  // ============================================================
   const onVisibility = () => {
-    if (document.visibilityState === 'visible') disparar();
+    if (document.visibilityState === 'visible') verificarEComparar();
   };
   document.addEventListener('visibilitychange', onVisibility);
 
   // ============================================================
-  // 2) Permissão mudou em tempo real (PWA principalmente)
+  // 3) Permissão mudou em tempo real
   // ============================================================
   if (navigator.permissions?.query) {
     navigator.permissions
@@ -68,26 +94,26 @@ export function iniciarMonitorLocalizacao(onRevalidar) {
       .then((status) => {
         if (cancelado) return;
         statusPermissaoRef = status;
-
         status.onchange = () => {
           if (cancelado) return;
-          // Pequeno delay pro Android propagar o estado real
-          setTimeout(disparar, 300);
+          // Delay pro Android propagar o estado real
+          setTimeout(verificarEComparar, 300);
         };
       })
       .catch(() => {});
   }
 
   // ============================================================
-  // 3) Fallback — polling a cada 60s (só enquanto visível)
+  // 4) Polling em TEMPO REAL — a cada 5s
+  //    (enquanto o app está visível)
   // ============================================================
   intervalId = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
-    disparar();
-  }, 60000);
+    verificarEComparar();
+  }, 5000);
 
-  // ✅ Já dispara uma vez na entrada
-  disparar();
+  // ✅ Verifica uma vez na entrada
+  verificarEComparar();
 
   return () => {
     cancelado = true;

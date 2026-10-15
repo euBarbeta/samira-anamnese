@@ -22,6 +22,7 @@ import { Preferences } from '@capacitor/preferences';
 import { isNativo } from './push-notifications-native';
 import LoadingElegante from './LoadingElegante';
 import ConsultaAgendamento from './agendamento/ConsultaAgendamento';
+import ModalAvisoLocalizacao from './ModalAvisoLocalizacao';
 import {
   doc, getDoc, getDocs, setDoc, deleteDoc, collection,
   query, where, onSnapshot
@@ -43,19 +44,20 @@ export default function AnamneseFicha() {
   const [rota, setRota] = useState('verificando');
   const [mostrarModalSair, setMostrarModalSair] = useState(false);
   const [motivoSuspensao, setMotivoSuspensao] = useState('');
-  useBackButtonExit(() => {
-  setMostrarModalSair(true);
-});
 
-  // ✅ Lê o #id também do localStorage (sobrevive ao kill do WebView)
+  // ✅ NOVO: aviso de localização
+  const [avisoLocalizacao, setAvisoLocalizacao] = useState(null);
+
+  useBackButtonExit(() => {
+    setMostrarModalSair(true);
+  });
+
+  // ✅ Lê o #id também do localStorage
   const [uidDaURL, setUidDaURL] = useState(() => {
     try {
       const h = window.location.hash.slice(1);
       const hashEhUID =
-        h &&
-        h !== 'agendar' &&
-        h !== 'consultar' &&
-        !h.startsWith('agendar/');
+        h && h !== 'agendar' && h !== 'consultar' && !h.startsWith('agendar/');
       return hashEhUID ? h : null;
     } catch { return null; }
   });
@@ -66,7 +68,6 @@ export default function AnamneseFicha() {
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
   const [erroLoginExterno, setErroLoginExterno] = useState('');
 
-  // ✅ Todos os estados iniciais leem localStorage PRIMEIRO
   const [autenticado, setAutenticado] = useState(() => lerSessao('af_autenticado') === '1');
   const [abaAtiva, setAbaAtiva] = useState(() => lerSessao('af_abaAtiva') || 'telainicial');
   const [authVerificado, setAuthVerificado] = useState(() => {
@@ -86,6 +87,7 @@ export default function AnamneseFicha() {
   const [pacienteDocPath, setPacienteDocPath] = useState(null);
   const [pedidoAbrirAnamnese, setPedidoAbrirAnamnese] = useState(false);
 
+  // ✅ Guard único para login
   const processandoLoginRef = useRef(false);
 
   // ============================================================
@@ -169,10 +171,9 @@ export default function AnamneseFicha() {
     let cancelado = false;
     (async () => {
       try {
-      const snap = await getDoc(doc(db, 'sistema', 'esteticista_ativa'));
-const uid = snap.exists() ? snap.data().uid : null;
-// ✅ FALLBACK: se nada estiver publicado, usa a Samira
-setUidEsteticistaGlobal(uid || UID_ESTETICISTA_PADRAO);
+        const snap = await getDoc(doc(db, 'sistema', 'esteticista_ativa'));
+        const uid = snap.exists() ? snap.data().uid : null;
+        setUidEsteticistaGlobal(uid || UID_ESTETICISTA_PADRAO);
       } catch (e) {
         logWarn('Falha lendo UID global:', e);
       }
@@ -181,65 +182,55 @@ setUidEsteticistaGlobal(uid || UID_ESTETICISTA_PADRAO);
   }, []);
 
   // ============================================================
-  // ROTEAMENTO INICIAL — prioriza hash #UID
+  // 🔒 Boot: se havia suspensão salva, mostra tela dedicada
   // ============================================================
-  // ============================================================
-// 🔒 Boot: se havia suspensão salva, mostra tela dedicada
-// ============================================================
-useEffect(() => {
-  try {
-    const motivoSalvo = sessionStorage.getItem('af_motivo_deslog');
-    if (motivoSalvo) {
-      setMotivoSuspensao(motivoSalvo);
-      setRota('acesso-suspenso');
-    }
-  } catch {}
-}, []);
+  useEffect(() => {
+    try {
+      const motivoSalvo = sessionStorage.getItem('af_motivo_deslog');
+      if (motivoSalvo) {
+        setMotivoSuspensao(motivoSalvo);
+        setRota('acesso-suspenso');
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const path = window.location.pathname;
     const hash = window.location.hash.slice(1);
-   try {
+    try {
       const motivoSalvo = sessionStorage.getItem('af_motivo_deslog');
       if (motivoSalvo) return;
     } catch {}
     const temSessaoSalva = (() => {
-        try {
+      try {
         return (
           sessionStorage.getItem('af_autenticado') === '1' ||
           localStorage.getItem('af_autenticado') === '1'
         );
       } catch { return false; }
     })();
-    
 
     if (hash === 'consultar') {
       setRota('agendamento-consulta');
       return;
     }
 
-    // ✅ PRIORIDADE 1: hash #UID (paciente)
-    const hashEhUID =
-      hash &&
-      hash !== 'agendar' &&
-      !hash.startsWith('agendar/');
-if (hashEhUID) {
-  setUidDaURL(hash);
-  uidDaURLRef.current = hash;
+    const hashEhUID = hash && hash !== 'agendar' && !hash.startsWith('agendar/');
 
-  // ✅ Sempre tenta restaurar sessão se ela for desse paciente
-  //    Se não for, cai em login-uid de qualquer forma.
-  (async () => {
-    const valido = await validarUIDPaciente(hash);
-    if (!valido) {
-      setRota('nao-encontrado');
-    } else {
-      setRota('login-uid');
+    if (hashEhUID) {
+      setUidDaURL(hash);
+      uidDaURLRef.current = hash;
+      (async () => {
+        const valido = await validarUIDPaciente(hash);
+        if (!valido) {
+          setRota('nao-encontrado');
+        } else {
+          setRota('login-uid');
+        }
+      })();
+      return;
     }
-  })();
-  return;
-}
 
-    // 0) APP NATIVO
     if (isNativo()) {
       if (hash && !hash.startsWith('agendar')) {
         (async () => {
@@ -253,7 +244,6 @@ if (hashEhUID) {
       return;
     }
 
-    // /admin
     if (path === '/admin' || path.startsWith('/admin/')) {
       try {
         sessionStorage.removeItem('af_uidDaURL');
@@ -265,7 +255,6 @@ if (hashEhUID) {
       return;
     }
 
-    // Sem hash → decide pelo contexto
     if (!hash) {
       const ehStandalone =
         (typeof window !== 'undefined' &&
@@ -291,7 +280,6 @@ if (hashEhUID) {
       return;
     }
 
-    // #agendar/xxx
     if (hash.startsWith('agendar/')) {
       setUidDaURL(hash.replace('agendar/', ''));
       setRota('agendamento');
@@ -315,22 +303,20 @@ if (hashEhUID) {
         setRota('agendamento');
         return;
       }
-if (h && h !== 'agendar') {
-  setUidDaURL(h);
-  uidDaURLRef.current = h;
-
-  (async () => {
-    const valido = await validarUIDPaciente(h);
-    if (!valido) {
-      // ✅ Só marca 'nao-encontrado' se o usuário NÃO acabou de tentar logar
-      setRota((rotaAtual) =>
-        rotaAtual === 'autenticado' ? rotaAtual : 'nao-encontrado'
-      );
-    } else {
-      setRota('login-uid');
-    }
-  })();
-}
+      if (h && h !== 'agendar') {
+        setUidDaURL(h);
+        uidDaURLRef.current = h;
+        (async () => {
+          const valido = await validarUIDPaciente(h);
+          if (!valido) {
+            setRota((rotaAtual) =>
+              rotaAtual === 'autenticado' ? rotaAtual : 'nao-encontrado'
+            );
+          } else {
+            setRota('login-uid');
+          }
+        })();
+      }
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -453,6 +439,12 @@ if (h && h !== 'agendar') {
           return;
         }
 
+        // ✅ GUARD: se já está processando um login, ignora
+        if (processandoLoginRef.current) {
+          setAuthVerificado(true);
+          return;
+        }
+
         await handleLoginSucesso(user, { veioDeRefresh: true });
       } else {
         const temSessaoSalva = (() => {
@@ -491,29 +483,85 @@ if (h && h !== 'agendar') {
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   // ============================================================
-// 📍 Re-checa localização sempre que o app volta pro primeiro plano
-//    (o usuário pode ter desligado o GPS enquanto estava fora)
-// ============================================================
-useEffect(() => {
-  if (!dadosPaciente?.id) return;
+  // 📍 MONITOR DE LOCALIZAÇÃO EM TEMPO REAL
+  // ------------------------------------------------------------
+  // Detecta mudanças a cada 5s + eventos nativos (appStateChange,
+  // visibilitychange, permissions.onchange).
+  //
+  // Dispara modal de aviso quando o estado MUDA:
+  //   ativa → gps_desligado  → mostra modal amarelo
+  //   ativa → negada         → mostra modal vermelho
+  //   gps/negada → ativa     → mostra modal verde (reativada)
+  // ============================================================
+  useEffect(() => {
+    if (!dadosPaciente?.id) return;
 
-  let pararMonitor = null;
+    let pararMonitor = null;
+    let cancelado = false;
 
-  import('../utils/monitorLocalizacao').then(({ iniciarMonitorLocalizacao }) => {
-    pararMonitor = iniciarMonitorLocalizacao(() => {
-      import('../utils/segurancaEstado')
-        .then(({ atualizarEstadoSeguranca }) => {
-          atualizarEstadoSeguranca(dadosPaciente.id).catch(() => {});
-        })
-        .catch(() => {});
-    });
-  });
+    (async () => {
+      const { iniciarMonitorLocalizacao } = await import('../utils/monitorLocalizacao');
+      const { atualizarEstadoSeguranca } = await import('../utils/segurancaEstado');
 
-  return () => {
-    if (pararMonitor) pararMonitor();
-  };
-}, [dadosPaciente?.id]);
+      pararMonitor = iniciarMonitorLocalizacao(async (novoEstado, anterior) => {
+        if (cancelado) return;
+
+        // --------------------------------------------------------
+        // 1) Atualiza o Firestore com o estado real
+        // --------------------------------------------------------
+        try {
+          await atualizarEstadoSeguranca(dadosPaciente.id, {
+            incluirLocalizacao: novoEstado === 'ativa',
+          });
+
+          if (novoEstado !== 'ativa') {
+            const { doc: dRef, setDoc } = await import('firebase/firestore');
+            const { db: dbRef } = await import('./firebase');
+            await setDoc(
+              dRef(dbRef, 'seguranca_estado', String(dadosPaciente.id)),
+              {
+                pacienteId: String(dadosPaciente.id),
+                localizacaoStatus: novoEstado,
+                ultimaVerificacao: new Date().toISOString(),
+                atualizadoEm: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+          }
+        } catch (e) {
+          console.warn('Falha atualizando estado GPS:', e);
+        }
+
+        // --------------------------------------------------------
+        // 2) Mostra o modal de aviso
+        // --------------------------------------------------------
+        const dispensados = (() => {
+          try {
+            const s = sessionStorage.getItem('af_avisos_loc_dispensados');
+            return s ? JSON.parse(s) : {};
+          } catch { return {}; }
+        })();
+
+        if (novoEstado === 'gps_desligado' && dispensados.gps !== true) {
+          setAvisoLocalizacao({ tipo: 'gps_desligado' });
+        } else if (novoEstado === 'negada' && dispensados.perm !== true) {
+          setAvisoLocalizacao({ tipo: 'negada' });
+        } else if (
+          novoEstado === 'ativa' &&
+          (anterior === 'gps_desligado' || anterior === 'negada')
+        ) {
+          setAvisoLocalizacao({ tipo: 'reativada' });
+        }
+      });
+    })();
+
+    return () => {
+      cancelado = true;
+      if (pararMonitor) pararMonitor();
+    };
+  }, [dadosPaciente?.id]);
 
   useEffect(() => {
     try {
@@ -535,7 +583,7 @@ useEffect(() => {
   // ============================================================
   // OBSERVER — PACIENTE EM TEMPO REAL
   // ============================================================
- useEffect(() => {
+  useEffect(() => {
     if (!pacienteDocPath) return;
     const unsubscribe = onSnapshot(
       pacienteDocPath,
@@ -544,15 +592,11 @@ useEffect(() => {
           const dadosAtualizados = { id: docSnap.id, ...docSnap.data() };
           setDadosPaciente(dadosAtualizados);
         } else {
-          // ✅ Doc foi APAGADO (esteticista excluiu a pasta OU o próprio
-          // paciente excluiu a conta em outro dispositivo).
-          // Força logout imediato — o paciente perde acesso na hora.
           logWarn('Paciente foi excluído. Encerrando sessão...');
           try { await signOut(auth); } catch {}
-          // ✅ Limpa o Preferences do APK
-if (isNativo()) {
-  try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
-}
+          if (isNativo()) {
+            try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
+          }
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
@@ -561,7 +605,7 @@ if (isNativo()) {
           setRota('nao-encontrado');
           try {
             ['af_autenticado', 'af_abaAtiva', 'af_dadosPaciente',
-             'af_pacienteDocPath', 'af_uidDaURL']
+              'af_pacienteDocPath', 'af_uidDaURL']
               .forEach((k) => {
                 sessionStorage.removeItem(k);
                 localStorage.removeItem(k);
@@ -597,35 +641,34 @@ if (isNativo()) {
   }, [autenticado, usuarioLogado]);
 
   // ============================================================
-  // LOGIN
+  // LOGIN — COM GUARD
   // ============================================================
   const handleLoginSucesso = async (user, opcoes = {}) => {
     const { veioDeRefresh = false } = opcoes;
     if (!user || !user.uid) return;
 
-    setRota('autenticado');
-    setUsuarioLogado(user);
-    const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
-
-    if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
-      setUidDaURL(null);
-      setModoAdmin(true);
-      setRota('admin');
-      window.history.replaceState({ abaAtiva: 'painel' }, '', '/admin');
-      setAbaAtiva('painel');
-      setAutenticado(true);
-      return;
-    }
-
-
-
-       setBuscandoPaciente(true);
+    // ✅ GUARD: se já está processando, ignora
+    if (processandoLoginRef.current) return;
+    processandoLoginRef.current = true;
 
     try {
-      let pacienteEncontrado = null;
+      setRota('autenticado');
+      setUsuarioLogado(user);
+      const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
 
-      // ✅ Variável guarda o dado do mapa de e-mails (usada como fallback
-      //    se `criadoPorUid` estiver vazio em pacientes antigos).
+      if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
+        setUidDaURL(null);
+        setModoAdmin(true);
+        setRota('admin');
+        window.history.replaceState({ abaAtiva: 'painel' }, '', '/admin');
+        setAbaAtiva('painel');
+        setAutenticado(true);
+        return;
+      }
+
+      setBuscandoPaciente(true);
+
+      let pacienteEncontrado = null;
       let mapSnap2Data = null;
 
       if (isNativo() && !uidDaURL) {
@@ -713,19 +756,20 @@ if (isNativo()) {
           setAuthVerificado(true);
           return;
         }
-          if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
-    await signOut(auth);
-    setAutenticado(false);
-    setUsuarioLogado(null);
-    setDadosPaciente(null);
-    setBuscandoPaciente(false);
-    setErroLoginExterno(
-      'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.'
-    );
-    setRota('login-uid');
-    setAuthVerificado(true);
-    return;
-  }
+
+        if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
+          await signOut(auth);
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setBuscandoPaciente(false);
+          setErroLoginExterno(
+            'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.'
+          );
+          setRota('login-uid');
+          setAuthVerificado(true);
+          return;
+        }
 
         if (isNativo()) {
           await Preferences.set({
@@ -735,73 +779,64 @@ if (isNativo()) {
         }
 
         setDadosPaciente(pacienteEncontrado);
-        // ============================================================
-// 🔒 VERIFICA SE ESTE DEVICE ESTÁ AUTORIZADO
-// ============================================================
-try {
- const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import("../utils/dispositivos");
 
-  const fingerprint = gerarFingerprintEstavel();
-  const dispositivo = rotuloDispositivoCurto();
+        // 🔒 Verifica device
+        try {
+          const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import("../utils/dispositivos");
+          const fingerprint = gerarFingerprintEstavel();
+          const dispositivo = rotuloDispositivoCurto();
 
-  // Pega localização aproximada (se autorizado)
-  let geo = { cidade: null, pais: null, lat: null, lng: null };
-  try {
-    const { obterLocalizacao } = await import('../utils/geolocalizacao');
-    const loc = await obterLocalizacao();
-    if (loc.status === 'ativa') {
-      geo = {
-        cidade: loc.cidade || null,
-        pais: loc.pais || null,
-        lat: loc.lat ?? null,
-        lng: loc.lng ?? null,
-      };
-    }
-  } catch {}
+          let geo = { cidade: null, pais: null, lat: null, lng: null };
+          try {
+            const { obterLocalizacao } = await import('../utils/geolocalizacao');
+            const loc = await obterLocalizacao();
+            if (loc.status === 'ativa') {
+              geo = {
+                cidade: loc.cidade || null,
+                pais: loc.pais || null,
+                lat: loc.lat ?? null,
+                lng: loc.lng ?? null,
+              };
+            }
+          } catch {}
 
-  const res = await fetch('/.netlify/functions/verificar-dispositivo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      pacienteId: String(pacienteEncontrado.id),
-      fingerprint,
-      dispositivo,
-      plataforma: isNativo() ? 'apk' : 'pwa',
-      ...geo,
-    }),
-  });
+          const res = await fetch('/.netlify/functions/verificar-dispositivo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pacienteId: String(pacienteEncontrado.id),
+              fingerprint,
+              dispositivo,
+              plataforma: isNativo() ? 'apk' : 'pwa',
+              ...geo,
+            }),
+          });
 
-  const data = await res.json();
+          const data = await res.json();
 
-  if (data.status === 'bloqueado') {
-    // Esteta bloqueou este device → não deixa entrar
-    await signOut(auth);
-    setAutenticado(false);
-    setUsuarioLogado(null);
-    setDadosPaciente(null);
-    setBuscandoPaciente(false);
-    setErroLoginExterno(
-      data.motivo || 'Acesso suspenso pela profissional. Entre em contato.'
-    );
-    setRota('login-uid');
-    setAuthVerificado(true);
-    return;
-  }
+          if (data.status === 'bloqueado') {
+            await signOut(auth);
+            setAutenticado(false);
+            setUsuarioLogado(null);
+            setDadosPaciente(null);
+            setBuscandoPaciente(false);
+            setErroLoginExterno(
+              data.motivo || 'Acesso suspenso pela profissional. Entre em contato.'
+            );
+            setRota('login-uid');
+            setAuthVerificado(true);
+            return;
+          }
+        } catch (e) {
+          console.warn('Falha ao verificar dispositivo:', e);
+        }
 
-  // 'novo' (1º device) ou 'conhecido' ou 'pendente' → continua normal
-} catch (e) {
-  console.warn('Falha ao verificar dispositivo:', e);
-  // Não bloqueia o login se a verificação falhar (fail-open)
-}
         import('../utils/segurancaEstado')
-  .then(({ atualizarEstadoSeguranca }) => {
-    atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
-  })
-  .catch(() => {});
+          .then(({ atualizarEstadoSeguranca }) => {
+            atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
+          })
+          .catch(() => {});
 
-        // ✅ SEMPRE seta o pacienteDocPath usando `criadoPorUid` do próprio
-        //    documento do paciente (fonte mais confiável). Se por algum
-        //    motivo estiver vazio, cai no `mapSnap2Data` (mapa de e-mails).
         const estetaUidParaPath =
           pacienteEncontrado.criadoPorUid ||
           (mapSnap2Data?.profissionalUid) ||
@@ -827,30 +862,33 @@ try {
         setUidDaURL(idPaciente);
         setAbaAtiva('painelPaciente');
         setAutenticado(true);
-        setBuscandoPaciente(false);   // ✅ ADICIONE ESTA LINHA
-     } else {
-  // ✅ Conta inexistente → PaginaNaoEncontrada (comportamento "404"
-  //    estilo Google). NÃO cai em tela de login com "senha incorreta".
-  await signOut(auth);
-  setAutenticado(false);
-  setUsuarioLogado(null);
-  setDadosPaciente(null);
-  setBuscandoPaciente(false);
-  setRota('nao-encontrado');
-  setAuthVerificado(true);
-}
-   } catch (error) {
-  console.error('Erro ao carregar pasta do paciente:', error);
-  await signOut(auth);
-  setAutenticado(false);
-  setUsuarioLogado(null);
-  setDadosPaciente(null);
-  setBuscandoPaciente(false);
-  setRota('nao-encontrado');
-  setAuthVerificado(true);
-}
-    
- };  
+        setBuscandoPaciente(false);
+      } else {
+        await signOut(auth);
+        setAutenticado(false);
+        setUsuarioLogado(null);
+        setDadosPaciente(null);
+        setBuscandoPaciente(false);
+        setRota('nao-encontrado');
+        setAuthVerificado(true);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar pasta do paciente:', error);
+      await signOut(auth);
+      setAutenticado(false);
+      setUsuarioLogado(null);
+      setDadosPaciente(null);
+      setBuscandoPaciente(false);
+      setRota('nao-encontrado');
+      setAuthVerificado(true);
+    } finally {
+      // ✅ Libera o guard depois de 1.5s
+      setTimeout(() => {
+        processandoLoginRef.current = false;
+      }, 1500);
+    }
+  };
+
   // ============================================================
   // LOGOUT
   // ============================================================
@@ -905,12 +943,14 @@ try {
     setPacienteDocPath(null);
     setFichaSelecionada(null);
     setErroLoginExterno('');
+    setAvisoLocalizacao(null);
 
     window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
 
     try {
       ['af_autenticado', 'af_abaAtiva', 'af_authVerificado',
-        'af_dadosPaciente', 'af_pacienteDocPath', 'af_uidDaURL']
+        'af_dadosPaciente', 'af_pacienteDocPath', 'af_uidDaURL',
+        'af_avisos_loc_dispensados']
         .forEach(k => {
           sessionStorage.removeItem(k);
           localStorage.removeItem(k);
@@ -1014,12 +1054,12 @@ try {
 
   // ============================================================
   // RENDER
-   const renderizarConteudo = () => {
+  // ============================================================
+  const renderizarConteudo = () => {
     const hashAtual = window.location.hash.slice(1);
-    
     const pathAtual = window.location.pathname;
     const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
-        // 🔒 TELA DE ACESSO SUSPENSO — prioridade máxima
+
     if (rota === 'acesso-suspenso') {
       return (
         <TelaAcessoSuspenso
@@ -1034,17 +1074,11 @@ try {
         />
       );
     }
-    
 
-    // ✅ PRIORIDADE ABSOLUTA — se a rota já foi decidida como
-    //    'não-encontrado' (conta excluída, link inválido, etc.),
-    //    mostra PaginaNaoEncontrada ANTES de qualquer outra checagem.
-    //    Isso faz a conta excluída mostrar 404 em vez de login.
     if (rota === 'nao-encontrado') {
       return <PaginaNaoEncontrada />;
     }
 
-    // ✅ PRIORIDADE MÁXIMA: hash #UID
     const hashEhUID =
       hashAtual &&
       hashAtual !== 'agendar' &&
@@ -1052,7 +1086,6 @@ try {
       !hashAtual.startsWith('agendar/');
 
     if (hashEhUID) {
-      // Se NÃO estiver autenticado como esse paciente, força tela de login
       const pacienteLogadoValido =
         autenticado &&
         dadosPaciente &&
@@ -1077,7 +1110,6 @@ try {
       }
     }
 
-    // 1) #consultar
     if (hashAtual === 'consultar') {
       return (
         <ConsultaAgendamento
@@ -1086,7 +1118,6 @@ try {
       );
     }
 
-    // 2) #agendar
     if (hashAtual === 'agendar' || hashAtual.startsWith('agendar/')) {
       const uidEstetaDoHash = hashAtual.startsWith('agendar/')
         ? hashAtual.replace('agendar/', '')
@@ -1131,17 +1162,6 @@ try {
         );
       }
     }
-    // ✅ Se hash é UID válido, JAMAIS cai em agenda pública
-const hashEhUIDRender =
-  hashAtual &&
-  hashAtual !== 'agendar' &&
-  hashAtual !== 'consultar' &&
-  !hashAtual.startsWith('agendar/');
-
-if (hashEhUIDRender) {
-  // Cai no fluxo normal (login-uid já foi tratado acima)
-  // Não retorna nada aqui — deixa passar pra lógica de autenticação.
-}
 
     if (!isNativo() && !hashAtual && !ehAdminUrl && !ehStandalone) {
       return (
@@ -1150,12 +1170,6 @@ if (hashEhUIDRender) {
           origem="raiz"
         />
       );
-    }
-
-    if (!autenticado) {
-      if (rota === 'nao-encontrado') {
-        return <PaginaNaoEncontrada />;
-      }
     }
 
     if (!authVerificado) {
@@ -1318,21 +1332,48 @@ if (hashEhUIDRender) {
 
     return null;
   };
-return (
-  <>
-    <TelaSemInternet />
-    {renderizarConteudo()}
-    
 
-    {mostrarModalSair && (
-      <ModalSairApp
-        onCancelar={() => setMostrarModalSair(false)}
-        onConfirmar={() => {
-          setMostrarModalSair(false);
-          fecharAppNativo();
-        }}
-      />
-    )}
-  </>
-);
- }
+  return (
+    <>
+      <TelaSemInternet />
+      {renderizarConteudo()}
+
+      {mostrarModalSair && (
+        <ModalSairApp
+          onCancelar={() => setMostrarModalSair(false)}
+          onConfirmar={() => {
+            setMostrarModalSair(false);
+            fecharAppNativo();
+          }}
+        />
+      )}
+
+      {avisoLocalizacao && (
+        <ModalAvisoLocalizacao
+          tipo={avisoLocalizacao.tipo}
+          onFechar={() => {
+            // Marca como dispensado para não spammar na mesma sessão
+            try {
+              const dispensados = (() => {
+                try {
+                  const s = sessionStorage.getItem('af_avisos_loc_dispensados');
+                  return s ? JSON.parse(s) : {};
+                } catch { return {}; }
+              })();
+
+              if (avisoLocalizacao.tipo === 'gps_desligado') dispensados.gps = true;
+              if (avisoLocalizacao.tipo === 'negada') dispensados.perm = true;
+
+              sessionStorage.setItem(
+                'af_avisos_loc_dispensados',
+                JSON.stringify(dispensados)
+              );
+            } catch {}
+
+            setAvisoLocalizacao(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
