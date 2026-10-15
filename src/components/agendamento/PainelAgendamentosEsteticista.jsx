@@ -7,7 +7,7 @@ import ConfiguradorAgenda from './ConfiguradorAgenda';
 import FichaDesktop from '../FichaDesktop';
 import FichaMobile from '../FichaMobile';
 import ModalEditarSobra from './ModalEditarSobra';
-import ModalRegistrarReceita from './financeiro/ModalRegistrarReceita';
+import ModalRegistrarReceita from '../financeiro/ModalRegistrarReceita';
 import { gerarPdfHistorico, salvarPdfHistorico } from '../../utils/gerarPdfHistorico';   // ✅ NOVO
 import { createPortal } from 'react-dom';   // ✅ NOVO
 
