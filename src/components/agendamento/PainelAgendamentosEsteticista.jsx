@@ -3145,4 +3145,21 @@ const badgeFaltou = {
   borderRadius: 12,
   fontSize: 10,
   fontWeight: 700,
+};/* ============================================================
+   ✅ Estilos usados pelo RelatorioAgendamentosPDF (tabela do PDF)
+   ============================================================ */
+const thEstilo = {
+  background: '#7e22ce',
+  color: '#ffffff',
+  padding: '8px 6px',
+  textAlign: 'left',
+  border: '1px solid #7e22ce',
+  fontWeight: 700,
+  fontSize: 10.5,
+};
+
+const tdEstilo = {
+  padding: '6px',
+  border: '1px solid #e2d2f5',
+  fontSize: 10.5,
 };
