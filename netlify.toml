@@ -1,19 +1,16 @@
 [build]
   command = "npm run build"
   publish = "dist"
-  functions = "netlify/functions"
 
 [functions]
-  node_bundler = "esbuild"
+  directory = "netlify/functions"
+  node_bundler = "zisi"
+
   [functions."checar-lembretes-esteticista"]
-  schedule = "*/15 * * * *"
+    schedule = "*/15 * * * *"
 
 # ============================================================
 # SPA FALLBACK — qualquer rota cai no index.html
-# ⚠️ ORDEM IMPORTA:
-#   1) /admin        (rota da esteticista)
-#   2) /admin/*      (subrotas da esteticista, se houver)
-#   3) /*            (catch-all — SEMPRE por último)
 # ============================================================
 
 [[redirects]]
@@ -26,38 +23,22 @@
   to = "/index.html"
   status = 200
 
-# ⚠️ CATCH-ALL POR ÚLTIMO — senão engole as functions também
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  # ============================================================
+
+# ============================================================
 # HEADERS DE SEGURANÇA
 # ============================================================
 [[headers]]
   for = "/*"
   [headers.values]
-    # Impede o site de ser embutido em iframe de terceiros (clickjacking)
     X-Frame-Options = "SAMEORIGIN"
-
-    # Impede que o navegador "adivinhe" o tipo de arquivo
     X-Content-Type-Options = "nosniff"
-
-    # Força HTTPS por 1 ano
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-
-    # Não vaza a URL de origem ao clicar em link externo
     Referrer-Policy = "strict-origin-when-cross-origin"
-
-    # Bloqueia acesso a câmera/mic/localização sem permissão explícita
     Permissions-Policy = "camera=(self), microphone=(), geolocation=(self), payment=()"
-
-    # ============================================================
-    # CSP — Content Security Policy
-    # ------------------------------------------------------------
-    # Só permite carregar scripts/estilos/imagens de fontes
-    # conhecidas. Bloqueia qualquer script malicioso injetado.
-    # ============================================================
     Content-Security-Policy = """
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval'
