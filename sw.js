@@ -187,7 +187,7 @@ self.addEventListener('push', (event) => {
           tipo: data.tipo || null,
           agendamentoId: data.agendamentoId || null,
         },
-        actions: [{ action: 'abrir', title: '📖 Ver ficha' }],
+      actions: [{ action: 'abrir', title: '🔗 Abrir painel' }],
       };
 
       await self.registration.showNotification(data.title, options);

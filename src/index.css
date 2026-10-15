@@ -37,8 +37,9 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [role="button"]:focus-visible {
-  outline: 2px solid #a855f7;
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.35);
+  border-radius: 4px;
 }
 /* Garante que todos os inputs mantenham a consistência visual */
 input, select, textarea, label, span {
