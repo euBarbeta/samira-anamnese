@@ -1464,33 +1464,34 @@ if (!jaCarregou) {
       </span>
     )}
   </button>
- {/* ✅ NOVO — BOTÃO 4 — Financeiro */}
-  <button
-    type="button"
-    onClick={() => navegarPara('financeiro')}
-    className="btn-efeito-hover"
-    style={{
-      width: '100%',
-      fontFamily: "'Cinzel', serif",
-      background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-      color: '#fff',
-      border: 'none',
-      padding: '14px 16px',
-      borderRadius: '20px',
-      fontSize: '12px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '8px',
-      boxShadow: '0 4px 15px rgba(22, 163, 74, 0.4)',
-      lineHeight: 1.2,
-    }}
-  >
-    <MdAttachMoney size={16} style={{ flexShrink: 0 }} />
-    Financeiro
-  </button>
+{/* ✅ NOVO — BOTÃO 4 — Financeiro */}
+<button
+  type="button"
+  onClick={() => navegarPara('financeiro')}
+  className="btn-efeito-hover"
+  style={{
+    width: '100%',
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '14px 16px',
+    borderRadius: '20px',
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
+    lineHeight: 1.2,
+  }}
+>
+  <MdAttachMoney size={16} style={{ flexShrink: 0 }} />
+  Financeiro
+</button>
+
 </div>
 
       </div>

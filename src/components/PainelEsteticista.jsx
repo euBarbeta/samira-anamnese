@@ -1390,7 +1390,7 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
   className="btn-efeito-hover"
   style={{
     fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
     color: '#fff',
     border: 'none',
     padding: '12px 24px',
@@ -1401,7 +1401,7 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    boxShadow: '0 4px 15px rgba(22, 163, 74, 0.4)',
+    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
   }}
 >
   <MdAttachMoney size={16} />
