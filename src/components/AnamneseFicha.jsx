@@ -491,69 +491,107 @@ export default function AnamneseFicha() {
   // ============================================================
   // 📍 MONITOR DE LOCALIZAÇÃO EM TEMPO REAL
   // ============================================================
-  useEffect(() => {
-    if (!dadosPaciente?.id) return;
+useEffect(() => {
+  if (!dadosPaciente?.id) return;
 
-    let pararMonitor = null;
-    let cancelado = false;
+  let pararMonitor = null;
+  let cancelado = false;
 
-    (async () => {
-      const { iniciarMonitorLocalizacao } = await import('../utils/monitorLocalizacao');
-      const { atualizarEstadoSeguranca } = await import('../utils/segurancaEstado');
+  (async () => {
+    const { iniciarMonitorLocalizacao } = await import('../utils/monitorLocalizacao');
+    const { atualizarEstadoSeguranca } = await import('../utils/segurancaEstado');
 
-      pararMonitor = iniciarMonitorLocalizacao(async (novoEstado, anterior) => {
-        if (cancelado) return;
+    pararMonitor = iniciarMonitorLocalizacao(async (novoEstado, anterior) => {
+      if (cancelado) return;
 
-        try {
+      // ============================================================
+      // ✅ NORMALIZA O ESTADO — só existem 3 estados válidos no Firestore:
+      //    'ativa' | 'gps_desligado' | 'negada'
+      //
+      //    Qualquer variação é convertida:
+      //      ligado / ativa                 → 'ativa'
+      //      gps_desligado                  → 'gps_desligado'
+      //      negada                         → 'negada'
+      //      prompt                         → ignora (não muda nada)
+      //      timeout / indisponivel / outro → 'gps_desligado'
+      // ============================================================
+      let estadoNormalizado;
+      if (novoEstado === 'ligado' || novoEstado === 'ativa') {
+        estadoNormalizado = 'ativa';
+      } else if (novoEstado === 'negada') {
+        estadoNormalizado = 'negada';
+      } else if (novoEstado === 'prompt') {
+        // Não mexe no Firestore se está aguardando autorização
+        return;
+      } else {
+        // Qualquer outro = assume desligado
+        estadoNormalizado = 'gps_desligado';
+      }
+
+      // ------------------------------------------------------------
+      // 1) Sempre atualiza o Firestore
+      // ------------------------------------------------------------
+      try {
+        if (estadoNormalizado === 'ativa') {
+          // Se está ativo, delega ao atualizarEstadoSeguranca
+          // (que pega cidade/país e grava tudo de uma vez)
           await atualizarEstadoSeguranca(dadosPaciente.id, {
-            incluirLocalizacao: novoEstado === 'ativa' || novoEstado === 'ligado',
+            incluirLocalizacao: true,
           });
+        } else {
+          // Se está desligado/negado, grava direto com o status exato
+          const { doc: dRef, setDoc } = await import('firebase/firestore');
+          const { db: dbRef } = await import('./firebase');
 
-          if (novoEstado !== 'ativa' && novoEstado !== 'ligado') {
-            const { doc: dRef, setDoc } = await import('firebase/firestore');
-            const { db: dbRef } = await import('./firebase');
-            await setDoc(
-              dRef(dbRef, 'seguranca_estado', String(dadosPaciente.id)),
-              {
-                pacienteId: String(dadosPaciente.id),
-                localizacaoStatus: novoEstado,
-                ultimaVerificacao: new Date().toISOString(),
-                atualizadoEm: new Date().toISOString(),
-              },
-              { merge: true }
-            );
-          }
-        } catch (e) {
-          console.warn('Falha atualizando estado GPS:', e);
+          await setDoc(
+            dRef(dbRef, 'seguranca_estado', String(dadosPaciente.id)),
+            {
+              pacienteId: String(dadosPaciente.id),
+              localizacaoStatus: estadoNormalizado,
+              ultimaVerificacao: new Date().toISOString(),
+              atualizadoEm: new Date().toISOString(),
+            },
+            { merge: true }
+          );
         }
+      } catch (e) {
+        console.warn('Falha atualizando estado GPS:', e);
+      }
 
-        const dispensados = (() => {
-          try {
-            const s = sessionStorage.getItem('af_avisos_loc_dispensados');
-            return s ? JSON.parse(s) : {};
-          } catch { return {}; }
-        })();
+      // ------------------------------------------------------------
+      // 2) Modal de aviso
+      // ------------------------------------------------------------
+      const dispensados = (() => {
+        try {
+          const s = sessionStorage.getItem('af_avisos_loc_dispensados');
+          return s ? JSON.parse(s) : {};
+        } catch { return {}; }
+      })();
 
-        const estadoNorm = novoEstado === 'ligado' ? 'ativa' : novoEstado;
+      const anteriorNormalizado =
+        anterior === 'ligado' ? 'ativa' :
+        (anterior === 'timeout' || anterior === 'indisponivel' || anterior === 'nao_suportado')
+          ? 'gps_desligado'
+          : anterior;
 
-        if (estadoNorm === 'gps_desligado' && dispensados.gps !== true) {
-          setAvisoLocalizacao({ tipo: 'gps_desligado' });
-        } else if (estadoNorm === 'negada' && dispensados.perm !== true) {
-          setAvisoLocalizacao({ tipo: 'negada' });
-        } else if (
-          estadoNorm === 'ativa' &&
-          (anterior === 'gps_desligado' || anterior === 'negada')
-        ) {
-          setAvisoLocalizacao({ tipo: 'reativada' });
-        }
-      });
-    })();
+      if (estadoNormalizado === 'gps_desligado' && dispensados.gps !== true) {
+        setAvisoLocalizacao({ tipo: 'gps_desligado' });
+      } else if (estadoNormalizado === 'negada' && dispensados.perm !== true) {
+        setAvisoLocalizacao({ tipo: 'negada' });
+      } else if (
+        estadoNormalizado === 'ativa' &&
+        (anteriorNormalizado === 'gps_desligado' || anteriorNormalizado === 'negada')
+      ) {
+        setAvisoLocalizacao({ tipo: 'reativada' });
+      }
+    });
+  })();
 
-    return () => {
-      cancelado = true;
-      if (pararMonitor) pararMonitor();
-    };
-  }, [dadosPaciente?.id]);
+  return () => {
+    cancelado = true;
+    if (pararMonitor) pararMonitor();
+  };
+}, [dadosPaciente?.id]);
 
   useEffect(() => {
     try {

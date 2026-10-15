@@ -29,7 +29,11 @@ export default function CardSegurancaPaciente({ pacienteId }) {
   }, [pacienteId]);
 
   if (carregando) return null;
-
+// ✅ Ignora estados "neutros" que não importam pro usuário
+const statusIgnorar = ['timeout', 'nao_suportado', 'indisponivel', 'prompt'];
+if (estado && statusIgnorar.includes(estado.localizacaoStatus)) {
+  return null;
+}
   if (!estado) {
     return (
       <div style={cardVazio}>

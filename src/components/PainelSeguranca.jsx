@@ -220,14 +220,18 @@ export default function PainelSeguranca() {
   const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id));
   const bloqueadosLista = relevantes.filter((t) => estaBloqueado(t.id));
 
-  const semLocalizacao = useMemo(
-    () =>
-      estados.filter(
-        (e) => e.localizacaoStatus && e.localizacaoStatus !== 'ativa'
-      ),
-    [estados]
-  );
-
+ const semLocalizacao = useMemo(() => {
+  const estadosIgnorar = ['prompt', 'timeout', 'nao_suportado', 'indisponivel'];
+  return estados.filter((e) => {
+    const s = e.localizacaoStatus;
+    // ✅ Só mostra se for explicitamente gps_desligado ou negada
+    if (s === 'gps_desligado' || s === 'negada') return true;
+    // ✅ Se for "ativa"/"ligado" → não mostra (está tudo bem)
+    if (s === 'ativa' || s === 'ligado') return false;
+    // ✅ Outros → ignora (não polui a tela)
+    return false;
+  });
+}, [estados]);
   // ============================================================
   // RENDER
   // ============================================================
