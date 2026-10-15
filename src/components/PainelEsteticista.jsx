@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { sanitizarFichaAnamnese } from '../utils/sanitizar';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth, MdSecurity  } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth, MdSecurity,  MdAttachMoney,  } from 'react-icons/md';
 import CardSegurancaPaciente from './CardSegurancaPaciente';
 import PainelSeguranca from './PainelSeguranca';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
@@ -22,6 +22,7 @@ import TermoConsentimentoPDF from './TermoConsentimentoPDF';
 import { registrarLinkPaciente, gerarUidDeterministico, limparUndefined } from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
+import PainelFinanceiro from './financeiro/PainelFinanceiro'; 
 import ModalEscolherServico from './agendamento/ModalEscolherServico';
 
 
@@ -1383,7 +1384,31 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     </span>
   )}
 </button>
-              </div>
+<button
+  type="button"
+  onClick={() => navegarPara('financeiro')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+    color: '#fff',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '25px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 4px 15px rgba(22, 163, 74, 0.4)',
+  }}
+>
+  <MdAttachMoney size={16} />
+  Financeiro
+</button>
+         </div>
+              
             </div>
 
             {/* BARRA DE PESQUISA — colada no cabeçalho */}
@@ -1716,6 +1741,40 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     <PainelSeguranca />
   </div>
 )}
+{telaAtual === 'financeiro' && (
+  <div>
+    <button
+      type="button"
+      onClick={() => navegarPara('lista')}
+      className="btn-voltar-lista"
+      style={{
+        fontFamily: "'Cinzel', serif",
+        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+        color: '#2c163a',
+        border: '1.5px solid #C8A24A',
+        padding: '10px 22px',
+        borderRadius: '25px',
+        fontSize: '13px',
+        fontWeight: 700,
+        letterSpacing: '0.5px',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '20px',
+        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+        transition: 'all 0.25s ease',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <MdArrowBack size={16} color="#C8A24A" />
+      Voltar para lista de pacientes
+    </button>
+
+    <PainelFinanceiro uidEsteticista={auth.currentUser?.uid} />
+  </div>
+)}
+
           {telaAtual === 'agendamentos' && (
   <div>
     <button

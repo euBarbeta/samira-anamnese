@@ -34,6 +34,7 @@ export default function GerenciarServicos({ uidEsteticista }) {
     duracaoMin: 60,
     cor: PALETA[0],
     ativo: true,
+     preco: 0,
   });
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState('');
@@ -74,6 +75,7 @@ export default function GerenciarServicos({ uidEsteticista }) {
       duracaoMin: 60,
       cor: PALETA[0],
       ativo: true,
+       preco: 0,
     });
     setErroForm('');
     setModalAberto(true);
@@ -86,6 +88,7 @@ export default function GerenciarServicos({ uidEsteticista }) {
       duracaoMin: servico.duracaoMin || 60,
       cor: servico.cor || PALETA[0],
       ativo: servico.ativo !== false,
+      preco: typeof servico.preco === 'number' ? servico.preco : 0,
     });
     setErroForm('');
     setModalAberto(true);
@@ -101,61 +104,72 @@ export default function GerenciarServicos({ uidEsteticista }) {
   // ============================================================
   // Salvar (novo ou editado)
   // ============================================================
-  const salvar = async () => {
-    const nomeLimpo = form.nome.trim();
-    if (!nomeLimpo) {
-      setErroForm('Digite um nome para o serviço.');
-      return;
-    }
-    if (nomeLimpo.length > 60) {
-      setErroForm('Nome muito longo (máx 60 caracteres).');
-      return;
-    }
-    const dur = parseInt(form.duracaoMin, 10);
-    if (!dur || dur < 5 || dur > 480) {
-      setErroForm('Duração precisa estar entre 5 e 480 minutos.');
-      return;
+ const salvar = async () => {
+  const nomeLimpo = form.nome.trim();
+  if (!nomeLimpo) {
+    setErroForm('Digite um nome para o serviço.');
+    return;
+  }
+  if (nomeLimpo.length > 60) {
+    setErroForm('Nome muito longo (máx 60 caracteres).');
+    return;
+  }
+  const dur = parseInt(form.duracaoMin, 10);
+  if (!dur || dur < 5 || dur > 480) {
+    setErroForm('Duração precisa estar entre 5 e 480 minutos.');
+    return;
+  }
+
+  // ✅ Valida preço
+  const precoNum = typeof form.preco === 'number' ? form.preco : parseFloat(form.preco) || 0;
+  if (precoNum < 0) {
+    setErroForm('Preço não pode ser negativo.');
+    return;
+  }
+  if (precoNum > 99999.99) {
+    setErroForm('Preço muito alto (máx R$ 99.999,99).');
+    return;
+  }
+
+  setSalvando(true);
+  setErroForm('');
+
+  try {
+    const dadosServico = {
+      nome: nomeLimpo,
+      duracaoMin: dur,
+      cor: form.cor,
+      ativo: form.ativo,
+      preco: Number(precoNum.toFixed(2)),   // ✅ sempre 2 casas
+      profissionalId: uidEsteticista,
+      atualizadoEm: serverTimestamp(),
+    };
+
+    if (editando) {
+      await updateDoc(
+        doc(db, `usuarios/${uidEsteticista}/servicos`, editando.id),
+        dadosServico
+      );
+    } else {
+      const maiorOrdem = servicos.reduce(
+        (max, s) => Math.max(max, s.ordem || 0),
+        0
+      );
+      await addDoc(collection(db, `usuarios/${uidEsteticista}/servicos`), {
+        ...dadosServico,
+        ordem: maiorOrdem + 1,
+        criadoEm: serverTimestamp(),
+      });
     }
 
-    setSalvando(true);
-    setErroForm('');
-
-    try {
-      const dadosServico = {
-        nome: nomeLimpo,
-        duracaoMin: dur,
-        cor: form.cor,
-        ativo: form.ativo,
-        profissionalId: uidEsteticista,
-        atualizadoEm: serverTimestamp(),
-      };
-
-      if (editando) {
-        await updateDoc(
-          doc(db, `usuarios/${uidEsteticista}/servicos`, editando.id),
-          dadosServico
-        );
-      } else {
-        // Ordem = maior atual + 1
-        const maiorOrdem = servicos.reduce(
-          (max, s) => Math.max(max, s.ordem || 0),
-          0
-        );
-        await addDoc(collection(db, `usuarios/${uidEsteticista}/servicos`), {
-          ...dadosServico,
-          ordem: maiorOrdem + 1,
-          criadoEm: serverTimestamp(),
-        });
-      }
-
-      fecharModal();
-    } catch (e) {
-      console.error('Erro ao salvar serviço:', e);
-      setErroForm('Erro ao salvar. Tente novamente.');
-    } finally {
-      setSalvando(false);
-    }
-  };
+    fecharModal();
+  } catch (e) {
+    console.error('Erro ao salvar serviço:', e);
+    setErroForm('Erro ao salvar. Tente novamente.');
+  } finally {
+    setSalvando(false);
+  }
+};
 
   // ============================================================
   // Toggle ativo/inativo
@@ -523,7 +537,48 @@ export default function GerenciarServicos({ uidEsteticista }) {
                 </button>
               ))}
             </div>
-
+{/* ✅ NOVO: Preço */}
+<label style={{ ...labelEstilo, marginTop: 14 }}>
+  Preço (R$)
+</label>
+<div style={{
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 14,
+}}>
+  <span style={{
+    fontFamily: "'Cinzel', serif",
+    color: '#2c163a',
+    fontSize: 16,
+    fontWeight: 700,
+  }}>
+    R$
+  </span>
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    value={form.preco}
+    onChange={(e) => {
+      // ✅ Bloqueia valor negativo — filtra o "-" digitado
+      const raw = e.target.value;
+      if (raw.startsWith('-')) return;
+      const num = raw === '' ? 0 : parseFloat(raw);
+      if (isNaN(num) || num < 0) return;
+      setForm({ ...form, preco: num });
+    }}
+    onKeyDown={(e) => {
+      // ✅ Bloqueia teclas "-" e "e" no input number
+      if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+        e.preventDefault();
+      }
+    }}
+    disabled={salvando}
+    style={{ ...inputEstilo, flex: 1 }}
+    placeholder="0,00"
+  />
+</div>
             {/* Cor */}
             <label style={{ ...labelEstilo, marginTop: 6 }}>Cor</label>
             <div style={{

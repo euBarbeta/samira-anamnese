@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdCalendarMonth, MdAssignment, MdSecurity } from 'react-icons/md';
+import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdCalendarMonth, MdAssignment, MdSecurity, MdAttachMoney,} from 'react-icons/md';
 import PainelSeguranca from './PainelSeguranca';
 import { sanitizarFichaAnamnese } from '../utils/sanitizar';
 import CardSegurancaPaciente from './CardSegurancaPaciente';
@@ -30,6 +30,7 @@ import TermoConsentimentoPDF from './TermoConsentimentoPDF';
 import { registrarLinkPaciente, gerarUidDeterministico, limparUndefined } from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
+import PainelFinanceiro from './financeiro/PainelFinanceiro'; 
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -1463,8 +1464,35 @@ if (!jaCarregou) {
       </span>
     )}
   </button>
-
+ {/* ✅ NOVO — BOTÃO 4 — Financeiro */}
+  <button
+    type="button"
+    onClick={() => navegarPara('financeiro')}
+    className="btn-efeito-hover"
+    style={{
+      width: '100%',
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+      color: '#fff',
+      border: 'none',
+      padding: '14px 16px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 15px rgba(22, 163, 74, 0.4)',
+      lineHeight: 1.2,
+    }}
+  >
+    <MdAttachMoney size={16} style={{ flexShrink: 0 }} />
+    Financeiro
+  </button>
 </div>
+
       </div>
 
       {/* BARRA DE PESQUISA — colada no cabeçalho */}
@@ -1886,6 +1914,36 @@ if (!jaCarregou) {
       Voltar
     </button>
     <PainelSeguranca />
+  </div>
+)}
+{/* ✅ NOVO — Tela Financeiro (mobile) */}
+{telaAtual === 'financeiro' && (
+  <div>
+    <button
+      type="button"
+      onClick={() => navegarPara('lista')}
+      className="btn-voltar-lista"
+      style={{
+        fontFamily: "'Cinzel', serif",
+        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+        color: '#2c163a',
+        border: '1.5px solid #C8A24A',
+        padding: '8px 16px',
+        borderRadius: '22px',
+        fontSize: '11px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        marginBottom: '16px',
+      }}
+    >
+      <MdArrowBack size={14} color="#C8A24A" />
+      Voltar
+    </button>
+
+    <PainelFinanceiro uidEsteticista={auth.currentUser?.uid} />
   </div>
 )}
 {telaAtual === 'agendamentos' && (

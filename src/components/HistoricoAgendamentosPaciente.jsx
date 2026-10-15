@@ -1,6 +1,7 @@
 // src/components/HistoricoAgendamentosPaciente.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { createPortal } from 'react-dom'; 
 import { db } from './firebase';
 import {
   MdExpandMore, MdExpandLess, MdPictureAsPdf, MdCheckCircle,
@@ -238,26 +239,40 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
     }
   };
 
-  // ✅ Web/PWA: abre o PDF numa nova aba
   const handleAbrir = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  return (
+  // ✅ Conteúdo do modal
+  const modalConteudo = (
     <div
       onClick={processando ? undefined : onFechar}
       style={{
+        // ✅ position FIXED com valores explícitos (mais robusto que inset no WebView)
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
         background: 'rgba(44, 22, 58, 0.85)',
         backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
+        // ✅ Z-index máximo absoluto
         zIndex: 2147483647,
         padding: 16,
         boxSizing: 'border-box',
+        // ✅ Bloqueia qualquer herança de transform/filter do pai
+        transform: 'none',
+        filter: 'none',
+        // ✅ Isola o modal num novo contexto
+        isolation: 'isolate',
+        // ✅ Overflow explícito pra não quebrar no WebView
+        overflow: 'auto',
       }}
     >
       <div
@@ -272,6 +287,11 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
           overflow: 'hidden',
           boxShadow: '0 25px 70px rgba(0, 0, 0, 0.5)',
           border: '1.5px solid #C8A24A',
+          // ✅ Centraliza mesmo se o pai tiver transform
+          margin: 'auto',
+          // ✅ Isola também
+          transform: 'none',
+          filter: 'none',
         }}
       >
         {/* Header */}
@@ -459,6 +479,10 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
       </div>
     </div>
   );
+
+  // ✅ Renderiza direto no <body>, imune a qualquer transform/filter do pai
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalConteudo, document.body);
 }
 
 /* ============================================================
