@@ -5,7 +5,10 @@ import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCa
 import CardSegurancaPaciente from './CardSegurancaPaciente';
 import PainelSeguranca from './PainelSeguranca';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, query, where, updateDoc, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit, collectionGroup } from 'firebase/firestore';
+import {
+  getFirestore, query, where, updateDoc, collection, doc,
+  getDoc,setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit, collectionGroup
+} from 'firebase/firestore';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';

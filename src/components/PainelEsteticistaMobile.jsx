@@ -14,7 +14,10 @@ import {
   onAuthStateChanged       // ⬅️ adicione
 } from 'firebase/auth';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
-import { getFirestore, query, where, updateDoc, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit, collectionGroup } from 'firebase/firestore';
+import {
+  getFirestore, query, where, updateDoc, collection, doc,
+  getDoc,setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit, collectionGroup
+} from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import { db } from './firebase';
 import { secondaryAuth } from './firebaseSecondary';  // ⬅️ ADICIONAR
