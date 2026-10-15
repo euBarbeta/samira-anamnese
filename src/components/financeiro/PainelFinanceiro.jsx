@@ -12,9 +12,10 @@ import { gerarPdfFinanceiro, salvarPdfFinanceiro } from '../../utils/gerarPdfFin
 
 import {
   MdAdd, MdTrendingUp, MdTrendingDown, MdAttachMoney,
-  MdFilterList, MdClear, MdPictureAsPdf, MdEdit,
+  MdClear, MdPictureAsPdf, MdEdit,
   MdDelete, MdCalendarMonth, MdArrowBack, MdArrowForward,
   MdClose, MdDownload, MdPictureAsPdf as MdPdf,
+  MdExpandMore,   // ✅ NOVO — seta do dropdown de mês
 } from 'react-icons/md';
 
 /* ============================================================
@@ -67,6 +68,11 @@ function gerarUltimos12Meses(referencia) {
   return meses;
 }
 
+const MESES_CURTO = [
+  'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+  'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+];
+
 /* ============================================================
    COMPONENTE PRINCIPAL
    ============================================================ */
@@ -76,6 +82,12 @@ export default function PainelFinanceiro({ uidEsteticista }) {
 
   // Navegação de mês
   const [mesRef, setMesRef] = useState(mesAnoDeHoje());
+
+  // ✅ Dropdown de mês/ano
+  const [dropdownMesAberto, setDropdownMesAberto] = useState(false);
+  const [anoSelecionando, setAnoSelecionando] = useState(
+    () => Number(mesAnoDeHoje().split('-')[0])
+  );
 
   // Filtros
   const [filtroTipo, setFiltroTipo] = useState('todos');
@@ -222,6 +234,34 @@ export default function PainelFinanceiro({ uidEsteticista }) {
     setBusca('');
   };
 
+  // ✅ Clicar numa barra do gráfico pula pro mês
+  const irParaMesEspecifico = (anoMes) => {
+    setMesRef(anoMes);
+    setBusca('');
+    // Scroll suave pra cima (opcional — UX melhor)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // ✅ Selecionar mês no dropdown
+  const selecionarMesDropdown = (anoMes) => {
+    setMesRef(anoMes);
+    setDropdownMesAberto(false);
+    setBusca('');
+  };
+
+  // ✅ Fechar dropdown com Esc
+  useEffect(() => {
+    if (!dropdownMesAberto) return;
+
+    const handler = (e) => {
+      if (e.key === 'Escape') setDropdownMesAberto(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [dropdownMesAberto]);
+
   // ============================================================
   // Salvar / editar / excluir DESPESA
   // ============================================================
@@ -340,7 +380,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
         marginBottom: 18,
         flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
           <button
             type="button"
             onClick={() => mudarMes(-1)}
@@ -350,22 +390,43 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             <MdArrowBack size={18} color="#7e22ce" />
           </button>
 
+          {/* ✅ Botão do mês/ano que abre o dropdown */}
           <button
             type="button"
-            onClick={irMesAtual}
+            onClick={() => {
+              setAnoSelecionando(Number(mesRef.split('-')[0]));
+              setDropdownMesAberto((v) => !v);
+            }}
             style={{
               fontFamily: "'Cinzel', serif",
-              background: 'transparent',
-              border: 'none',
+              background: dropdownMesAberto ? '#faf5ff' : 'transparent',
+              border: dropdownMesAberto
+                ? '1.5px solid #d8b4fe'
+                : '1.5px solid transparent',
+              borderRadius: 10,
               cursor: 'pointer',
               color: '#2c163a',
               fontSize: 16,
               fontWeight: 700,
-              padding: '4px 12px',
-              minWidth: 180,
+              padding: '6px 14px',
+              minWidth: 200,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              transition: 'all 0.15s ease',
             }}
+            title="Clique para escolher mês e ano"
           >
             {MES_LABEL}
+            <MdExpandMore
+              size={18}
+              color="#7e22ce"
+              style={{
+                transition: 'transform 0.2s ease',
+                transform: dropdownMesAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+              }}
+            />
           </button>
 
           <button
@@ -376,6 +437,153 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           >
             <MdArrowForward size={18} color="#7e22ce" />
           </button>
+
+          {/* ✅ DROPDOWN — grid de meses + navegação de ano */}
+          {dropdownMesAberto && (
+            <>
+              {/* Overlay pra fechar ao clicar fora */}
+              <div
+                onClick={() => setDropdownMesAberto(false)}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 999,
+                  background: 'transparent',
+                }}
+              />
+
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: 8,
+                  background: '#fff',
+                  border: '1.5px solid #C8A24A',
+                  borderRadius: 16,
+                  boxShadow: '0 15px 40px rgba(44, 22, 58, 0.25)',
+                  padding: '14px 16px 16px',
+                  zIndex: 1000,
+                  minWidth: 300,
+                  fontFamily: "'Montserrat', sans-serif",
+                }}
+              >
+                {/* Navegação de ANO */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                  gap: 8,
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setAnoSelecionando((a) => a - 1)}
+                    style={btnNav}
+                    aria-label="Ano anterior"
+                  >
+                    <MdArrowBack size={16} color="#7e22ce" />
+                  </button>
+
+                  <span style={{
+                    fontFamily: "'Cinzel', serif",
+                    color: '#2c163a',
+                    fontSize: 16,
+                    fontWeight: 800,
+                    minWidth: 80,
+                    textAlign: 'center',
+                  }}>
+                    {anoSelecionando}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setAnoSelecionando((a) => a + 1)}
+                    style={btnNav}
+                    aria-label="Próximo ano"
+                  >
+                    <MdArrowForward size={16} color="#7e22ce" />
+                  </button>
+                </div>
+
+                {/* Grid de 12 meses */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 6,
+                }}>
+                  {MESES_CURTO.map((nomeMesAbrev, idx) => {
+                    const mesNum = String(idx + 1).padStart(2, '0');
+                    const chave = `${anoSelecionando}-${mesNum}`;
+                    const ehAtual = chave === mesRef;
+
+                    return (
+                      <button
+                        key={nomeMesAbrev}
+                        type="button"
+                        onClick={() => selecionarMesDropdown(chave)}
+                        style={{
+                          padding: '10px 6px',
+                          borderRadius: 10,
+                          border: ehAtual
+                            ? '1.5px solid #7e22ce'
+                            : '1.5px solid #e2d2f5',
+                          background: ehAtual
+                            ? 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)'
+                            : '#fff',
+                          color: ehAtual ? '#fff' : '#2c163a',
+                          fontSize: 12,
+                          fontWeight: ehAtual ? 800 : 600,
+                          cursor: 'pointer',
+                          fontFamily: "'Montserrat', sans-serif",
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!ehAtual) e.currentTarget.style.background = '#faf5ff';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!ehAtual) e.currentTarget.style.background = '#fff';
+                        }}
+                      >
+                        {nomeMesAbrev}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Botão "Hoje" */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    irMesAtual();
+                    setDropdownMesAberto(false);
+                  }}
+                  style={{
+                    marginTop: 12,
+                    width: '100%',
+                    fontFamily: "'Cinzel', serif",
+                    background: 'transparent',
+                    color: '#7e22ce',
+                    border: '1.5px dashed #d8b4fe',
+                    padding: '8px',
+                    borderRadius: 10,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#faf5ff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  Ir para o mês atual
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <button
@@ -487,7 +695,13 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             <MdTrendingUp size={16} color="#7e22ce" />
             Evolução — Últimos 12 meses
           </div>
-          <GraficoBarras dados={ultimos12Meses} altura={240} animar={true} />
+          <GraficoBarras
+            dados={ultimos12Meses}
+            altura={240}
+            animar={true}
+            onClickMes={irParaMesEspecifico}
+            mesSelecionado={mesRef}
+          />
         </div>
 
         {porServico.length > 0 && (

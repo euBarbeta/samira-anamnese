@@ -11,9 +11,16 @@ import React, { useState, useEffect } from 'react';
  *  - dados: [{ mes: '2026-10', receitas: 8450, despesas: 3200 }, ...]
  *  - altura: number (padrão 220)
  *  - animar: boolean (padrão true). Use FALSE dentro do PDF.
+ *  - onClickMes: (mes: string) => void  (opcional — clicar numa barra)
+ *  - mesSelecionado: string (opcional — destaca a barra desse mês)
  */
-export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
-  // ✅ Se animar=false, começa já em 1 (100%)
+export function GraficoBarras({
+  dados = [],
+  altura = 220,
+  animar = true,
+  onClickMes = null,
+  mesSelecionado = null,
+}) {
   const [animacao, setAnimacao] = useState(animar ? 0 : 1);
   const [mesHover, setMesHover] = useState(null);
 
@@ -75,22 +82,28 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
       maximumFractionDigits: 0,
     });
 
+  const clicavel = typeof onClickMes === 'function';
+
   return (
     <div style={{ width: '100%', fontFamily: "'Montserrat', sans-serif" }}>
       <style>{`
         .gb-barra-grupo {
           transition: opacity 0.2s ease;
-          cursor: ${animar ? 'pointer' : 'default'};
+          cursor: ${clicavel || animar ? 'pointer' : 'default'};
         }
         .gb-barra-grupo.dim {
           opacity: 0.35;
         }
         .gb-barra-grupo:hover .gb-tooltip {
-          opacity: ${animar ? 1 : 0};
+          opacity: ${animar || clicavel ? 1 : 0};
           transform: translateY(-2px);
         }
         .gb-barra-grupo:hover rect {
-          filter: ${animar ? 'brightness(1.08) drop-shadow(0 3px 6px rgba(0,0,0,0.15))' : 'none'};
+          filter: ${animar || clicavel ? 'brightness(1.08) drop-shadow(0 3px 6px rgba(0,0,0,0.15))' : 'none'};
+        }
+        .gb-barra-grupo.selecionada rect {
+          stroke: #7e22ce;
+          stroke-width: 2;
         }
         .gb-tooltip {
           opacity: 0;
@@ -159,14 +172,33 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
 
             const ehHover = mesHover === d.mes;
             const temHover = mesHover !== null;
+            const ehSelecionado = mesSelecionado === d.mes;
+
+            // ✅ Zona clicável "invisível" cobre toda a coluna (barra + label)
+            const xZona = x0 - espacoPorMes / 2;
+            const larguraZona = espacoPorMes;
 
             return (
               <g
                 key={d.mes || i}
-                className={`gb-barra-grupo${temHover && !ehHover ? ' dim' : ''}`}
-                onMouseEnter={animar ? () => setMesHover(d.mes) : undefined}
-                onMouseLeave={animar ? () => setMesHover(null) : undefined}
+                className={`gb-barra-grupo${temHover && !ehHover ? ' dim' : ''}${ehSelecionado ? ' selecionada' : ''}`}
+                onMouseEnter={animar || clicavel ? () => setMesHover(d.mes) : undefined}
+                onMouseLeave={animar || clicavel ? () => setMesHover(null) : undefined}
+                onClick={clicavel ? () => onClickMes(d.mes) : undefined}
+                style={{ cursor: clicavel ? 'pointer' : 'default' }}
               >
+                {/* ✅ Zona clicável invisível — cobre toda a coluna */}
+                {clicavel && (
+                  <rect
+                    x={xZona}
+                    y={padding.top - 10}
+                    width={larguraZona}
+                    height={alturaGrafico + 60}
+                    fill="transparent"
+                    style={{ pointerEvents: 'all' }}
+                  />
+                )}
+
                 <rect
                   x={xReceita}
                   y={yReceita}
@@ -174,7 +206,7 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
                   height={Math.max(hReceita, 0)}
                   fill="url(#gradReceita)"
                   rx="3"
-                  style={{ transition: animar ? 'filter 0.2s ease' : 'none' }}
+                  style={{ transition: animar ? 'filter 0.2s ease' : 'none', pointerEvents: 'none' }}
                 />
                 <rect
                   x={xDespesa}
@@ -183,10 +215,10 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
                   height={Math.max(hDespesa, 0)}
                   fill="url(#gradDespesa)"
                   rx="3"
-                  style={{ transition: animar ? 'filter 0.2s ease' : 'none' }}
+                  style={{ transition: animar ? 'filter 0.2s ease' : 'none', pointerEvents: 'none' }}
                 />
 
-                <g className="gb-tooltip">
+                <g className="gb-tooltip" style={{ pointerEvents: 'none' }}>
                   <rect
                     x={x0 - 55}
                     y={padding.top - 2}
@@ -225,10 +257,10 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
                   y={padding.top + alturaGrafico + 16}
                   textAnchor="middle"
                   fontSize="9.5"
-                  fill={ehHover ? '#7e22ce' : '#666'}
+                  fill={ehHover || ehSelecionado ? '#7e22ce' : '#666'}
                   fontFamily="Montserrat, sans-serif"
-                  fontWeight={ehHover ? 800 : 600}
-                  style={{ transition: animar ? 'fill 0.2s ease, font-weight 0.2s ease' : 'none' }}
+                  fontWeight={ehHover || ehSelecionado ? 800 : 600}
+                  style={{ transition: animar ? 'fill 0.2s ease, font-weight 0.2s ease' : 'none', pointerEvents: 'none' }}
                 >
                   {labelMes}
                 </text>
@@ -240,6 +272,7 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
                     fontSize="8"
                     fill="#aaa"
                     fontFamily="Montserrat, sans-serif"
+                    style={{ pointerEvents: 'none' }}
                   >
                     {ano}
                   </text>
@@ -291,6 +324,18 @@ export function GraficoBarras({ dados = [], altura = 220, animar = true }) {
           }} />
           Despesas
         </span>
+        {clicavel && (
+          <span style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontStyle: 'italic',
+            color: '#7e22ce',
+            fontWeight: 700,
+          }}>
+            💡 clique numa barra pra ver o mês
+          </span>
+        )}
       </div>
     </div>
   );
