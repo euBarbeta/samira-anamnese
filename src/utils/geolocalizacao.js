@@ -134,44 +134,83 @@ export async function obterLocalizacao() {
  *   'indisponivel'  → iOS sem distinção, ou navegador sem suporte
  */
 export async function detectarEstadoGPS() {
-  if (!('geolocation' in navigator) && !isNativo()) {
-    return 'indisponivel';
-  }
-
-  // 1) Checa permissão primeiro
-  let estadoPermissao = 'prompt';
-  try {
-    if (isNativo()) {
+  // ✅ APK: usa Capacitor (WebView do Android não expõe
+  //    navigator.permissions — sempre retorna 'prompt')
+  if (isNativo()) {
+    try {
       const { Geolocation } = await import('@capacitor/geolocation');
       const perm = await Geolocation.checkPermissions();
-      estadoPermissao = perm.location;
-    } else if (navigator.permissions?.query) {
+
+      // Mapeia os estados do Capacitor pros nossos
+      if (perm.location === 'denied') return 'negada';
+      if (perm.location === 'prompt' || perm.location === 'prompt-with-rationale') {
+        return 'prompt';
+      }
+
+      // perm.location === 'granted' → testa se o GPS responde
+      try {
+        await Promise.race([
+          Geolocation.getCurrentPosition({
+            enableHighAccuracy: false,
+            timeout: 3000,
+            maximumAge: 0,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 4000)
+          ),
+        ]);
+        return 'ligado'; // GPS respondeu
+      } catch (err) {
+        const msg = (err?.message || '').toLowerCase();
+        // Se o GPS está desligado, o Android retorna erro de "location services"
+        if (
+          msg.includes('location services') ||
+          msg.includes('gps') ||
+          msg.includes('disabled')
+        ) {
+          return 'gps_desligado';
+        }
+        if (msg.includes('timeout')) return 'timeout';
+        return 'indisponivel';
+      }
+    } catch (e) {
+      console.warn('Falha detectarEstadoGPS nativo:', e);
+      return 'indisponivel';
+    }
+  }
+
+  // ✅ PWA/Web: usa navigator.permissions + geolocation
+  if (!('geolocation' in navigator)) {
+    return 'nao_suportado';
+  }
+
+  let estadoPermissao = 'prompt';
+  try {
+    if (navigator.permissions?.query) {
       const status = await navigator.permissions.query({ name: 'geolocation' });
       estadoPermissao = status.state;
     }
   } catch (e) {
-    console.warn('Falha checando permissão:', e);
+    console.warn('Falha checando permissão web:', e);
   }
 
   if (estadoPermissao === 'denied') return 'negada';
   if (estadoPermissao === 'prompt') return 'prompt';
 
-  // 2) Permissão granted → testa se GPS está ligado (timeout curto)
+  // granted → testa GPS
   try {
     await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        resolve,
-        reject,
-        { enableHighAccuracy: false, timeout: 3000, maximumAge: 0 }
-      );
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 3000,
+        maximumAge: 0,
+      });
     });
     return 'ligado';
   } catch (err) {
-    if (err.code === 2) return 'gps_desligado'; // POSITION_UNAVAILABLE
+    if (err.code === 2) return 'gps_desligado';
     if (err.code === 1) return 'negada';
     if (err.code === 3) return 'timeout';
-
-    // iOS: sempre cai aqui quando GPS desligado — não dá pra distinguir
     return 'indisponivel';
   }
 }

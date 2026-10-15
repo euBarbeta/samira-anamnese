@@ -36,6 +36,18 @@ const lerSessao = (k) => {
   } catch { return null; }
 };
 
+// ✅ Helper: silencia erros de signOut quando a aba está sendo fechada
+const signOutSafe = async () => {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    const msg = String(e?.message || '');
+    if (!msg.includes('closing') && !msg.includes('hidden')) {
+      logWarn('Erro ao sair:', e);
+    }
+  }
+};
+
 export default function AnamneseFicha() {
   const [uidEsteticistaGlobal, setUidEsteticistaGlobal] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -44,15 +56,12 @@ export default function AnamneseFicha() {
   const [rota, setRota] = useState('verificando');
   const [mostrarModalSair, setMostrarModalSair] = useState(false);
   const [motivoSuspensao, setMotivoSuspensao] = useState('');
-
-  // ✅ NOVO: aviso de localização
   const [avisoLocalizacao, setAvisoLocalizacao] = useState(null);
 
   useBackButtonExit(() => {
     setMostrarModalSair(true);
   });
 
-  // ✅ Lê o #id também do localStorage
   const [uidDaURL, setUidDaURL] = useState(() => {
     try {
       const h = window.location.hash.slice(1);
@@ -87,7 +96,6 @@ export default function AnamneseFicha() {
   const [pacienteDocPath, setPacienteDocPath] = useState(null);
   const [pedidoAbrirAnamnese, setPedidoAbrirAnamnese] = useState(false);
 
-  // ✅ Guard único para login
   const processandoLoginRef = useRef(false);
 
   // ============================================================
@@ -181,9 +189,6 @@ export default function AnamneseFicha() {
     return () => { cancelado = true; };
   }, []);
 
-  // ============================================================
-  // 🔒 Boot: se havia suspensão salva, mostra tela dedicada
-  // ============================================================
   useEffect(() => {
     try {
       const motivoSalvo = sessionStorage.getItem('af_motivo_deslog');
@@ -439,7 +444,6 @@ export default function AnamneseFicha() {
           return;
         }
 
-        // ✅ GUARD: se já está processando um login, ignora
         if (processandoLoginRef.current) {
           setAuthVerificado(true);
           return;
@@ -486,14 +490,6 @@ export default function AnamneseFicha() {
 
   // ============================================================
   // 📍 MONITOR DE LOCALIZAÇÃO EM TEMPO REAL
-  // ------------------------------------------------------------
-  // Detecta mudanças a cada 5s + eventos nativos (appStateChange,
-  // visibilitychange, permissions.onchange).
-  //
-  // Dispara modal de aviso quando o estado MUDA:
-  //   ativa → gps_desligado  → mostra modal amarelo
-  //   ativa → negada         → mostra modal vermelho
-  //   gps/negada → ativa     → mostra modal verde (reativada)
   // ============================================================
   useEffect(() => {
     if (!dadosPaciente?.id) return;
@@ -508,15 +504,12 @@ export default function AnamneseFicha() {
       pararMonitor = iniciarMonitorLocalizacao(async (novoEstado, anterior) => {
         if (cancelado) return;
 
-        // --------------------------------------------------------
-        // 1) Atualiza o Firestore com o estado real
-        // --------------------------------------------------------
         try {
           await atualizarEstadoSeguranca(dadosPaciente.id, {
-            incluirLocalizacao: novoEstado === 'ativa',
+            incluirLocalizacao: novoEstado === 'ativa' || novoEstado === 'ligado',
           });
 
-          if (novoEstado !== 'ativa') {
+          if (novoEstado !== 'ativa' && novoEstado !== 'ligado') {
             const { doc: dRef, setDoc } = await import('firebase/firestore');
             const { db: dbRef } = await import('./firebase');
             await setDoc(
@@ -534,9 +527,6 @@ export default function AnamneseFicha() {
           console.warn('Falha atualizando estado GPS:', e);
         }
 
-        // --------------------------------------------------------
-        // 2) Mostra o modal de aviso
-        // --------------------------------------------------------
         const dispensados = (() => {
           try {
             const s = sessionStorage.getItem('af_avisos_loc_dispensados');
@@ -544,12 +534,14 @@ export default function AnamneseFicha() {
           } catch { return {}; }
         })();
 
-        if (novoEstado === 'gps_desligado' && dispensados.gps !== true) {
+        const estadoNorm = novoEstado === 'ligado' ? 'ativa' : novoEstado;
+
+        if (estadoNorm === 'gps_desligado' && dispensados.gps !== true) {
           setAvisoLocalizacao({ tipo: 'gps_desligado' });
-        } else if (novoEstado === 'negada' && dispensados.perm !== true) {
+        } else if (estadoNorm === 'negada' && dispensados.perm !== true) {
           setAvisoLocalizacao({ tipo: 'negada' });
         } else if (
-          novoEstado === 'ativa' &&
+          estadoNorm === 'ativa' &&
           (anterior === 'gps_desligado' || anterior === 'negada')
         ) {
           setAvisoLocalizacao({ tipo: 'reativada' });
@@ -580,9 +572,6 @@ export default function AnamneseFicha() {
     } catch {}
   }, [pacienteDocPath]);
 
-  // ============================================================
-  // OBSERVER — PACIENTE EM TEMPO REAL
-  // ============================================================
   useEffect(() => {
     if (!pacienteDocPath) return;
     const unsubscribe = onSnapshot(
@@ -593,7 +582,7 @@ export default function AnamneseFicha() {
           setDadosPaciente(dadosAtualizados);
         } else {
           logWarn('Paciente foi excluído. Encerrando sessão...');
-          try { await signOut(auth); } catch {}
+          await signOutSafe();
           if (isNativo()) {
             try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
           }
@@ -618,9 +607,6 @@ export default function AnamneseFicha() {
     return () => unsubscribe();
   }, [pacienteDocPath]);
 
-  // ============================================================
-  // OBSERVER — FICHAS (esteticista)
-  // ============================================================
   useEffect(() => {
     if (autenticado && usuarioLogado) {
       setCarregandoNuvem(true);
@@ -641,13 +627,12 @@ export default function AnamneseFicha() {
   }, [autenticado, usuarioLogado]);
 
   // ============================================================
-  // LOGIN — COM GUARD
+  // LOGIN
   // ============================================================
   const handleLoginSucesso = async (user, opcoes = {}) => {
     const { veioDeRefresh = false } = opcoes;
     if (!user || !user.uid) return;
 
-    // ✅ GUARD: se já está processando, ignora
     if (processandoLoginRef.current) return;
     processandoLoginRef.current = true;
 
@@ -747,7 +732,7 @@ export default function AnamneseFicha() {
       if (pacienteEncontrado) {
         if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
           setErroLoginExterno('Nome ou Senha incorretos');
-          await signOut(auth);
+          await signOutSafe();
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
@@ -758,7 +743,7 @@ export default function AnamneseFicha() {
         }
 
         if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
-          await signOut(auth);
+          await signOutSafe();
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
@@ -780,7 +765,6 @@ export default function AnamneseFicha() {
 
         setDadosPaciente(pacienteEncontrado);
 
-        // 🔒 Verifica device
         try {
           const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import("../utils/dispositivos");
           const fingerprint = gerarFingerprintEstavel();
@@ -815,7 +799,7 @@ export default function AnamneseFicha() {
           const data = await res.json();
 
           if (data.status === 'bloqueado') {
-            await signOut(auth);
+            await signOutSafe();
             setAutenticado(false);
             setUsuarioLogado(null);
             setDadosPaciente(null);
@@ -864,7 +848,7 @@ export default function AnamneseFicha() {
         setAutenticado(true);
         setBuscandoPaciente(false);
       } else {
-        await signOut(auth);
+        await signOutSafe();
         setAutenticado(false);
         setUsuarioLogado(null);
         setDadosPaciente(null);
@@ -874,7 +858,7 @@ export default function AnamneseFicha() {
       }
     } catch (error) {
       console.error('Erro ao carregar pasta do paciente:', error);
-      await signOut(auth);
+      await signOutSafe();
       setAutenticado(false);
       setUsuarioLogado(null);
       setDadosPaciente(null);
@@ -882,7 +866,6 @@ export default function AnamneseFicha() {
       setRota('nao-encontrado');
       setAuthVerificado(true);
     } finally {
-      // ✅ Libera o guard depois de 1.5s
       setTimeout(() => {
         processandoLoginRef.current = false;
       }, 1500);
@@ -928,9 +911,7 @@ export default function AnamneseFicha() {
       } catch (e) { logWarn('Falha ao limpar FCM no logout:', e); }
     }
 
-    try {
-      await signOut(auth);
-    } catch (e) { console.error('Erro ao sair:', e); }
+    await signOutSafe();
 
     if (isNativo()) {
       try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
@@ -1352,7 +1333,6 @@ export default function AnamneseFicha() {
         <ModalAvisoLocalizacao
           tipo={avisoLocalizacao.tipo}
           onFechar={() => {
-            // Marca como dispensado para não spammar na mesma sessão
             try {
               const dispensados = (() => {
                 try {
