@@ -33,7 +33,7 @@ import {
   MdCalendarMonth, MdSettings, MdPhone, MdBadge,
   MdEmail, MdChatBubbleOutline, MdClear, MdHourglassEmpty,
   MdContentCopy, MdCheck, MdDelete, MdAssignment, MdEvent,
-  MdPersonOff, MdRefresh, MdPictureAsPdf, MdLock,MdDownload,
+  MdPersonOff, MdRefresh, MdPictureAsPdf, MdLock,MdDownload,MdClose, 
 } from 'react-icons/md';
 
 // ============================================================
