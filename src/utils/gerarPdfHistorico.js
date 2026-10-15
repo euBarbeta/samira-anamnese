@@ -71,7 +71,7 @@ async function capturarCanvas(elemento) {
   const html2canvas = (await import('html2canvas')).default;
 
   const canvas = await html2canvas(elemento, {
-    scale: 2, // qualidade retina
+    scale: 1.5, // qualidade retina
     useCORS: true,
     backgroundColor: '#ffffff',
     logging: false,
@@ -115,7 +115,7 @@ async function montarPDF(canvas) {
   // Altura proporcional à largura (mantém aspect ratio)
   const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const imgData = canvas.toDataURL('image/jpeg', 0.85);
 
   // ============================================================
   // 1ª PÁGINA

@@ -8,6 +8,8 @@ import {
   MdClose, MdCheckCircle, MdWarning, MdEvent, MdCalendarMonth,
   MdEventAvailable, MdAccessTime, MdLock, MdStar,
 } from 'react-icons/md';
+import ModalConflitoServico from './ModalConflitoServico';
+import ModalAgendarParaPaciente from './ModalAgendarParaPaciente';
 
 // ============================================================
 // Helpers
@@ -38,9 +40,7 @@ function verificarConflito({
     if (a.status !== 'pendente' && a.status !== 'confirmado') continue;
 
     const aI = toMin(a.horaInicio);
-    const aF = a.horaFim
-      ? toMin(a.horaFim)
-      : aI + (a.duracaoMin || 60);
+    const aF = a.horaFim ? toMin(a.horaFim) : aI + (a.duracaoMin || 60);
 
     if (nI < aF && aI < nF) {
       return { conflito: true, com: a };
@@ -85,7 +85,15 @@ export default function ModalEscolherServico({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
 
-  // 1) Carrega serviços ativos
+  // ✅ Novo: mini-modal de conflito
+  const [conflitoAberto, setConflitoAberto] = useState(null);
+
+  // ✅ Novo: reagendar paciente impactado
+  const [pacienteReagendar, setPacienteReagendar] = useState(null);
+
+  // ============================================================
+  // Carrega serviços ativos
+  // ============================================================
   useEffect(() => {
     if (!uidEsteticista) return;
     const colRef = collection(db, `usuarios/${uidEsteticista}/servicos`);
@@ -106,7 +114,7 @@ export default function ModalEscolherServico({
     return () => unsub();
   }, [uidEsteticista]);
 
-  // 2) Carrega config da agenda
+  // Carrega config da agenda
   useEffect(() => {
     if (!uidEsteticista) return;
     import('firebase/firestore').then(({ doc: dRef, getDoc }) => {
@@ -118,7 +126,7 @@ export default function ModalEscolherServico({
     });
   }, [uidEsteticista]);
 
-  // 3) Carrega agendamentos do mesmo dia
+  // Carrega agendamentos do mesmo dia
   useEffect(() => {
     if (!uidEsteticista || !agendamento?.data) return;
     const colRef = collection(db, 'agendamentos');
@@ -138,7 +146,7 @@ export default function ModalEscolherServico({
     });
   }, [uidEsteticista, agendamento?.data]);
 
-  // 4) Calcula preview pra cada serviço
+  // Preview de cada serviço
   const previews = useMemo(() => {
     if (!agendamento) return {};
 
@@ -163,17 +171,18 @@ export default function ModalEscolherServico({
         novaFim,
         cabe: cabeNoBloco && !conflito,
         motivo: !cabeNoBloco
-          ? `Passa do horário de atendimento (${bloco?.fim})`
+          ? `Passa do fim do bloco (${bloco?.fim})`
           : conflito
-            ? `Bate com agendamento de ${com.nome} às ${com.horaInicio}`
+            ? `Conflito com ${com.nome} (${com.horaInicio}${com.horaFim ? `–${com.horaFim}` : ''})`
             : null,
+        conflitoCom: conflito ? com : null,
       };
     }
     return map;
   }, [servicos, agendamento, config, agendamentosDoDia]);
 
   // ============================================================
-  // 5) Confirmar (1º passo) — calcula gaps REAIS (SEM fatiar)
+  // Confirmar (1º passo)
   // ============================================================
   const confirmar = async () => {
     if (!servicoSelecionado || typeof servicoSelecionado.duracaoMin !== 'number') {
@@ -196,7 +205,6 @@ export default function ModalEscolherServico({
     const fimBlocoMin = toMin(fimBloco);
     const fimAgMin = toMin(info.novaFim);
 
-    // ✅ Outros agendamentos ativos no MESMO bloco (ordenados por início)
     const outrosOcupados = agendamentosDoDia
       .filter((a) => a.id !== agendamento.id)
       .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
@@ -208,35 +216,28 @@ export default function ModalEscolherServico({
       .filter((o) => o.fimMin > inicioBlocoMin && o.inicioMin < fimBlocoMin)
       .sort((a, b) => a.inicioMin - b.inicioMin);
 
-    // ✅ Próximo início ocupado APÓS o fim do atendimento atual
     const proximoInicioOcupado = outrosOcupados
       .filter((o) => o.inicioMin >= fimAgMin)
       .map((o) => o.inicioMin)
       .sort((a, b) => a - b)[0];
 
-    // ✅ Limite final = próximo ocupado OU fim do bloco
     const limiteFimMin = proximoInicioOcupado != null
       ? Math.min(proximoInicioOcupado, fimBlocoMin)
       : fimBlocoMin;
 
-    // ✅ GAP REAL — sem fatiar em blocos fixos
     const gapTotalMin = limiteFimMin - fimAgMin;
 
-    // ✅ Se sobrar MENOS de 5 min, nem pergunta
     if (gapTotalMin < 5) {
       await salvarConfirmacao({ liberarSobra: false });
       return;
     }
 
-    // ✅ MOSTRA O GAP COMPLETO — sempre 1 slot, do fim do atendimento
-    //    até o próximo compromisso (ou fim do bloco)
     const slotsLivres = [{
       inicio: toHHMM(fimAgMin),
       fim: toHHMM(limiteFimMin),
       duracaoMin: gapTotalMin,
     }];
 
-    // ✅ Serviços que cabem neste gap
     const servicosPorSlot = {};
     slotsLivres.forEach((slot) => {
       const chave = `${slot.inicio}-${slot.fim}`;
@@ -261,88 +262,175 @@ export default function ModalEscolherServico({
   };
 
   // ============================================================
-  // 6) Salva o agendamento confirmado
+  // Salva o agendamento confirmado
   // ============================================================
- 
-const salvarConfirmacao = async ({ liberarSobra }) => {
-  if (!servicoSelecionado) return;
-  const info = previews[servicoSelecionado.id];
+  const salvarConfirmacao = async ({ liberarSobra }) => {
+    if (!servicoSelecionado) return;
+    const info = previews[servicoSelecionado.id];
 
-  setEnviando(true);
-  setErro('');
+    setEnviando(true);
+    setErro('');
 
-  try {
-    const patch = {
-      servicoId: servicoSelecionado.id,
-      servicoNome: servicoSelecionado.nome,
-      duracaoMin: servicoSelecionado.duracaoMin,
-      horaFim: info.novaFim,
-      status: 'confirmado',
-      aguardandoConsentimento: false,
-      observacoesConfirmacao: observacao.trim() || null,
-      confirmadoEm: new Date().toISOString(),
-      atualizadoEm: new Date().toISOString(),
-    };
-
-    if (
-      liberarSobra &&
-      passoSobrou?.slotsLivres &&
-      passoSobrou.slotsLivres.length > 0
-    ) {
-      patch.liberacoesExtras = passoSobrou.slotsLivres.map((s) => ({
-        inicio: s.inicio,
-        fim: s.fim,
-        duracaoMin: s.duracaoMin,
-        criadoEm: new Date().toISOString(),
-      }));
-    } else {
-      patch.liberacoesExtras = [];
-    }
-
-    await updateDoc(doc(db, 'agendamentos', agendamento.id), patch);
-
-    // ✅ AWAIT — garante que o slot público reflita o estado novo
-    //    ANTES de o modal fechar (senão o calendário público
-    //    mostra o slot antigo por alguns segundos).
     try {
-      await fetch('/.netlify/functions/sincronizar-slot-publico', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agendamentoId: agendamento.id }),
-      });
+      const patch = {
+        servicoId: servicoSelecionado.id,
+        servicoNome: servicoSelecionado.nome,
+        duracaoMin: servicoSelecionado.duracaoMin,
+        horaFim: info.novaFim,
+        status: 'confirmado',
+        aguardandoConsentimento: false,
+        observacoesConfirmacao: observacao.trim() || null,
+        confirmadoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
+      };
+
+      if (
+        liberarSobra &&
+        passoSobrou?.slotsLivres &&
+        passoSobrou.slotsLivres.length > 0
+      ) {
+        patch.liberacoesExtras = passoSobrou.slotsLivres.map((s) => ({
+          inicio: s.inicio,
+          fim: s.fim,
+          duracaoMin: s.duracaoMin,
+          criadoEm: new Date().toISOString(),
+        }));
+      } else {
+        patch.liberacoesExtras = [];
+      }
+
+      await updateDoc(doc(db, 'agendamentos', agendamento.id), patch);
+
+      // Sincroniza slot público
+      try {
+        await fetch('/.netlify/functions/sincronizar-slot-publico', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agendamentoId: agendamento.id }),
+        });
+      } catch (e) {
+        console.warn('Falha ao sincronizar slot público:', e);
+      }
+
+      if (agendamento.pacienteId) {
+        fetch('/.netlify/functions/notificar-paciente-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pacienteId: agendamento.pacienteId,
+            tipoEvento: 'confirmado',
+            agendamento: {
+              id: agendamento.id,
+              data: agendamento.data,
+              horaInicio: agendamento.horaInicio,
+              horaFim: info.novaFim,
+              servicoNome: servicoSelecionado.nome,
+              nome: agendamento.nome,
+            },
+          }),
+        }).catch((e) => console.warn('Falha ao notificar paciente:', e));
+      }
+
+      setPassoSobrou(null);
+      onConfirmado?.();
     } catch (e) {
-      console.warn('Falha ao sincronizar slot público:', e);
+      console.error('Erro ao confirmar:', e);
+      setErro('Erro ao confirmar. Tente novamente.');
+      setEnviando(false);
     }
+  };
 
-    if (agendamento.pacienteId) {
-      fetch('/.netlify/functions/notificar-paciente-agendamento', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pacienteId: agendamento.pacienteId,
-          tipoEvento: 'confirmado',
-          agendamento: {
-            id: agendamento.id,
-            data: agendamento.data,
-            horaInicio: agendamento.horaInicio,
-            horaFim: info.novaFim,
-            servicoNome: servicoSelecionado.nome,
-            nome: agendamento.nome,
-          },
-        }),
-      }).catch((e) => console.warn('Falha ao notificar paciente:', e));
-    }
-
-    setPassoSobrou(null);
-    onConfirmado?.();
-  } catch (e) {
-    console.error('Erro ao confirmar:', e);
-    setErro('Erro ao confirmar. Tente novamente.');
-    setEnviando(false);
-  }
-};
   // ============================================================
-  // RENDER
+  // Ações do mini-modal de conflito
+  // ============================================================
+  const handleConflitoCancelar = async () => {
+    if (!conflitoAberto) return;
+    const ag = conflitoAberto;
+
+    try {
+      await updateDoc(doc(db, 'agendamentos', ag.id), {
+        status: 'cancelado',
+        canceladoPor: 'esteticista',
+        canceladoPorEncaixe: true,
+        canceladoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
+      });
+
+      // Sincroniza slot público
+      try {
+        await fetch('/.netlify/functions/sincronizar-slot-publico', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agendamentoId: ag.id }),
+        });
+      } catch (e) {
+        console.warn('Falha ao sincronizar slot público:', e);
+      }
+
+      // Notifica paciente
+      if (ag.pacienteId) {
+        fetch('/.netlify/functions/notificar-paciente-agendamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pacienteId: ag.pacienteId,
+            tipoEvento: 'cancelado',
+            agendamento: ag,
+          }),
+        }).catch(() => {});
+      }
+
+      setConflitoAberto(null);
+      setErro('');
+    } catch (e) {
+      console.error('Erro ao cancelar conflito:', e);
+      setErro('Erro ao cancelar. Tente novamente.');
+    }
+  };
+
+  const handleConflitoReagendar = () => {
+    if (!conflitoAberto) return;
+    setPacienteReagendar(conflitoAberto);
+    setConflitoAberto(null);
+  };
+
+  const handleReagendamentoSucesso = async (novoAg) => {
+    const antigo = pacienteReagendar;
+    setPacienteReagendar(null);
+
+    if (!antigo) return;
+
+    try {
+      await updateDoc(doc(db, 'agendamentos', novoAg.id), {
+        reagendamentoDe: antigo.id,
+        reagendamentoDeData: antigo.data,
+        reagendamentoDeHora: antigo.horaInicio,
+      });
+
+      await updateDoc(doc(db, 'agendamentos', antigo.id), {
+        status: 'reagendado',
+        reagendadoPara: novoAg.id,
+        reagendadoEm: new Date().toISOString(),
+        atualizadoEm: new Date().toISOString(),
+      });
+
+      // Sincroniza slot público do antigo
+      try {
+        await fetch('/.netlify/functions/sincronizar-slot-publico', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agendamentoId: antigo.id }),
+        });
+      } catch (e) {
+        console.warn('Falha ao sincronizar slot público:', e);
+      }
+    } catch (e) {
+      console.warn('Falha ao marcar reagendamento:', e);
+    }
+  };
+
+  // ============================================================
+  // Render
   // ============================================================
   const totalMinutosLivres = useMemo(() => {
     if (!passoSobrou?.slotsLivres) return 0;
@@ -444,6 +532,7 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                 const info = previews[s.id];
                 const ativo = servicoSelecionado?.id === s.id;
                 const cabe = info?.cabe;
+                const conflito = !cabe && info?.conflitoCom;
 
                 return (
                   <button
@@ -505,8 +594,32 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                     {ativo && cabe && (
                       <MdCheckCircle size={20} color="#16a34a" style={{ flexShrink: 0 }} />
                     )}
-                    {!cabe && (
+                    {!cabe && !conflito && (
                       <MdWarning size={18} color="#c62828" style={{ flexShrink: 0 }} />
+                    )}
+                    {!cabe && conflito && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConflitoAberto(info.conflitoCom);
+                        }}
+                        style={{
+                          fontFamily: "'Cinzel', serif",
+                          background: '#fff8e1',
+                          color: '#92400e',
+                          border: '1px solid #fcd34d',
+                          padding: '4px 10px',
+                          borderRadius: 10,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                      >
+                        VER CONFLITO
+                      </button>
                     )}
                   </button>
                 );
@@ -617,9 +730,7 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* 2º PASSO — Tempo livre + serviços que cabem                  */}
-      {/* ============================================================ */}
+      {/* 2º PASSO — Tempo livre + serviços que cabem */}
       {passoSobrou && (
         <div
           onClick={enviando ? undefined : () => setPassoSobrou(null)}
@@ -652,7 +763,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
               position: 'relative',
             }}
           >
-            {/* Botão X */}
             <button
               type="button"
               onClick={() => setPassoSobrou(null)}
@@ -673,16 +783,7 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#888',
-                transition: 'all 0.2s ease',
                 opacity: enviando ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(198, 40, 40, 0.08)';
-                e.currentTarget.style.color = '#c62828';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#888';
               }}
             >
               <MdClose size={20} />
@@ -731,7 +832,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-              {/* BLOCO CADASTRADO */}
               <div style={{
                 background: '#faf5ff',
                 border: '1px solid #e2d2f5',
@@ -763,7 +863,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                 </div>
               </div>
 
-              {/* ATENDIMENTO RESERVADO */}
               <div style={{
                 background: '#f0fdf4',
                 border: '1px solid #86efac',
@@ -795,7 +894,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                 </div>
               </div>
 
-              {/* ✅ TEMPO LIVRE + SERVIÇOS QUE CABEM */}
               <div style={{
                 background: '#fff8e1',
                 border: '1.5px solid #fcd34d',
@@ -835,7 +933,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                           padding: '10px 12px',
                         }}
                       >
-                        {/* Header do slot */}
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -868,7 +965,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                           </span>
                         </div>
 
-                        {/* Serviços que cabem */}
                         {servs.length === 0 ? (
                           <div style={{
                             fontSize: 11,
@@ -951,7 +1047,6 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
                 </div>
               </div>
 
-              {/* SE NÃO LIBERAR */}
               <div style={{
                 background: 'rgba(215, 206, 224, 0.3)',
                 border: '1px dashed #c4b5d4',
@@ -1032,6 +1127,32 @@ const salvarConfirmacao = async ({ liberarSobra }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Mini-modal de conflito */}
+      {conflitoAberto && servicoSelecionado && (
+        <ModalConflitoServico
+          conflito={conflitoAberto}
+          servicoNome={servicoSelecionado.nome}
+          servicoDuracao={servicoSelecionado.duracaoMin}
+          inicioServico={agendamento.horaInicio}
+          fimServico={previews[servicoSelecionado.id]?.novaFim}
+          onCancelar={handleConflitoCancelar}
+          onReagendar={handleConflitoReagendar}
+          onVoltar={() => setConflitoAberto(null)}
+        />
+      )}
+
+      {/* Reagendar paciente impactado */}
+      {pacienteReagendar && (
+        <ModalAgendarParaPaciente
+          paciente={pacienteReagendar}
+          uidEsteticista={uidEsteticista}
+          origem="esteticista"
+          tipoNotificacao="remarcado"
+          onFechar={() => setPacienteReagendar(null)}
+          onSucesso={handleReagendamentoSucesso}
+        />
       )}
     </div>
   );

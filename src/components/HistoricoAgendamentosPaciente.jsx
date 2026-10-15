@@ -222,6 +222,9 @@ const tdEstilo = {
 function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
   const [processando, setProcessando] = useState(false);
 
+  const isNativo = typeof window !== 'undefined' &&
+    (window.Capacitor?.isNativePlatform?.() ?? false);
+
   const handleBaixar = async () => {
     setProcessando(true);
     try {
@@ -233,6 +236,11 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
     } finally {
       setProcessando(false);
     }
+  };
+
+  // ✅ Web/PWA: abre o PDF numa nova aba
+  const handleAbrir = () => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -256,10 +264,9 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#fff',
-          borderRadius: 16,
+          borderRadius: 20,
           width: '100%',
-          maxWidth: 820,
-          height: '92vh',
+          maxWidth: 480,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -277,10 +284,9 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 10,
-            flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <MdPictureAsPdf size={20} color="#7e22ce" />
             <h3
               style={{
@@ -290,7 +296,7 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
                 margin: 0,
               }}
             >
-              Pré-visualizar PDF
+              PDF pronto
             </h3>
           </div>
           <button
@@ -312,76 +318,114 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
           </button>
         </div>
 
-        {/* Preview — iframe em web, mensagem em APK */}
+        {/* Corpo */}
         <div
           style={{
-            flex: 1,
-            background: '#f3eef8',
-            position: 'relative',
-            minHeight: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            padding: '28px 24px',
+            textAlign: 'center',
+            fontFamily: "'Montserrat', sans-serif",
+            background: '#faf5ff',
           }}
         >
-          {typeof window !== 'undefined' &&
-          (window.Capacitor?.isNativePlatform?.() ?? false) ? (
+          <MdPictureAsPdf
+            size={64}
+            color="#7e22ce"
+            style={{ marginBottom: 14 }}
+          />
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#2c163a',
+              marginBottom: 6,
+              fontFamily: "'Cinzel', serif",
+            }}
+          >
+            Seu PDF está pronto
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: '#666',
+              lineHeight: 1.6,
+              marginBottom: 4,
+            }}
+          >
+            {nomeArquivo}
+          </div>
+
+          {isNativo ? (
             <div
               style={{
-                padding: 30,
-                textAlign: 'center',
-                color: '#666',
-                fontFamily: "'Montserrat', sans-serif",
-                fontSize: 13,
+                marginTop: 12,
+                fontSize: 11.5,
+                color: '#7e22ce',
                 lineHeight: 1.6,
+                background: '#f3e8ff',
+                borderRadius: 10,
+                padding: '10px 14px',
               }}
             >
-              <MdPictureAsPdf
-                size={56}
-                color="#7e22ce"
-                style={{ marginBottom: 12 }}
-              />
-              <div
-                style={{
-                  fontWeight: 700,
-                  color: '#2c163a',
-                  marginBottom: 6,
-                  fontFamily: "'Cinzel', serif",
-                }}
-              >
-                PDF pronto!
-              </div>
-              <div style={{ fontSize: 12 }}>
-                Toque em <strong>Baixar</strong> abaixo para salvar o PDF.
-              </div>
+              Toque em <strong>SALVAR / COMPARTILHAR</strong> abaixo
+              para abrir o menu do Android e escolher onde salvar ou enviar.
             </div>
           ) : (
-            <iframe
-              src={url}
-              title="Pré-visualização do PDF"
+            <div
               style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                background: '#fff',
+                marginTop: 12,
+                fontSize: 11.5,
+                color: '#7e22ce',
+                lineHeight: 1.6,
+                background: '#f3e8ff',
+                borderRadius: 10,
+                padding: '10px 14px',
               }}
-            />
+            >
+              Toque em <strong>ABRIR PDF</strong> para ver,
+              ou em <strong>BAIXAR</strong> para salvar no seu aparelho.
+            </div>
           )}
         </div>
 
-        {/* Rodapé com botão único */}
+        {/* Rodapé com botões */}
         <div
           style={{
-            padding: '12px 18px',
+            padding: '14px 18px',
             borderTop: '1.5px solid #e2d2f5',
             background: '#fafafc',
             display: 'flex',
             gap: 10,
             justifyContent: 'center',
             flexWrap: 'wrap',
-            flexShrink: 0,
           }}
         >
+          {!isNativo && (
+            <button
+              type="button"
+              onClick={handleAbrir}
+              disabled={processando}
+              style={{
+                fontFamily: "'Cinzel', serif",
+                background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+                color: '#fff',
+                border: '1.5px solid #6b21a8',
+                padding: '10px 20px',
+                borderRadius: 20,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: processando ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                minHeight: 42,
+                opacity: processando ? 0.6 : 1,
+              }}
+            >
+              <MdPictureAsPdf size={15} />
+              ABRIR PDF
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleBaixar}
@@ -395,7 +439,7 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
               border: '1.5px solid #9c7826',
               padding: '10px 20px',
               borderRadius: 20,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 700,
               cursor: processando ? 'wait' : 'pointer',
               display: 'inline-flex',
@@ -405,7 +449,11 @@ function ModalPreviewPDF({ url, blob, nomeArquivo, onFechar }) {
             }}
           >
             <MdDownload size={16} />
-            {processando ? 'PROCESSANDO…' : 'BAIXAR'}
+            {processando
+              ? 'PROCESSANDO…'
+              : isNativo
+                ? 'SALVAR / COMPARTILHAR'
+                : 'BAIXAR'}
           </button>
         </div>
       </div>
