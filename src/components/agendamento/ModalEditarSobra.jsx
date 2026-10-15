@@ -90,18 +90,34 @@ export default function ModalEditarSobra({
     const fimAtendimento = agendamento.horaFim || agendamento.horaInicio;
     const fimAtMin = toMin(fimAtendimento);
 
-    const bloco = acharBlocoDoDia(config, agendamento.data, agendamento.horaInicio);
-    const fimBlocoMin = bloco ? toMin(bloco.fim) : fimAtMin + 60;
+   const bloco = acharBlocoDoDia(config, agendamento.data, agendamento.horaInicio);
+const fimBlocoMin = bloco ? toMin(bloco.fim) : fimAtMin + 60;
+const inicioBlocoMin = bloco ? toMin(bloco.inicio) : fimAtMin;
+const duracaoBloco = bloco?.duracaoMin || 60;
 
-    // Encontra o próximo agendamento após o fim deste
-    const proximo = agendamentosDoDia
-      .filter((a) => a.id !== agendamento.id)
-      .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
-      .map((a) => toMin(a.horaInicio))
-      .filter((min) => min >= fimAtMin)
-      .sort((a, b) => a - b)[0];
+// ✅ Alinha o fim da sobra ao próximo slot do bloco
+//    Ex: bloco 09:00-12:00 com 60min.
+//        Agendamento 09:00-09:08 → sobra até 10:00 (não até 12:00)
+const offsetDoSlot = (fimAtMin - inicioBlocoMin) % duracaoBloco;
+const fimSlotAlinhado = fimAtMin + (duracaoBloco - offsetDoSlot);
 
-    const limiteFimMin = proximo != null ? Math.min(proximo, fimBlocoMin) : fimBlocoMin;
+// Encontra o próximo agendamento após o fim deste
+const proximo = agendamentosDoDia
+  .filter((a) => a.id !== agendamento.id)
+  .filter((a) => a.status === 'pendente' || a.status === 'confirmado')
+  .map((a) => toMin(a.horaInicio))
+  .filter((min) => min >= fimAtMin)
+  .sort((a, b) => a - b)[0];
+
+// ✅ Fim da sobra = o MENOR dos três:
+//    1. Próximo agendamento
+//    2. Fim do slot alinhado (não invade o próximo slot do bloco)
+//    3. Fim do bloco (não ultrapassa o bloco)
+const limiteFimMin = Math.min(
+  proximo ?? Infinity,
+  fimSlotAlinhado,
+  fimBlocoMin
+);
 
     const inicioSobra = toHHMM(fimAtMin);
     const fimSobra = toHHMM(limiteFimMin);
