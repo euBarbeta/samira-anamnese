@@ -12,7 +12,7 @@ import React, { useState, useEffect } from 'react';
  *  - altura: number (padrão 220)
  *  - animar: boolean (padrão true). Use FALSE dentro do PDF.
  *  - onClickMes: (mes: string) => void  (opcional — clicar numa barra)
- *  - mesSelecionado: string (opcional — destaca a barra desse mês)
+ *  - mesSelecionado: string (opcional — destaca a label do mês)
  */
 export function GraficoBarras({
   dados = [],
@@ -89,7 +89,7 @@ export function GraficoBarras({
       <style>{`
         .gb-barra-grupo {
           transition: opacity 0.2s ease;
-          cursor: ${clicavel || animar ? 'pointer' : 'default'};
+          cursor: ${clicavel ? 'pointer' : (animar ? 'default' : 'default')};
         }
         .gb-barra-grupo.dim {
           opacity: 0.35;
@@ -101,14 +101,17 @@ export function GraficoBarras({
         .gb-barra-grupo:hover rect {
           filter: ${animar || clicavel ? 'brightness(1.08) drop-shadow(0 3px 6px rgba(0,0,0,0.15))' : 'none'};
         }
-        .gb-barra-grupo.selecionada rect {
-          stroke: #7e22ce;
-          stroke-width: 2;
-        }
         .gb-tooltip {
           opacity: 0;
           transition: opacity 0.18s ease, transform 0.18s ease;
           pointer-events: none;
+        }
+        .gb-hint {
+          font-family: 'Montserrat', sans-serif;
+          font-size: 10px;
+          color: #b0a8b8;
+          font-weight: 500;
+          letter-spacing: 0.2px;
         }
       `}</style>
 
@@ -174,20 +177,19 @@ export function GraficoBarras({
             const temHover = mesHover !== null;
             const ehSelecionado = mesSelecionado === d.mes;
 
-            // ✅ Zona clicável "invisível" cobre toda a coluna (barra + label)
+            // ✅ Zona clicável "invisível" cobre toda a coluna
             const xZona = x0 - espacoPorMes / 2;
             const larguraZona = espacoPorMes;
 
             return (
               <g
                 key={d.mes || i}
-                className={`gb-barra-grupo${temHover && !ehHover ? ' dim' : ''}${ehSelecionado ? ' selecionada' : ''}`}
+                className={`gb-barra-grupo${temHover && !ehHover ? ' dim' : ''}`}
                 onMouseEnter={animar || clicavel ? () => setMesHover(d.mes) : undefined}
                 onMouseLeave={animar || clicavel ? () => setMesHover(null) : undefined}
                 onClick={clicavel ? () => onClickMes(d.mes) : undefined}
-                style={{ cursor: clicavel ? 'pointer' : 'default' }}
               >
-                {/* ✅ Zona clicável invisível — cobre toda a coluna */}
+                {/* ✅ Zona clicável invisível — SEM stroke, SEM contorno */}
                 {clicavel && (
                   <rect
                     x={xZona}
@@ -195,6 +197,7 @@ export function GraficoBarras({
                     width={larguraZona}
                     height={alturaGrafico + 60}
                     fill="transparent"
+                    stroke="none"
                     style={{ pointerEvents: 'all' }}
                   />
                 )}
@@ -206,6 +209,7 @@ export function GraficoBarras({
                   height={Math.max(hReceita, 0)}
                   fill="url(#gradReceita)"
                   rx="3"
+                  stroke="none"
                   style={{ transition: animar ? 'filter 0.2s ease' : 'none', pointerEvents: 'none' }}
                 />
                 <rect
@@ -215,6 +219,7 @@ export function GraficoBarras({
                   height={Math.max(hDespesa, 0)}
                   fill="url(#gradDespesa)"
                   rx="3"
+                  stroke="none"
                   style={{ transition: animar ? 'filter 0.2s ease' : 'none', pointerEvents: 'none' }}
                 />
 
@@ -252,6 +257,7 @@ export function GraficoBarras({
                   </text>
                 </g>
 
+                {/* ✅ Label do mês — só aqui tem destaque roxo no selecionado */}
                 <text
                   x={x0}
                   y={padding.top + alturaGrafico + 16}
@@ -260,7 +266,10 @@ export function GraficoBarras({
                   fill={ehHover || ehSelecionado ? '#7e22ce' : '#666'}
                   fontFamily="Montserrat, sans-serif"
                   fontWeight={ehHover || ehSelecionado ? 800 : 600}
-                  style={{ transition: animar ? 'fill 0.2s ease, font-weight 0.2s ease' : 'none', pointerEvents: 'none' }}
+                  style={{
+                    transition: animar ? 'fill 0.2s ease, font-weight 0.2s ease' : 'none',
+                    pointerEvents: 'none',
+                  }}
                 >
                   {labelMes}
                 </text>
@@ -294,6 +303,7 @@ export function GraficoBarras({
         </defs>
       </svg>
 
+      {/* ✅ Legenda + hint SUTIL */}
       <div style={{
         display: 'flex',
         justifyContent: 'center',
@@ -303,6 +313,8 @@ export function GraficoBarras({
         color: '#666',
         fontFamily: "'Montserrat', sans-serif",
         fontWeight: 600,
+        flexWrap: 'wrap',
+        alignItems: 'center',
       }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{
@@ -324,16 +336,11 @@ export function GraficoBarras({
           }} />
           Despesas
         </span>
+
+        {/* ✅ Hint sutil em vez do aviso com emoji */}
         {clicavel && (
-          <span style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontStyle: 'italic',
-            color: '#7e22ce',
-            fontWeight: 700,
-          }}>
-            💡 clique numa barra pra ver o mês
+          <span className="gb-hint">
+            · toque em um mês para detalhar
           </span>
         )}
       </div>
@@ -343,10 +350,7 @@ export function GraficoBarras({
 
 /* ============================================================
    🥧 GRÁFICO DE PIZZA — animado + interativo
-   Props:
-     - dados: [{ nome: 'Limpeza de pele', valor: 3600 }, ...]
-     - tamanho: number (padrão 220)
-     - animar: boolean (padrão true). Use FALSE dentro do PDF.
+   (sem alterações)
    ============================================================ */
 const CORES_PIZZA = [
   '#a855f7',
