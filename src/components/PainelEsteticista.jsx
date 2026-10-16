@@ -860,11 +860,67 @@ export default function PainelEsteticista({ onLogout }) {
     }
   };
 
-  const handleAtualizarAnamnese = async (dadosAtualizados) => {
-    // ⚖️ LGPD — Se o paciente estava ARQUIVADO, reativar
-    if (pacienteSelecionado?.anonimizadoEm) {
+   const handleAtualizarAnamnese = async (dadosAtualizados) => {
+    // ⚖️ LGPD — Verifica se o paciente estava ARQUIVADO
+    const estavaArquivado = Boolean(pacienteSelecionado?.anonimizadoEm);
+
+    if (estavaArquivado) {
       const userEst = auth.currentUser;
       if (userEst) {
+        // ============================================================
+        // 1) Recria a conta do Firebase Auth do paciente
+        //    (a conta original pode ter sido DELETADA quando ele excluiu a conta)
+        // ============================================================
+        const nomeOriginal = dadosAtualizados.nome ? dadosAtualizados.nome.trim() : '';
+        const partes = nomeOriginal.split(/\s+/);
+        const pNome = (partes[0] || 'usuario')
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const sNome = (partes[partes.length - 1] || 'paciente')
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const emailFicticio = `${pNome}.${sNome}@sistema.local`;
+
+        const docLimpo = extrairDocumento(dadosAtualizados).replace(/\D/g, '');
+        const senhaFicticia = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456')
+          .padEnd(6, '0');
+
+        try {
+          // Tenta criar de novo
+          await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
+          await signOut(secondaryAuth);
+        } catch (authErr) {
+          // Se já existe, tenta logar em silêncio (só pra validar que ainda funciona)
+          if (authErr.code === 'auth/email-already-in-use') {
+            try {
+              await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
+              await signOut(secondaryAuth);
+            } catch (e) {
+              console.warn('Conta Auth existe, mas senha mudou:', e);
+            }
+          } else {
+            console.warn('Erro ao recriar conta Auth:', authErr);
+          }
+        }
+
+        // ============================================================
+        // 2) Reconstrói o mapeamento de email → (uid, pacienteId)
+        // ============================================================
+        try {
+          await setDoc(
+            doc(db, 'mapeamento_emails', emailFicticio),
+            {
+              profissionalUid: userEst.uid,
+              pacienteId: pacienteSelecionado.id,
+              atualizadoEm: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.warn('Falha ao recriar mapeamento de email:', e);
+        }
+
+        // ============================================================
+        // 3) Reativa no Firestore (remove anonimizadoEm, atualiza dados)
+        // ============================================================
         await reativarPorEdicao({
           pacienteId: pacienteSelecionado.id,
           uidEsteticista: userEst.uid,
@@ -900,9 +956,17 @@ export default function PainelEsteticista({ onLogout }) {
           emailContato: dadosAtualizados.emailContato || p.emailContato || '',
           dataUltimaEdicao: dataHoraFormatada,
           anamnese: dadosAtualizados,
+          // 🔧 Remove marcadores de anonimização (o state local reflete isso NA HORA)
+          ...(estavaArquivado ? {
+            anonimizadoEm: null,
+            anonimizadoPor: null,
+            reativadoEm: new Date().toISOString(),
+          } : {}),
         };
+
         return pacienteAtualizadoSalvar;
       }
+
       return p;
     }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
 
