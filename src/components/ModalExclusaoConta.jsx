@@ -104,13 +104,32 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
       // ============================================================
       // ⚖️ 4) REMOVE O USUÁRIO DO FIREBASE AUTH (por último)
       // ============================================================
-      try {
-        if (auth.currentUser) {
-          await auth.currentUser.delete();
-        }
-      } catch (e) {
-        console.warn('Erro ao excluir usuário do Auth:', e);
-      }
+     // ============================================================
+// ⚖️ 4) REMOVE O USUÁRIO DO FIREBASE AUTH (por último)
+// ------------------------------------------------------------
+// ⚠️ O Firebase exige uma sessão MUITO RECENTE pra deletar a conta.
+//    Se passou tempo demais desde o re-login (anonimização, fetch
+//    de notificação, etc), o delete falha com "Missing or
+//    insufficient permissions".
+//
+//    Solução: re-autenticar IMEDIATAMENTE antes de deletar.
+// ============================================================
+try {
+  if (auth.currentUser) {
+    // ✅ Re-autentica com a senha pra garantir sessão fresca
+    await signInWithEmailAndPassword(auth, emailPaciente, senha);
+    // ✅ Agora deleta
+    await auth.currentUser.delete();
+  }
+} catch (e) {
+  console.warn('Erro ao excluir usuário do Auth:', e);
+
+  // Se falhar mesmo assim, ao menos desloga o usuário
+  try {
+    const { signOut } = await import('firebase/auth');
+    await signOut(auth);
+  } catch {}
+}
 
       onExcluido?.();
     } catch (err) {
