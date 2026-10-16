@@ -1,21 +1,26 @@
+// src/components/ModalExclusaoConta.jsx
 import React, { useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdWarning, MdDelete } from 'react-icons/md';
+import { MdWarning, MdDelete, MdInfoOutline } from 'react-icons/md';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from './firebase';  // ⬅️ importa a instância pronta
-
+import { auth } from './firebase';
 import {
-  doc, getDoc, getDocs, deleteDoc, collection, setDoc,
+  doc, getDoc, getDocs, deleteDoc, collection,
+  query, where, updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { anonimizarPaciente } from '../utils/lgpdExclusao';
 
 /**
  * Modal de exclusão da conta do paciente.
  *
- * Props:
- *  - pacienteData: dados do paciente (precisa ter id, emailAcesso, criadoPorUid)
- *  - onFechar: () => void
- *  - onExcluido: () => void   // callback após exclusão bem-sucedida
+ * ⚖️ LGPD + Lei 13.787/2018:
+ *  - Dados de CONTATO (nome, telefone, email, endereço) → anonimizados
+ *  - Dados de SAÚDE (anamnese, evoluções, fotos) → MANTIDOS por 20 anos
+ *  - Agendamentos → anonimizados (mantidos para histórico da esteta)
+ *  - Conta de acesso (Auth) → deletada
+ *
+ * ✅ Refatorado: usa o helper `anonimizarPaciente()` (fonte única de verdade)
  */
 export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido }) {
   const [senha, setSenha] = useState('');
@@ -38,7 +43,6 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
     }
 
     setExcluindo(true);
-   
 
     try {
       const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;
@@ -53,82 +57,61 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
       const uidEsteticista = pacienteData.criadoPorUid;
 
       if (uidEsteticista && pacienteId) {
-        // 2) Apaga TODAS as fotos da subcoleção
-        const fotosRef = collection(
-          db,
-          `usuarios/${uidEsteticista}/pacientes/${pacienteId}/fotos`
-        );
-        try {
-          const fotosSnap = await getDocs(fotosRef);
-          const deletes = fotosSnap.docs.map((d) => deleteDoc(d.ref));
-          await Promise.all(deletes);
-        } catch (e) {
-          console.warn('Erro ao excluir fotos (pode não ter permissão):', e);
-          // segue mesmo assim — tenta apagar o resto
-        }
+        // ============================================================
+        // ⚖️ 1) ANONIMIZAR PACIENTE (helper central)
+        //    - Anonimiza dados de contato (nome, telefone, email, endereço)
+        //    - Anonimiza TODOS os agendamentos do paciente
+        //    - Desativa o link de acesso
+        //    - Apaga mapeamento de email
+        //    - MANTÉM anamnese, evoluções e fotos (obrigação legal)
+        //    - Guarda nomeOriginal pra reativação futura
+        // ============================================================
+        await anonimizarPaciente({
+          pacienteId,
+          uidEsteticista,
+          motivo: 'paciente-solicitou',
+        });
 
-        // 3) Apaga o documento principal do paciente
-        try {
-          await deleteDoc(
-            doc(db, `usuarios/${uidEsteticista}/pacientes`, String(pacienteId))
-          );
-        } catch (e) {
-          console.warn('Erro ao excluir doc do paciente:', e);
-          throw e;
-        }
+        // ============================================================
+        // ⚖️ 2) ANONIMIZAR DADOS DE SEGURANÇA
+        //    (seguranca_estado e dispositivos_autorizados)
+        // ============================================================
+        await anonimizarDadosSeguranca(pacienteId);
 
-        // 4) Invalida o link do paciente (apaga links_pacientes)
+        // ============================================================
+        // ⚖️ 3) NOTIFICAR A ESTETICISTA
+        // ============================================================
         try {
-          await deleteDoc(doc(db, 'links_pacientes', String(pacienteId)));
+          await Promise.race([
+            fetch('/.netlify/functions/notificar-conta-excluida', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                uidEsteticista,
+                pacienteId,
+                pacienteNome: pacienteData?.nome || 'Paciente',
+              }),
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Timeout')), 5000)
+            ),
+          ]);
         } catch (e) {
-          console.warn('Erro ao apagar links_pacientes:', e);
+          console.warn('Falha ao notificar exclusão:', e);
         }
-
-        // 5) Apaga o mapeamento de e-mail
-        try {
-          const mapRef = doc(db, 'mapeamento_emails', emailPaciente.toLowerCase());
-          const mapSnap = await getDoc(mapRef);
-          if (mapSnap.exists()) {
-            await deleteDoc(mapRef);
-          }
-        } catch (e) {
-          console.warn('Erro ao excluir mapeamento (pode não ter permissão):', e);
-        }
-
-      // 6) Notifica a esteticista que o paciente excluiu a conta.
-//    ✅ await + timeout pra garantir que a requisição termine
-//    ANTES de o auth.currentUser.delete() derrubar a sessão.
-try {
-  await Promise.race([
-    fetch('/.netlify/functions/notificar-conta-excluida', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uidEsteticista,
-        pacienteId,
-        pacienteNome: pacienteData?.nome || 'Paciente',
-      }),
-    }),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout ao notificar exclusão')), 5000)
-    ),
-  ]);
-} catch (e) {
-  console.warn('Falha ao notificar exclusão (não bloqueia):', e);
-}
       }
 
-      // 7) Remove o usuário do Firebase Auth (por último — perde a sessão)
+      // ============================================================
+      // ⚖️ 4) REMOVE O USUÁRIO DO FIREBASE AUTH (por último)
+      // ============================================================
       try {
         if (auth.currentUser) {
           await auth.currentUser.delete();
         }
       } catch (e) {
         console.warn('Erro ao excluir usuário do Auth:', e);
-        // Mesmo que falhe, os dados do Firestore já foram apagados
       }
 
-      // 8) Sucesso → dispara callback
       onExcluido?.();
     } catch (err) {
       console.error('Erro ao excluir conta:', err);
@@ -149,6 +132,7 @@ try {
   };
 
   return (
+    // ... (todo o JSX permanece IGUAL — nenhuma mudança visual)
     <div
       onClick={excluindo ? undefined : onFechar}
       style={{
@@ -165,7 +149,7 @@ try {
           background: '#fff',
           borderRadius: '20px',
           padding: '28px 24px 24px 24px',
-          maxWidth: '440px',
+          maxWidth: '460px',
           width: '100%',
           maxHeight: '90vh',
           overflowY: 'auto',
@@ -204,25 +188,27 @@ try {
           lineHeight: 1.6,
           margin: '0 0 14px 0',
         }}>
-          Esta ação <strong>é permanente</strong> e irá apagar:
+          Esta ação é permanente e irá <strong>anonimizar</strong> seus dados de contato.
         </p>
 
         <div style={{
-          background: '#fde8e8',
-          border: '1px solid #f98080',
+          background: '#fff8e1',
+          border: '1px solid #fcd34d',
           borderRadius: '10px',
           padding: '12px 16px',
           textAlign: 'left',
           fontSize: '12px',
-          color: '#7f1d1d',
+          color: '#92400e',
           lineHeight: 1.7,
           marginBottom: '18px',
         }}>
-          ❌ Todos os seus dados pessoais<br />
-          ❌ Sua ficha de anamnese completa<br />
-          ❌ Todas as fotos da galeria<br />
-          ❌ Todas as evoluções registradas<br />
-          ❌ Sua conta de acesso ao sistema
+          <strong>⚖️ Importante (LGPD + Lei 13.787/2018):</strong>
+          <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px' }}>
+            <li>Seus <strong>dados de contato</strong> (nome, telefone, e-mail, endereço) serão anonimizados;</li>
+            <li>Seu <strong>prontuário de saúde</strong> (anamnese, evoluções, fotos clínicas) será mantido por <strong>20 anos</strong> por obrigação legal;</li>
+            <li>Seus <strong>agendamentos</strong> serão anonimizados, mas mantidos no histórico da profissional;</li>
+            <li>Sua <strong>conta de acesso</strong> será excluída.</li>
+          </ul>
         </div>
 
         <p style={{
@@ -233,7 +219,6 @@ try {
           Digite sua senha e <strong>EXCLUIR</strong> para confirmar:
         </p>
 
-        {/* Campo de senha */}
         <div style={{
           display: 'flex', alignItems: 'center',
           border: '1.5px solid #ccc', borderRadius: '10px',
@@ -268,7 +253,6 @@ try {
           </button>
         </div>
 
-        {/* Campo de confirmação de texto */}
         <input
           type="text"
           placeholder="Digite EXCLUIR para confirmar"
@@ -375,4 +359,55 @@ try {
       </div>
     </div>
   );
+}
+
+/* ============================================================
+   HELPER — anonimiza dados de segurança (seguranca_estado + dispositivos)
+   ------------------------------------------------------------
+   ⚠️ As rules bloqueiam DELETE em dispositivos_autorizados.
+   Por isso só podemos ANONIMIZAR (updateDoc), não deletar.
+   ============================================================ */
+async function anonimizarDadosSeguranca(pacienteId) {
+  const pid = String(pacienteId);
+  const agora = new Date().toISOString();
+
+  // 1) seguranca_estado — apaga localização e marca como anonimizado
+  try {
+    const segRef = doc(db, 'seguranca_estado', pid);
+    const segSnap = await getDoc(segRef);
+    if (segSnap.exists()) {
+      await updateDoc(segRef, {
+        localizacaoStatus: 'anonimizada',
+        lat: null,
+        lng: null,
+        cidade: null,
+        pais: null,
+        anonimizadoEm: agora,
+      });
+    }
+  } catch (e) {
+    console.warn('Falha ao anonimizar seguranca_estado:', e);
+  }
+
+  // 2) dispositivos_autorizados — marca como anonimizado (NÃO deleta)
+  try {
+    const devSnap = await getDocs(
+      query(
+        collection(db, 'dispositivos_autorizados'),
+        where('pacienteId', '==', pid)
+      )
+    );
+    for (const d of devSnap.docs) {
+      try {
+        await updateDoc(d.ref, {
+          autorizado: false,
+          anonimizadoEm: agora,
+        });
+      } catch (e) {
+        console.warn('Falha ao anonimizar dispositivo:', d.id, e);
+      }
+    }
+  } catch (e) {
+    console.warn('Falha ao anonimizar dispositivos:', e);
+  }
 }

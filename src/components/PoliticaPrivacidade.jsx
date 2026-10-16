@@ -80,9 +80,12 @@ export default function PoliticaPrivacidade({ onFechar }) {
           }}
         >
           <p style={{ fontSize: '11px', color: '#888', marginTop: 0 }}>
-            Última atualização: Setembro de 2026 · Versão 1.0
+            Última atualização: Outubro de 2026 · Versão 2.0
           </p>
 
+          {/* ============================================================ */}
+          {/* 1. RESPONSÁVEL                                                 */}
+          {/* ============================================================ */}
           <h3 style={subTitulo}>1. Quem é o responsável pelos seus dados</h3>
           <p style={paragrafo}>
             <strong>Samira Ferreira Estética & Cosmetologia</strong><br />
@@ -90,6 +93,9 @@ export default function PoliticaPrivacidade({ onFechar }) {
             E-mail de contato: <strong>contatomiguelbtech@gmail.com</strong>
           </p>
 
+          {/* ============================================================ */}
+          {/* 2. DADOS COLETADOS                                             */}
+          {/* ============================================================ */}
           <h3 style={subTitulo}>2. Quais dados coletamos</h3>
           <p style={paragrafo}>Para prestar os serviços de estética e cosmetologia, coletamos os seguintes dados:</p>
           <ul style={lista}>
@@ -99,6 +105,9 @@ export default function PoliticaPrivacidade({ onFechar }) {
             <li><strong>Registros de evolução:</strong> anotações dos procedimentos realizados.</li>
           </ul>
 
+          {/* ============================================================ */}
+          {/* 3. FINALIDADE                                                  */}
+          {/* ============================================================ */}
           <h3 style={subTitulo}>3. Para que usamos seus dados</h3>
           <ul style={lista}>
             <li>Realizar os procedimentos estéticos com segurança e personalização.</li>
@@ -107,6 +116,9 @@ export default function PoliticaPrivacidade({ onFechar }) {
             <li>Cumprir obrigações legais e regulatórias.</li>
           </ul>
 
+          {/* ============================================================ */}
+          {/* 4. BASE LEGAL                                                  */}
+          {/* ============================================================ */}
           <h3 style={subTitulo}>4. Base legal do tratamento</h3>
           <p style={paragrafo}>
             O tratamento dos seus dados é realizado com base no seu <strong>consentimento livre, informado e inequívoco</strong>,
@@ -114,6 +126,9 @@ export default function PoliticaPrivacidade({ onFechar }) {
             de dados sensíveis de saúde.
           </p>
 
+          {/* ============================================================ */}
+          {/* 5. COMPARTILHAMENTO                                            */}
+          {/* ============================================================ */}
           <h3 style={subTitulo}>5. Com quem compartilhamos</h3>
           <p style={paragrafo}>
             Seus dados <strong>não são vendidos nem compartilhados com terceiros</strong> para fins comerciais.
@@ -125,56 +140,125 @@ export default function PoliticaPrivacidade({ onFechar }) {
             <li><strong>Netlify</strong> (hospedagem do sistema).</li>
           </ul>
 
-          <h3 style={subTitulo}>6. Por quanto tempo guardamos</h3>
+          {/* ============================================================ */}
+          {/* 6. REGISTRO DE SEGURANÇA (era 5.1, agora é 6)                  */}
+          {/* ============================================================ */}
+          <h3 style={subTitulo}>6. Registro de segurança no login</h3>
           <p style={paragrafo}>
-            Seus dados são mantidos enquanto durar o relacionamento e pelos prazos legais aplicáveis
-            (mínimo de 5 anos para fins de defesa em eventuais processos, conforme legislação civil).
-            Você pode solicitar a exclusão a qualquer momento.
+            Para proteger sua conta contra acessos não autorizados, registramos
+            automaticamente:
+          </p>
+          <ul style={lista}>
+            <li><strong>Data e hora</strong> de cada login (sucesso ou falha);</li>
+            <li><strong>Identificação do dispositivo</strong> (navegador + sistema operacional + características técnicas);</li>
+            <li><strong>Localização aproximada (cidade)</strong> — <strong>somente se você autorizar</strong>;</li>
+            <li><strong>Tentativas de login falhas</strong> para detectar ataques.</li>
+          </ul>
+          <p style={paragrafo}>
+            <strong>A localização é opcional e separada</strong> do consentimento geral.
+            Você pode recusar sem prejuízo ao uso do app. A profissional responsável verá
+            o status "não compartilhada" e continuará te atendendo normalmente.
+          </p>
+          <p style={paragrafo}>
+            <strong>Não rastreamos em tempo real.</strong> A localização é capturada
+            apenas no momento do login e armazenada como cidade aproximada.
           </p>
 
-          <h3 style={subTitulo}>7. Seus direitos como titular</h3>
+          {/* ============================================================ */}
+          {/* 7. PRAZO — 20 ANOS (era 6, agora é 7)                          */}
+          {/* ============================================================ */}
+          <h3 style={subTitulo}>7. Por quanto tempo guardamos seus dados</h3>
+
+          <p style={paragrafo}>
+            <strong>⚖️ Prontuário de saúde</strong> (anamnese, evoluções, fotos clínicas):
+            mantido por <strong>no mínimo 20 (vinte) anos</strong> a contar do último registro,
+            conforme <strong>Lei nº 13.787/2018, art. 6º</strong> e{' '}
+            <strong>Resolução CFM nº 1.821/2007</strong>. Esse prazo é uma{' '}
+            <strong>obrigação legal do controlador</strong> e, por isso, a LGPD permite
+            expressamente a conservação dos dados mesmo após solicitação de exclusão
+            (Art. 16, I da LGPD).
+          </p>
+
+          <p style={paragrafo}>
+            <strong>⚖️ Dados de contato</strong> (nome, telefone, e-mail, endereço):
+            anonimizados imediatamente após a solicitação de exclusão. Não são mais
+            utilizados para nenhuma finalidade.
+          </p>
+
+          <p style={paragrafo}>
+            <strong>⚖️ Agendamentos</strong>: mantidos para fins de histórico e
+            exercício regular de direitos, com dados de identificação anonimizados.
+          </p>
+
+          <p style={paragrafo}>
+            <strong>⚖️ Conta de acesso</strong>: excluída imediatamente.
+          </p>
+
+          <p style={paragrafo}>
+            <strong>Portanto:</strong> ao solicitar a exclusão da sua conta, seus dados
+            de <strong>saúde serão mantidos por 20 anos</strong> por imposição legal,
+            mas <strong>anonimizados</strong> e sem qualquer uso para novas finalidades.
+            Você pode solicitar a devolução do seu prontuário a qualquer momento.
+          </p>
+
+          <div style={{
+            background: '#f0fdf4',
+            border: '1.5px solid #86efac',
+            borderRadius: '10px',
+            padding: '12px 16px',
+            marginTop: '12px',
+            fontSize: '12px',
+            color: '#166534',
+            lineHeight: 1.6,
+          }}>
+            <strong>ℹ️ E se você voltar?</strong>
+            <br />
+            Se você decidir voltar a ser atendido(a) pela profissional no futuro,
+            o histórico do seu prontuário voltará automaticamente a ficar visível
+            para ela — o que garante continuidade no seu acompanhamento. Seus dados
+            de contato, porém, precisarão ser preenchidos novamente, pois foram
+            anonimizados quando você excluiu a conta.
+          </div>
+
+          {/* ============================================================ */}
+          {/* 8. DIREITOS (era 7, agora é 8)                                 */}
+          {/* ============================================================ */}
+          <h3 style={subTitulo}>8. Seus direitos como titular</h3>
           <p style={paragrafo}>A qualquer momento você pode exercer gratuitamente:</p>
           <ul style={lista}>
             <li>✅ <strong>Acesso</strong> aos seus dados (painel do paciente).</li>
             <li>✅ <strong>Correção</strong> de dados incompletos ou desatualizados.</li>
-            <li>✅ <strong>Exclusão</strong> dos seus dados (botão “Excluir minha conta”).</li>
+            <li>
+              ✅ <strong>Exclusão</strong> dos seus dados de contato (botão "Excluir minha conta").
+              O prontuário de saúde é mantido por <strong>20 anos</strong> por obrigação legal.
+            </li>
             <li>✅ <strong>Portabilidade</strong> — baixar suas fichas em PDF.</li>
             <li>✅ <strong>Revogação do consentimento</strong> a qualquer momento.</li>
             <li>✅ <strong>Informação</strong> sobre compartilhamentos.</li>
           </ul>
-<h3 style={subTitulo}>5.1. Registro de segurança no login</h3>
-<p style={paragrafo}>
-  Para proteger sua conta contra acessos não autorizados, registramos
-  automaticamente:
-</p>
-<ul style={lista}>
-  <li><strong>Data e hora</strong> de cada login (sucesso ou falha);</li>
-  <li><strong>Identificação do dispositivo</strong> (navegador + sistema operacional + características técnicas);</li>
-  <li><strong>Localização aproximada (cidade)</strong> — <strong>somente se você autorizar</strong>;</li>
-  <li><strong>Tentativas de login falhas</strong> para detectar ataques.</li>
-</ul>
-<p style={paragrafo}>
-  <strong>A localização é opcional e separada</strong> do consentimento geral.
-  Você pode recusar sem prejuízo ao uso do app. A profissional responsável verá
-  o status "não compartilhada" e continuará te atendendo normalmente.
-</p>
-<p style={paragrafo}>
-  <strong>Não rastreamos em tempo real.</strong> A localização é capturada
-  apenas no momento do login e armazenada como cidade aproximada.
-</p>
-          <h3 style={subTitulo}>8. Segurança</h3>
+
+          {/* ============================================================ */}
+          {/* 9. SEGURANÇA (era 8, agora é 9)                                */}
+          {/* ============================================================ */}
+          <h3 style={subTitulo}>9. Segurança</h3>
           <p style={paragrafo}>
             Adotamos medidas técnicas e administrativas para proteger seus dados, incluindo:
             autenticação individual, criptografia HTTPS, controle de acesso, backup e exclusão segura.
           </p>
 
-          <h3 style={subTitulo}>9. Como exercer seus direitos</h3>
+          {/* ============================================================ */}
+          {/* 10. COMO EXERCER (era 9, agora é 10)                           */}
+          {/* ============================================================ */}
+          <h3 style={subTitulo}>10. Como exercer seus direitos</h3>
           <p style={paragrafo}>
             Envie um e-mail para <strong>contatomiguelbtech@gmail.com</strong> ou utilize as opções
             disponíveis no próprio painel do paciente. Responderemos em até 15 dias.
           </p>
 
-          <h3 style={subTitulo}>10. Alterações nesta política</h3>
+          {/* ============================================================ */}
+          {/* 11. ALTERAÇÕES (era 10, agora é 11)                            */}
+          {/* ============================================================ */}
+          <h3 style={subTitulo}>11. Alterações nesta política</h3>
           <p style={paragrafo}>
             Podemos atualizar esta política periodicamente. A versão vigente sempre estará disponível
             no sistema, e você será avisado(a) em caso de mudanças relevantes.

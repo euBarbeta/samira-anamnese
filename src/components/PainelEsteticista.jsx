@@ -1,30 +1,47 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { sanitizarFichaAnamnese } from '../utils/sanitizar';
-import { MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,MdCalendarMonth, MdSecurity,  MdAttachMoney,  } from 'react-icons/md';
+import {
+  MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,
+  MdCalendarMonth, MdSecurity, MdAttachMoney, MdFolder, MdFolderOpen,
+} from 'react-icons/md';
 import CardSegurancaPaciente from './CardSegurancaPaciente';
 import PainelSeguranca from './PainelSeguranca';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import {
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  signOut, onAuthStateChanged,
+} from 'firebase/auth';
 import {
   getFirestore, query, where, updateDoc, collection, doc,
-  getDoc,setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit, collectionGroup
+  getDoc, setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit,
+  collectionGroup,
 } from 'firebase/firestore';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import FichaDesktop from './FichaDesktop';
 import FichaEvoDesktop from './FichaEvoDesktop';
 import { log, logWarn, logError } from '../utils/log';
-import GaleriaPaciente from './GaleriaPaciente'; 
+import GaleriaPaciente from './GaleriaPaciente';
 import BotaoInstalarApp from './BotaoInstalarApp';
 import AvisoNotificacoesEsteticista from './AvisoNotificacoesEsteticista';
 import { secondaryAuth } from './firebaseSecondary';
 import TermoConsentimentoPDF from './TermoConsentimentoPDF';
-import { registrarLinkPaciente, gerarUidDeterministico, limparUndefined } from '../utils/validarUID';
+import {
+  registrarLinkPaciente, gerarUidDeterministico, limparUndefined,
+} from '../utils/validarUID';
 import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
-import PainelFinanceiro from './financeiro/PainelFinanceiro'; 
+import PainelFinanceiro from './financeiro/PainelFinanceiro';
 import ModalEscolherServico from './agendamento/ModalEscolherServico';
 
+// ============================================================
+// ⚖️ LGPD — Helper central de anonimização e reativação
+// ============================================================
+import {
+  anonimizarPaciente,
+  reativarPaciente,
+  estaAnonimizado,
+} from '../utils/lgpdExclusao';
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -33,8 +50,9 @@ const MODAL_FECHADO = {
   titulo: '',
   senhaInput: '',
   mostrarSenhaModal: false,
-  erroSenha: ''
+  erroSenha: '',
 };
+
 const SpinnerLoading = ({ texto = 'Carregando…' }) => (
   <div style={{
     display: 'flex', flexDirection: 'column',
@@ -60,6 +78,7 @@ const SpinnerLoading = ({ texto = 'Carregando…' }) => (
     <style>{`@keyframes spinCarga { to { transform: rotate(360deg); } }`}</style>
   </div>
 );
+
 /* ============================================================
    MODAL DE FEEDBACK — substitui alert() nativo
    ============================================================ */
@@ -106,15 +125,12 @@ function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
       >
         <div
           style={{
-            width: 64,
-            height: 64,
+            width: 64, height: 64,
             margin: '0 auto 14px auto',
             borderRadius: '50%',
             background: bg,
             border: `2px solid ${borda}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 30,
             boxShadow: `0 4px 14px ${cor}22`,
           }}
@@ -127,8 +143,7 @@ function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
             style={{
               fontFamily: "'Cinzel', serif",
               color: cor,
-              fontSize: 17,
-              fontWeight: 700,
+              fontSize: 17, fontWeight: 700,
               margin: '0 0 10px 0',
               letterSpacing: '0.4px',
             }}
@@ -175,14 +190,19 @@ function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
     </div>
   );
 }
-export default function PainelEsteticista({ onLogout }) {
-const TAMANHO_PAGINA = 50;
-const [limitePagina, setLimitePagina] = useState(TAMANHO_PAGINA);
-const [temMais, setTemMais] = useState(true);
 
-const [carregandoNuvem, setCarregandoNuvem] = useState(true);
-const [jaCarregou, setJaCarregou] = useState(false);
-const [pacientes, setPacientes] = useState([]);
+export default function PainelEsteticista({ onLogout }) {
+  const TAMANHO_PAGINA = 50;
+  const [limitePagina, setLimitePagina] = useState(TAMANHO_PAGINA);
+  const [temMais, setTemMais] = useState(true);
+
+  const [carregandoNuvem, setCarregandoNuvem] = useState(true);
+  const [jaCarregou, setJaCarregou] = useState(false);
+  const [pacientes, setPacientes] = useState([]);
+
+  // ✅ Filtro: 'ativos' | 'arquivados'
+  // ⚖️ LGPD: separa pacientes anonimizados dos ativos
+  const [abaPacientes, setAbaPacientes] = useState('ativos');
 
   // ✅ Busca global
   const [resultadosBusca, setResultadosBusca] = useState(null);
@@ -192,8 +212,8 @@ const [pacientes, setPacientes] = useState([]);
   const [telaAtual, setTelaAtual] = useState('lista');
   const [termoBusca, setTermoBusca] = useState('');
   const [termoBuscaEvolucao, setTermoBuscaEvolucao] = useState('');
-  
-const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
+
+  const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
   const [mostrarTermoPDF, setMostrarTermoPDF] = useState(false);
   const [mostrarModalAgendar, setMostrarModalAgendar] = useState(false);
@@ -211,136 +231,125 @@ const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
   const modalOpenRef = useRef(false);
   const [fotosPendentes, setFotosPendentes] = useState([]);
   const [mostrarBannerFotos, setMostrarBannerFotos] = useState(true);
+
   useEffect(() => { pacRef.current = pacienteSelecionado; }, [pacienteSelecionado]);
   useEffect(() => { evoRef.current = evolucaoSelecionada; }, [evolucaoSelecionada]);
   useEffect(() => { modalOpenRef.current = modalExclusao.isOpen; }, [modalExclusao.isOpen]);
+
+  const [agendamentosPendentesCount, setAgendamentosPendentesCount] = useState(0);
+  const [segurancaAlertaCount, setSegurancaAlertaCount] = useState(0);
+
   // ============================================================
-// ✅ SINCRONIZA `pacienteSelecionado` COM A LISTA EM TEMPO REAL
-// ------------------------------------------------------------
-// - Se um campo mudou (ex: consentimentoLGPD), atualiza a pasta aberta.
-// - Se o paciente foi excluído (sumiu da lista), volta pra lista
-//   automaticamente, mesmo se a esteta estava dentro da pasta dele.
-// ============================================================
-const [agendamentosPendentesCount, setAgendamentosPendentesCount] = useState(0);
-const [segurancaAlertaCount, setSegurancaAlertaCount] = useState(0);
+  // Contadores de pendências (agendamentos + segurança)
+  // ============================================================
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
 
-useEffect(() => {
-  const user = auth.currentUser;
-  if (!user) return;
-
-  const q = query(
-    collection(db, 'agendamentos'),
-    where('uidEsteticista', '==', user.uid),
-    where('status', '==', 'pendente')
-  );
-
-  const unsub = onSnapshot(
-    q,
-    (snap) => setAgendamentosPendentesCount(snap.size),
-    (e) => logWarn('Erro contagem pendentes:', e)
-  );
-
-  return () => unsub();
-}, []);
-// ============================================================
-// ✅ Contador de alertas de segurança (tentativas suspeitas)
-// ============================================================
-// ============================================================
-// ✅ Contador de alertas de segurança (SOMA 2 FONTES)
-//    1) tentativas_login com requerBloqueio=true
-//    2) alertas_dispositivo com status='pendente'
-// ============================================================
-const [tentativasAlertaCount, setTentativasAlertaCount] = useState(0);
-const [dispositivosAlertaCount, setDispositivosAlertaCount] = useState(0);
-
-useEffect(() => {
-  const q = query(
-    collection(db, 'tentativas_login'),
-    where('requerBloqueio', '==', true)
-  );
-  const unsub = onSnapshot(
-    q,
-    (snap) => setTentativasAlertaCount(snap.size),
-    (e) => logWarn('Erro contagem segurança:', e)
-  );
-  return () => unsub();
-}, []);
-
-useEffect(() => {
-  const q = query(
-    collection(db, 'alertas_dispositivo'),
-    where('status', '==', 'pendente')
-  );
-  const unsub = onSnapshot(
-    q,
-    (snap) => setDispositivosAlertaCount(snap.size),
-    (e) => logWarn('Erro contagem dispositivos:', e)
-  );
-  return () => unsub();
-}, []);
-
-useEffect(() => {
-  setSegurancaAlertaCount(tentativasAlertaCount + dispositivosAlertaCount);
-}, [tentativasAlertaCount, dispositivosAlertaCount]);
-useEffect(() => {
-  if (!jaCarregou) return;
-  if (!pacienteSelecionado) return;
-
-  const atual = pacientes.find(
-    (p) => String(p.id) === String(pacienteSelecionado.id)
-  );
-
-  if (!atual) {
-    // ✅ Paciente foi excluído (por ele mesmo em outro dispositivo,
-    //    ou pela própria esteta em outra aba). Volta pra lista.
-    setPacienteSelecionado(null);
-    setEvolucaoSelecionada(null);
-    setTelaAtual('lista');
-    window.history.replaceState(
-      { painelEsteticista: 'lista' },
-      '',
-      window.location.pathname
+    const q = query(
+      collection(db, 'agendamentos'),
+      where('uidEsteticista', '==', user.uid),
+      where('status', '==', 'pendente')
     );
-    return;
-  }
 
-  if (atual !== pacienteSelecionado) {
-    setPacienteSelecionado(atual);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [pacientes, jaCarregou]);
+    const unsub = onSnapshot(
+      q,
+      (snap) => setAgendamentosPendentesCount(snap.size),
+      (e) => logWarn('Erro contagem pendentes:', e)
+    );
 
-  // Adicione esta função auxiliar no topo do componente PainelEsteticista
+    return () => unsub();
+  }, []);
+
+  const [tentativasAlertaCount, setTentativasAlertaCount] = useState(0);
+  const [dispositivosAlertaCount, setDispositivosAlertaCount] = useState(0);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'tentativas_login'),
+      where('requerBloqueio', '==', true)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => setTentativasAlertaCount(snap.size),
+      (e) => logWarn('Erro contagem segurança:', e)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'alertas_dispositivo'),
+      where('status', '==', 'pendente')
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => setDispositivosAlertaCount(snap.size),
+      (e) => logWarn('Erro contagem dispositivos:', e)
+    );
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    setSegurancaAlertaCount(tentativasAlertaCount + dispositivosAlertaCount);
+  }, [tentativasAlertaCount, dispositivosAlertaCount]);
+
   // ============================================================
-// ✅ Envia lembretes para o backend
-//    Repassa também o offsetMin do dispositivo da esteta, para
-//    o backend converter datetime-local → UTC corretamente.
-// ============================================================
-const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
-  if (!Array.isArray(lembretes)) return;
+  // Sincroniza pacienteSelecionado com a lista
+  // ============================================================
+  useEffect(() => {
+    if (!jaCarregou) return;
+    if (!pacienteSelecionado) return;
 
-  try {
-    // ✅ Offset do dispositivo atual (BRT = -180)
-    const offsetMin = new Date().getTimezoneOffset() * -1;
+    const atual = pacientes.find(
+      (p) => String(p.id) === String(pacienteSelecionado.id)
+    );
 
-    const response = await fetch('/.netlify/functions/agendar-lembretes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pacienteId, lembretes, offsetMin }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('❌ Falha ao agendar lembretes:', data);
+    if (!atual) {
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+      setTelaAtual('lista');
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+      return;
     }
-  } catch (err) {
-    console.error('❌ Erro ao agendar lembretes:', err);
-  }
-};
+
+    if (atual !== pacienteSelecionado) {
+      setPacienteSelecionado(atual);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pacientes, jaCarregou]);
 
   // ============================================================
-  // NAVEGAÇÃO COM HISTÓRICO — botão voltar funciona
+  // Agendar lembretes no backend
+  // ============================================================
+  const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
+    if (!Array.isArray(lembretes)) return;
+
+    try {
+      const offsetMin = new Date().getTimezoneOffset() * -1;
+
+      const response = await fetch('/.netlify/functions/agendar-lembretes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pacienteId, lembretes, offsetMin }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ Falha ao agendar lembretes:', data);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao agendar lembretes:', err);
+    }
+  };
+
+  // ============================================================
+  // NAVEGAÇÃO
   // ============================================================
   const navegarPara = useCallback((novaTela, dados = {}) => {
     const pacId = 'paciente' in dados ? (dados.paciente?.id ?? null) : (pacRef.current?.id ?? null);
@@ -356,7 +365,6 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     if ('evolucao' in dados) setEvolucaoSelecionada(dados.evolucao);
   }, []);
 
-  // Substitui a entrada atual (sem criar nova) — usado após salvar
   const substituirTela = useCallback((novaTela, dados = {}) => {
     const pacId = 'paciente' in dados ? (dados.paciente?.id ?? null) : (pacRef.current?.id ?? null);
     const evoId = 'evolucao' in dados ? (dados.evolucao?.id ?? null) : (evoRef.current?.id ?? null);
@@ -376,13 +384,11 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     const onPop = (e) => {
       const st = e.state;
 
-      // ✅ Fechar modal de exclusão se estiver aberto
       if (modalOpenRef.current && !st?.modalAberto) {
         setModalExclusao(MODAL_FECHADO);
       }
 
       if (st?.painelEsteticista) {
-        // Se pediu detalhe_pasta mas o paciente não existe mais → cai pra lista
         if (st.painelEsteticista === 'detalhe_pasta' && st.pacienteId) {
           const pac = pacientes.find(p => String(p.id) === String(st.pacienteId));
           if (!pac) {
@@ -419,7 +425,7 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     return () => window.removeEventListener('popstate', onPop);
   }, [pacientes]);
 
-  // Estado inicial no histórico (uma única vez)
+  // Estado inicial no histórico
   useEffect(() => {
     if (!window.history.state?.painelEsteticista) {
       window.history.replaceState(
@@ -439,250 +445,242 @@ const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     });
   }, []);
 
+  // ============================================================
+  // Fotos pendentes em tempo real
+  // ============================================================
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
 
-// ✅ Checa fotos não notificadas
-// ✅ Fotos pendentes em TEMPO REAL via collectionGroup
-//    Uma única query atravessa todos os pacientes — sem polling.
-useEffect(() => {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return;
+    let cancelado = false;
 
-  let cancelado = false;
-
-  const q = query(
-    collectionGroup(db, 'fotos'),
-    where('uidEsteticista', '==', uid),
-    where('notificado', '==', false)
-  );
-
-  const unsub = onSnapshot(
-    q,
-    (snap) => {
-      if (cancelado) return;
-
-      // Agrupa por pacienteId
-      const mapa = {};
-      snap.docs.forEach((d) => {
-        const data = d.data();
-
-        // Fallback: extrai do path usuarios/{uid}/pacientes/{pid}/fotos/{fid}
-        let pid = data.pacienteId;
-        if (!pid) {
-          const partes = d.ref.path.split('/');
-          // partes = ['usuarios', uid, 'pacientes', pid, 'fotos', fotoId]
-          pid = partes[3] || null;
-        }
-        if (!pid) return;
-
-        if (!mapa[pid]) {
-          mapa[pid] = {
-            pacienteId: pid,
-            pacienteNome: data.pacienteNome || 'Paciente',
-            count: 0,
-          };
-        }
-        mapa[pid].count++;
-      });
-
-      setFotosPendentes(Object.values(mapa));
-    },
-    (err) => {
-      console.error('Erro listener fotos pendentes:', err);
-    }
-  );
-
-  return () => {
-    cancelado = true;
-    unsub();
-  };
-}, []);
-
-// ✅ Marca fotos como notificadas quando abre a galeria do paciente
-const marcarFotosComoNotificadas = async (pacienteId) => {
-  try {
-    const uid = auth.currentUser.uid;
-    const snap = await getDocs(query(
-      collection(db, `usuarios/${uid}/pacientes/${pacienteId}/fotos`),
+    const q = query(
+      collectionGroup(db, 'fotos'),
+      where('uidEsteticista', '==', uid),
       where('notificado', '==', false)
-    ));
-    const batch = snap.docs.map((d) => updateDoc(d.ref, { notificado: true }));
-    await Promise.all(batch);
-    setFotosPendentes((prev) => prev.filter((f) => f.pacienteId !== pacienteId));
-  } catch (e) {
-    logWarn('Falha ao marcar como notificadas:', e);
-  }
-};
+    );
 
-  // ✅ Registra push da esteticista (nativo OU web) ao entrar
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (cancelado) return;
+
+        const mapa = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          let pid = data.pacienteId;
+          if (!pid) {
+            const partes = d.ref.path.split('/');
+            pid = partes[3] || null;
+          }
+          if (!pid) return;
+
+          if (!mapa[pid]) {
+            mapa[pid] = {
+              pacienteId: pid,
+              pacienteNome: data.pacienteNome || 'Paciente',
+              count: 0,
+            };
+          }
+          mapa[pid].count++;
+        });
+
+        setFotosPendentes(Object.values(mapa));
+      },
+      (err) => {
+        console.error('Erro listener fotos pendentes:', err);
+      }
+    );
+
+    return () => {
+      cancelado = true;
+      unsub();
+    };
+  }, []);
+
+  const marcarFotosComoNotificadas = async (pacienteId) => {
+    try {
+      const uid = auth.currentUser.uid;
+      const snap = await getDocs(query(
+        collection(db, `usuarios/${uid}/pacientes/${pacienteId}/fotos`),
+        where('notificado', '==', false)
+      ));
+      const batch = snap.docs.map((d) => updateDoc(d.ref, { notificado: true }));
+      await Promise.all(batch);
+      setFotosPendentes((prev) => prev.filter((f) => f.pacienteId !== pacienteId));
+    } catch (e) {
+      logWarn('Falha ao marcar como notificadas:', e);
+    }
+  };
+
+  // Publica UID global
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
-
-    import('./push-notifications').then(({ inscreverPushEsteticistaWeb }) => {
-      inscreverPushEsteticistaWeb(user.uid).catch((e) =>
-        logWarn('Falha ao registrar push da esteticista:', e)
-      );
-    });
+    const ref = doc(db, 'sistema', 'esteticista_ativa');
+    getDoc(ref).then((snap) => {
+      if (!snap.exists()) {
+        setDoc(ref, {
+          uid: UID_ESTETICISTA_PADRAO,
+          email: 'samira.ferreira@sistema.local',
+          atualizadoEm: new Date().toISOString(),
+        });
+      }
+    }).catch((e) => logWarn('Falha checando UID global:', e));
   }, []);
 
+  // ============================================================
+  // BUSCA GLOBAL
+  // ============================================================
+  useEffect(() => {
+    const termo = termoBusca.trim();
 
-
-  // ✅ Publica o UID real da esteticista num doc global
-//    A agenda pública lê daqui pra saber de quem buscar a config
-// ✅ NÃO sobrescrever mais. Só escreve se NÃO existir.
-useEffect(() => {
-  const user = auth.currentUser;
-  if (!user) return;
-  const ref = doc(db, 'sistema', 'esteticista_ativa');
-  getDoc(ref).then((snap) => {
-    if (!snap.exists()) {
-      setDoc(ref, {
-        uid: UID_ESTETICISTA_PADRAO, // ← Samira
-        email: 'samira.ferreira@sistema.local',
-        atualizadoEm: new Date().toISOString(),
-      });
+    if (termo.length < 2) {
+      setResultadosBusca(null);
+      setBuscandoGlobal(false);
+      return;
     }
-  }).catch((e) => logWarn('Falha checando UID global:', e));
-}, []);
 
-// ============================================================
-// BUSCA GLOBAL — carrega todos os pacientes UMA VEZ (cache)
-// quando o usuário digita 2+ caracteres. Depois filtra local.
-// ============================================================
-useEffect(() => {
-  const termo = termoBusca.trim();
+    const timer = setTimeout(async () => {
+      const user = auth.currentUser;
+      if (!user) return;
 
-  // Sem termo → volta pra lista paginada normal
-  if (termo.length < 2) {
-    setResultadosBusca(null);
-    setBuscandoGlobal(false);
-    return;
-  }
+      setBuscandoGlobal(true);
+      try {
+        let todos = cacheBuscaRef.current;
 
-  const timer = setTimeout(async () => {
+        if (!todos) {
+          const snap = await getDocs(
+            collection(db, `usuarios/${user.uid}/pacientes`)
+          );
+          todos = snap.docs.map((d) => d.data());
+          cacheBuscaRef.current = todos;
+        }
+
+        const norm = (s) =>
+          (s || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+
+        const termoNorm = norm(termo);
+
+        const filtrados = todos.filter((p) => {
+          const nomeNorm = norm(p.nome);
+          const docNorm = norm(p.documento);
+          return nomeNorm.includes(termoNorm) || docNorm.includes(termoNorm);
+        });
+
+        setResultadosBusca(filtrados);
+      } catch (e) {
+        console.error('Erro na busca global:', e);
+        setResultadosBusca([]);
+      } finally {
+        setBuscandoGlobal(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [termoBusca]);
+
+  // ============================================================
+  // LISTENER — pacientes em tempo real
+  // ============================================================
+  useEffect(() => {
+    let unsubAuth = null;
+    let unsubSnapshot = null;
+
+    const iniciarListener = (user) => {
+      if (!user) return;
+
+      const base = collection(db, `usuarios/${user.uid}/pacientes`);
+      const q = query(base, orderBy('nome'), limit(limitePagina));
+
+      if (unsubSnapshot) unsubSnapshot();
+
+      unsubSnapshot = onSnapshot(
+        q,
+        (snap) => {
+          const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setPacientes(lista);
+          setTemMais(snap.size === limitePagina);
+          setCarregandoNuvem(false);
+          setJaCarregou(true);
+
+          Promise.allSettled(
+            lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
+          );
+        },
+        (e) => {
+          console.error('Erro listener pacientes:', e);
+          setCarregandoNuvem(false);
+          setJaCarregou(true);
+        }
+      );
+    };
+
+    unsubAuth = onAuthStateChanged(auth, (user) => {
+      iniciarListener(user);
+    });
+
+    return () => {
+      if (unsubAuth) unsubAuth();
+      if (unsubSnapshot) unsubSnapshot();
+    };
+  }, [db, auth, limitePagina]);
+
+  // ============================================================
+  // ⚖️ LGPD — Filtros de pacientes (ativos vs. arquivados)
+  // ------------------------------------------------------------
+  // - Ativos: sem `anonimizadoEm`
+  // - Arquivados: com `anonimizadoEm` (paciente excluiu conta)
+  // ============================================================
+  const pacientesAtivos = useMemo(
+    () => pacientes.filter((p) => !estaAnonimizado(p)),
+    [pacientes]
+  );
+
+  const pacientesArquivados = useMemo(
+    () => pacientes.filter((p) => estaAnonimizado(p)),
+    [pacientes]
+  );
+
+  const listaParaRender = useMemo(() => {
+    return abaPacientes === 'arquivados' ? pacientesArquivados : pacientesAtivos;
+  }, [abaPacientes, pacientesAtivos, pacientesArquivados]);
+
+  // ============================================================
+  // ⚖️ LGPD — Anonimiza paciente (helper central)
+  // ============================================================
+  const excluirPacienteDaNuvem = async (idPaciente) => {
     const user = auth.currentUser;
     if (!user) return;
 
-    setBuscandoGlobal(true);
     try {
-      let todos = cacheBuscaRef.current;
-
-      // Carrega TUDO uma vez (fica em memória)
-      if (!todos) {
-        const snap = await getDocs(
-          collection(db, `usuarios/${user.uid}/pacientes`)
-        );
-        todos = snap.docs.map((d) => d.data());
-        cacheBuscaRef.current = todos;
-      }
-
-      // Normaliza pra busca sem acento/caixa
-      const norm = (s) =>
-        (s || '')
-          .toString()
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '');
-
-      const termoNorm = norm(termo);
-
-      const filtrados = todos.filter((p) => {
-        const nomeNorm = norm(p.nome);
-        const docNorm = norm(p.documento);
-        return nomeNorm.includes(termoNorm) || docNorm.includes(termoNorm);
+      // ✅ Usa o helper central (que faz anonimização completa)
+      await anonimizarPaciente({
+        pacienteId: idPaciente,
+        uidEsteticista: user.uid,
+        motivo: 'esteta-excluiu',
       });
 
-      setResultadosBusca(filtrados);
+      // Invalida o cache da busca global
+      cacheBuscaRef.current = null;
     } catch (e) {
-      console.error('Erro na busca global:', e);
-      setResultadosBusca([]);
-    } finally {
-      setBuscandoGlobal(false);
+      console.error('Erro ao anonimizar paciente:', e);
+      throw e; // propaga pro modal mostrar erro
     }
-  }, 300); // debounce
-
-  return () => clearTimeout(timer);
-}, [termoBusca]);
-
-useEffect(() => {
-  let unsubAuth = null;
-  let unsubSnapshot = null;
-
-  // ✅ Sincroniza a coleção INTEIRA em tempo real.
-  //    - Paciente criado em qualquer dispositivo → aparece aqui
-  //    - Paciente excluído em qualquer dispositivo → some daqui
-  //    - Paciente editado em qualquer dispositivo → atualiza aqui
-  const iniciarListener = (user) => {
-    if (!user) return;
-
-    const base = collection(db, `usuarios/${user.uid}/pacientes`);
-    const q = query(base, orderBy('nome'), limit(limitePagina));
-
-    if (unsubSnapshot) unsubSnapshot();
-
-    unsubSnapshot = onSnapshot(
-      q,
-      (snap) => {
-       const lista = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-setPacientes(lista);
-setTemMais(snap.size === limitePagina);  // ⬅️ NOVA LINHA
-setCarregandoNuvem(false);
-setJaCarregou(true);
-
-        // Backfill dos links dos pacientes
-        Promise.allSettled(
-          lista.map((p) => registrarLinkPaciente(p.id, user.uid).catch(() => {}))
-        );
-      },
-      (e) => {
-        console.error('Erro listener pacientes:', e);
-        setCarregandoNuvem(false);
-        setJaCarregou(true);
-      }
-    );
   };
-
-  unsubAuth = onAuthStateChanged(auth, (user) => {
-    iniciarListener(user);
-  });
-
-  return () => {
-    if (unsubAuth) unsubAuth();
-    if (unsubSnapshot) unsubSnapshot();
-  };
-}, [db, auth, limitePagina]);
-  
-  // Função auxiliar para excluir um paciente do Firestore
- const excluirPacienteDaNuvem = async (idPaciente) => {
-  const user = auth.currentUser;
-  if (!user) return;
-
-  try {
-    // 1. Apaga o doc do paciente
-    await deleteDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(idPaciente)));
-
-    // 2. ✅ Invalida o link (apaga o links_pacientes)
-    try {
-      await deleteDoc(doc(db, 'links_pacientes', String(idPaciente)));
-    } catch (e) {
-      logWarn('Falha ao apagar links_pacientes:', e);
-    }
-
-    // 3. ✅ Invalida o cache da busca global
-    cacheBuscaRef.current = null;
-  } catch (e) {
-    console.error('Erro ao excluir paciente da nuvem:', e);
-  }
-};
 
   const extrairDocumento = (dados) => {
     if (!dados) return 'Não informado';
     return (
-      dados.nDocumento || 
-      dados.numeroDocumento || 
-      dados.documento || 
-      dados.cpf || 
-      dados.rg || 
+      dados.nDocumento ||
+      dados.numeroDocumento ||
+      dados.documento ||
+      dados.cpf ||
+      dados.rg ||
       'Não informado'
     );
   };
@@ -692,28 +690,36 @@ setJaCarregou(true);
     if (!user) return;
 
     try {
-      await setDoc(doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)), limparUndefined (pacienteObj));
-
-      // ✅ Invalida o cache da busca global
+      await setDoc(
+        doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteObj.id)),
+        limparUndefined(pacienteObj)
+      );
       cacheBuscaRef.current = null;
     } catch (e) {
       console.error('Erro ao salvar paciente na nuvem:', e);
     }
   };
 
+  // ============================================================
+  // ⚖️ LGPD — handleSalvarAnamnese com detecção de reativação
+  // ------------------------------------------------------------
+  // Se o paciente volta (mesmo nome + doc → mesmo UID determinístico),
+  // o sistema REATIVA a pasta antiga em vez de criar nova.
+  // ============================================================
   const handleSalvarAnamnese = async (dadosAnamnese) => {
-    // 1. Garante que pegamos o usuário esteticista logado corretamente do Auth principal
     const userEsteticista = auth.currentUser;
     if (!userEsteticista) {
       alert("Erro: Sessão da esteticista não encontrada. Faça login novamente.");
       return;
     }
-  const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
+
+    const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
+
     try {
-      // 2. Tratamento do Nome para gerar o e-mail
+      // 1) Tratamento do Nome para gerar o e-mail fictício
       const nomeOriginal = dadosAnamnese.nome ? dadosAnamnese.nome.trim() : '';
       let partes = nomeOriginal.split(/\s+/);
-      
+
       let primeiroNome = 'usuario';
       let sobrenome = 'paciente';
 
@@ -726,37 +732,40 @@ setJaCarregou(true);
 
       const pNomeLimpo = primeiroNome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       const sSobrenomeLimpo = sobrenome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      
+
       const emailFicticio = `${pNomeLimpo}.${sSobrenomeLimpo}@sistema.local`;
-      
-      // 3. Extração do Documento e Geração da Senha (6 últimos dígitos)
+
+      // 2) Extração do Documento e geração da senha
       const docFormatado = extrairDocumento(dadosAnamnese);
       const documentoLimpo = docFormatado.replace(/\D/g, '');
-      const senhaFicticia = (documentoLimpo.length >= 6 ? documentoLimpo.slice(-6) : '123456').padEnd(6, '0');
+      const senhaFicticia = (documentoLimpo.length >= 6
+        ? documentoLimpo.slice(-6)
+        : '123456'
+      ).padEnd(6, '0');
 
       let pacienteUid = '';
 
-      // 4. Tratamento limpo sem gerar erro visível no console
-           // 4. Tratamento limpo sem gerar erro visível no console
+      // 3) Criação ou recuperação da conta no Auth
       try {
-        // Tenta criar diretamente
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
+        const userCredential = await createUserWithEmailAndPassword(
+          secondaryAuth, emailFicticio, senhaFicticia
+        );
         pacienteUid = userCredential.user.uid;
         await signOut(secondaryAuth);
       } catch (authError) {
-        // Se o e-mail já existe, apenas fazemos o login em silêncio para recuperar o UID, sem logs de erro
         if (authError.code === 'auth/email-already-in-use') {
           try {
-            const tempCredential = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
+            const tempCredential = await signInWithEmailAndPassword(
+              secondaryAuth, emailFicticio, senhaFicticia
+            );
             pacienteUid = tempCredential.user.uid;
             await signOut(secondaryAuth);
           } catch (signInErr) {
-            // ✅ Fallback determinístico — nunca mais "pac_"
             pacienteUid = gerarUidDeterministico(`${emailFicticio}|${documentoLimpo}`);
           }
         } else {
           alert(`Erro ao criar o acesso do paciente: ${authError.message}`);
-          return; 
+          return;
         }
       }
 
@@ -764,47 +773,120 @@ setJaCarregou(true);
         pacienteUid = String(Date.now());
       }
 
-      // 5. Montagem do objeto e salvamento no Firestore
+      // ============================================================
+      // ⚖️ LGPD — Detecta se UID já existe E está anonimizado
+      // ------------------------------------------------------------
+      // Se sim → REATIVA a pasta antiga (mantém histórico)
+      // Senão → Cria pasta nova normalmente
+      // ============================================================
+      let pastaExistente = null;
+      try {
+        const pacRef = doc(db, `usuarios/${userEsteticista.uid}/pacientes`, String(pacienteUid));
+        const pacSnap = await getDoc(pacRef);
+        if (pacSnap.exists()) {
+          pastaExistente = { id: pacSnap.id, ...pacSnap.data() };
+        }
+      } catch (e) {
+        logWarn('Falha ao checar pasta existente:', e);
+      }
+
+      if (pastaExistente && estaAnonimizado(pastaExistente)) {
+        // ✅ REATIVA a pasta existente
+        await reativarPaciente({
+          pacienteId: pacienteUid,
+          uidEsteticista: userEsteticista.uid,
+          nome: dadosAnamnese.nome,
+          documento: docFormatado,
+        });
+
+        // Depois de reativar, atualiza os dados da anamnese nova
+        // (o contato, evoluções novas, etc — não sobrescreve dataCriacao)
+        const dadosReativados = {
+          ...pastaExistente,
+          id: pacienteUid,
+          nome: dadosAnamnese.nome,
+          documento: docFormatado,
+          telefone: dadosAnamnese.telefone || '',
+          emailContato: dadosAnamnese.emailContato || '',
+          emailAcesso: pastaExistente.emailAcesso || emailFicticio,
+          email: pastaExistente.emailAcesso || emailFicticio,
+          criadoPorUid: userEsteticista.uid,
+          // ⚠️ Mantém dataCriacao ORIGINAL (não sobrescreve)
+          dataCriacao: pastaExistente.dataCriacaoOriginal || pastaExistente.dataCriacao,
+          dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
+            ' às ' + new Date().toLocaleTimeString('pt-BR', {
+              hour: '2-digit', minute: '2-digit'
+            }),
+          anamnese: dadosAnamnese,
+          evolucoes: pastaExistente.evolucoes || [],
+        };
+
+        await salvarPacienteNaNuvem(dadosReativados);
+
+        if (dadosAnamnese.lembretes) {
+          await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+        }
+
+        await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
+
+        // Reconstrói o mapeamento de email
+        await setDoc(
+          doc(db, 'mapeamento_emails', emailFicticio),
+          {
+            profissionalUid: userEsteticista.uid,
+            pacienteId: pacienteUid,
+            atualizadoEm: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+
+        return; // ✅ Fim: paciente reativado
+      }
+
+      // ============================================================
+      // Caminho normal: paciente NOVO (ou já existente e ativo)
+      // ============================================================
       const agora = new Date();
-      const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
+        agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
       const novoPaciente = {
         id: pacienteUid,
         nome: dadosAnamnese.nome || 'Paciente sem nome',
         documento: docFormatado,
         email: emailFicticio,
         emailAcesso: emailFicticio,
-        // ✅ Espelha telefone e emailContato pra RAIZ
-        //    (a ficha salva dentro de anamnese, mas o painel lê da raiz)
         telefone: dadosAnamnese.telefone || '',
         emailContato: dadosAnamnese.emailContato || '',
         criadoPorUid: userEsteticista.uid,
-        dataCriacao: dataHoraFormatada,
+        dataCriacao: pastaExistente?.dataCriacao || dataHoraFormatada,
         dataUltimaEdicao: dataHoraFormatada,
         anamnese: dadosAnamnese,
-        evolucoes: []
+        evolucoes: pastaExistente?.evolucoes || [],
       };
-      const novaLista = [novoPaciente, ...pacientes].sort((a, b) => 
+
+      const novaLista = [novoPaciente, ...pacientes].sort((a, b) =>
         (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
       );
 
-     setPacientes(novaLista);
-await salvarPacienteNaNuvem(novoPaciente);
-if (dadosAnamnese.lembretes) {
-  await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
-}
-await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
+      setPacientes(novaLista);
+      await salvarPacienteNaNuvem(novoPaciente);
 
-// ✅ NOVO: escreve o mapa de e-mail → (profissionalUid, pacienteId)
-// Sem isso, o paciente não consegue logar depois (o login lê daqui).
-await setDoc(
-  doc(db, 'mapeamento_emails', emailFicticio),
-  {
-    profissionalUid: userEsteticista.uid,
-    pacienteId: pacienteUid,
-    atualizadoEm: new Date().toISOString(),
-  },
-  { merge: true }
-);
+      if (dadosAnamnese.lembretes) {
+        await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
+      }
+
+      await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
+
+      await setDoc(
+        doc(db, 'mapeamento_emails', emailFicticio),
+        {
+          profissionalUid: userEsteticista.uid,
+          pacienteId: pacienteUid,
+          atualizadoEm: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.error("Erro geral ao salvar ficha:", error);
       alert("Erro ao salvar ficha na nuvem.");
@@ -813,8 +895,10 @@ await setDoc(
 
   const handleAtualizarAnamnese = async (dadosAtualizados) => {
     const agora = new Date();
-    const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
+      agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novoDoc = extrairDocumento(dadosAtualizados);
+
     if (dadosAtualizados.lembretes) {
       await agendarLembretesNoOneSignal(pacienteSelecionado.id, dadosAtualizados.lembretes);
     }
@@ -823,20 +907,19 @@ await setDoc(
 
     const atualizados = pacientes.map(p => {
       if (p.id === pacienteSelecionado.id) {
-            pacienteAtualizadoSalvar = {
+        pacienteAtualizadoSalvar = {
           ...p,
           nome: dadosAtualizados.nome || p.nome,
           documento: novoDoc !== 'Não informado' ? novoDoc : p.documento,
-          // ✅ Espelha telefone e emailContato pra RAIZ
           telefone: dadosAtualizados.telefone || p.telefone || '',
           emailContato: dadosAtualizados.emailContato || p.emailContato || '',
           dataUltimaEdicao: dataHoraFormatada,
-          anamnese: dadosAtualizados
+          anamnese: dadosAtualizados,
         };
-        
+
         return pacienteAtualizadoSalvar;
       }
-      
+
       return p;
     }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
 
@@ -846,50 +929,41 @@ await setDoc(
     }
     const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
     setPacienteSelecionado(pacAtualizado);
-    // ⚠️ Não navega aqui — FichaDesktop chama onVoltar após mostrar "SALVO COM SUCESSO"
   };
-  // ============================================================
-// ✅ Chamado quando a esteta "SUBSTITUI" email/telefone no painel
-//    de agendamentos. Atualiza os states locais em TEMPO REAL
-//    pra que a ficha mostre o novo valor imediatamente.
-// ============================================================
-const handleCampoSubstituido = (pacId, campo, valor) => {
-  // 1) Atualiza a lista de pacientes
-  const atualizados = pacientes.map((p) => {
-    if (String(p.id) !== String(pacId)) return p;
 
-    const anamneseAtualizada = p.anamnese
-      ? { ...p.anamnese, [campo]: valor }
-      : p.anamnese;
+  const handleCampoSubstituido = (pacId, campo, valor) => {
+    const atualizados = pacientes.map((p) => {
+      if (String(p.id) !== String(pacId)) return p;
 
-    return {
-      ...p,
-      [campo]: valor,
-      anamnese: anamneseAtualizada,
-    };
-  });
+      const anamneseAtualizada = p.anamnese
+        ? { ...p.anamnese, [campo]: valor }
+        : p.anamnese;
 
-  setPacientes(atualizados);
-
-  // 2) Atualiza o pacienteSelecionado (se for o mesmo)
-  if (pacienteSelecionado && String(pacienteSelecionado.id) === String(pacId)) {
-    const anamneseAtualizada = pacienteSelecionado.anamnese
-      ? { ...pacienteSelecionado.anamnese, [campo]: valor }
-      : pacienteSelecionado.anamnese;
-
-    setPacienteSelecionado({
-      ...pacienteSelecionado,
-      [campo]: valor,
-      anamnese: anamneseAtualizada,
+      return {
+        ...p,
+        [campo]: valor,
+        anamnese: anamneseAtualizada,
+      };
     });
-  }
 
-  // 3) Invalida o cache da busca global
-  cacheBuscaRef.current = null;
-};
+    setPacientes(atualizados);
+
+    if (pacienteSelecionado && String(pacienteSelecionado.id) === String(pacId)) {
+      const anamneseAtualizada = pacienteSelecionado.anamnese
+        ? { ...pacienteSelecionado.anamnese, [campo]: valor }
+        : pacienteSelecionado.anamnese;
+
+      setPacienteSelecionado({
+        ...pacienteSelecionado,
+        [campo]: valor,
+        anamnese: anamneseAtualizada,
+      });
+    }
+
+    cacheBuscaRef.current = null;
+  };
 
   const solicitarExclusaoPasta = (idPaciente) => {
-    // ✅ Empilha entrada no histórico para o voltar fechar o modal
     window.history.pushState(
       {
         painelEsteticista: telaAtual,
@@ -935,9 +1009,9 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     const user = auth.currentUser;
 
     if (!user || !user.email) {
-      setModalExclusao(prev => ({ 
-        ...prev, 
-        erroSenha: 'Sessão expirada. Faça login novamente.' 
+      setModalExclusao(prev => ({
+        ...prev,
+        erroSenha: 'Sessão expirada. Faça login novamente.'
       }));
       return;
     }
@@ -946,13 +1020,14 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
       await signInWithEmailAndPassword(auth, user.email, modalExclusao.senhaInput);
 
       if (modalExclusao.tipo === 'pasta') {
+        // ⚖️ LGPD — anonimiza (não deleta)
+        await excluirPacienteDaNuvem(modalExclusao.idAlvo);
+
         const filtrados = pacientes.filter(p => p.id !== modalExclusao.idAlvo);
         setPacientes(filtrados);
-        await excluirPacienteDaNuvem(modalExclusao.idAlvo);
         setPacienteSelecionado(null);
         setEvolucaoSelecionada(null);
 
-        // Substitui a entrada do modal pela lista (evita botão voltar travar)
         window.history.replaceState(
           { painelEsteticista: 'lista' },
           '',
@@ -991,15 +1066,14 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
 
     } catch (error) {
       console.error("Erro ao validar senha:", error);
-      setModalExclusao(prev => ({ 
-        ...prev, 
-        erroSenha: 'Senha incorreta. Tente novamente.' 
+      setModalExclusao(prev => ({
+        ...prev,
+        erroSenha: 'Senha incorreta. Tente novamente.'
       }));
     }
   };
 
   const fecharModalExclusao = () => {
-    // Se o modal foi empilhado no histórico, usa back() pra fechar
     if (window.history.state?.modalAberto) {
       window.history.back();
     } else {
@@ -1009,7 +1083,8 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
 
   const handleSalvarEvolucao = async (dadosEvolucao) => {
     const agora = new Date();
-    const dataEvo = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dataEvo = agora.toLocaleDateString('pt-BR') + ' às ' +
+      agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     const novaEvolucaoObj = {
       id: Date.now(),
@@ -1036,7 +1111,6 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
     setPacienteSelecionado(pacAtualizado);
 
-    // Substitui 'criar_evolucao' por 'detalhe_pasta' no histórico
     substituirTela('detalhe_pasta');
   };
 
@@ -1066,7 +1140,6 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     substituirTela('detalhe_pasta');
   };
 
-  // Formatação automática para máscara de data (DD/MM/AAAA)
   const formatarMascaraData = (valor) => {
     const apenasDigitos = valor.replace(/\D/g, '').slice(0, 8);
     if (apenasDigitos.length <= 2) {
@@ -1092,20 +1165,20 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
 
   if (telaAtual === 'criar_anamnese') {
     return (
-      <FichaDesktop 
-        mode="create" 
-        onSave={handleSalvarAnamnese} 
-        onVoltar={() => navegarPara('lista', { paciente: null, evolucao: null })} 
+      <FichaDesktop
+        mode="create"
+        onSave={handleSalvarAnamnese}
+        onVoltar={() => navegarPara('lista', { paciente: null, evolucao: null })}
       />
     );
   }
 
   if (telaAtual === 'editar_anamnese' && pacienteSelecionado) {
     return (
-      <FichaDesktop 
-        mode="edit" 
-        fichaSelecionada={pacienteSelecionado.anamnese} 
-        onSave={handleAtualizarAnamnese} 
+      <FichaDesktop
+        mode="edit"
+        fichaSelecionada={pacienteSelecionado.anamnese}
+        onSave={handleAtualizarAnamnese}
         onVoltar={() => navegarPara('detalhe_pasta')}
       />
     );
@@ -1113,15 +1186,20 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
 
   if (telaAtual === 'ver_anamnese' && pacienteSelecionado) {
     return (
-      <FichaDesktop 
-        mode="view" 
-        fichaSelecionada={pacienteSelecionado.anamnese} 
-        onVoltar={() => navegarPara('detalhe_pasta')} 
+      <FichaDesktop
+        mode="view"
+        fichaSelecionada={pacienteSelecionado.anamnese}
+        onVoltar={() => navegarPara('detalhe_pasta')}
         onIrParaEdicao={() => navegarPara('editar_anamnese')}
       />
     );
   }
 
+  // ⬇️ CONTINUA NA PARTE 2 — JSX / render
+  return null;
+}  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div style={{
       width: '100%',
@@ -1144,16 +1222,16 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
         pointerEvents: 'none',
         zIndex: 0
       }}>
-        <img 
-          src="/imagens/logo-telainicial.jpeg" 
-          alt="Marca d'água" 
+        <img
+          src="/imagens/logo-telainicial.jpeg"
+          alt="Marca d'água"
           style={{
             width: '850px',
             height: 'auto',
             marginTop: '-98px',
             opacity: 0.15,
             objectFit: 'contain'
-          }} 
+          }}
         />
       </div>
 
@@ -1196,12 +1274,59 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
           box-shadow: 0 8px 22px rgba(44, 22, 58, 0.12) !important;
           background: rgba(255, 255, 255, 0.98) !important;
         }
+
+        /* ⚖️ LGPD — Tab de pacientes (Ativos / Arquivadas) */
+        .tab-pacientes {
+          padding: 10px 20px;
+          border-radius: 20px;
+          border: 1.5px solid #C8A24A;
+          background: transparent;
+          color: #C8A24A;
+          font-family: 'Cinzel', serif;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+        }
+        .tab-pacientes.ativo {
+          background: linear-gradient(135deg, #C8A24A 0%, #e2be64 100%);
+          color: #fff;
+          box-shadow: 0 4px 14px rgba(200, 162, 74, 0.35);
+        }
+        .tab-pacientes:hover:not(.ativo) {
+          background: rgba(200, 162, 74, 0.10);
+        }
+        .tab-pacientes .tab-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 7px;
+          border-radius: 11px;
+          background: rgba(44, 22, 58, 0.10);
+          color: #2c163a;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 10px;
+          font-weight: 800;
+        }
+        .tab-pacientes.ativo .tab-badge {
+          background: rgba(255, 255, 255, 0.30);
+          color: #fff;
+        }
       `}</style>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
         {auth.currentUser && (
           <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
         )}
+
+        {/* ============================================================ */}
+        {/* HEADER                                                       */}
+        {/* ============================================================ */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -1213,10 +1338,22 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
           flexWrap: 'wrap'
         }}>
           <div>
-            <h1 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0, textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+            <h1 style={{
+              fontFamily: "'Cinzel', serif",
+              color: '#2c163a',
+              fontSize: '22px',
+              margin: 0,
+              textShadow: '0 1px 2px rgba(255,255,255,0.8)'
+            }}>
               Painel da Esteticista
             </h1>
-            <span style={{ fontSize: '12px', color: '#55286f', fontWeight: 600 }}>Samira Ferreira Estética & Cosmetóloga</span>
+            <span style={{
+              fontSize: '12px',
+              color: '#55286f',
+              fontWeight: 600
+            }}>
+              Samira Ferreira Estética & Cosmetóloga
+            </span>
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1246,575 +1383,602 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
         </div>
 
         <div style={{ padding: '20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
-          
-          {/* LISTA DE PACIENTES */}
+
+          {/* ============================================================ */}
+          {/* TELA 1: LISTA DE PACIENTES                                  */}
+          {/* ============================================================ */}
           {telaAtual === 'lista' && (
             <div>
               <div style={{
-  background: 'rgba(255, 255, 255, 0.92)',
-  borderRadius: '16px',
-  border: '1px solid #e2d2f5',
-  padding: '20px 30px',
-  marginBottom: '20px',
-  boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
-  backdropFilter: 'blur(5px)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: '15px'
-}}>
-                <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '18px', margin: 0 }}>
-                Pastas de Pacientes
-              </h2>
-
-              {/* ✅ Container único com os 2 botões juntos */}
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => navegarPara('criar_anamnese')}
-                  className="btn-efeito-hover"
-                  style={{
-                    fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '25px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
-                  }}
-                >
-                  <MdAssignment size={16} />
-                  Ficha de anamnese
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navegarPara('agendamentos')}
-                  className="btn-efeito-hover"
-                  style={{
-                    fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '25px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-                  }}
-                >
-                  <MdCalendarMonth size={16} />
-                  Agendamentos
-          {agendamentosPendentesCount > 0 && (
-  <span
-    style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minWidth: 20,
-      height: 20,
-      padding: '0 6px',
-      borderRadius: 10,
-      background: '#dc2626',
-      color: '#fff',
-      fontSize: 10,
-      fontWeight: 800,
-      fontFamily: "'Montserrat', sans-serif",
-      marginLeft: 2,
-      boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
-    }}
-  >
-    {agendamentosPendentesCount}
-  </span>
-)}
-                </button>
-   <button
-  type="button"
-  onClick={() => navegarPara('seguranca')}
-  className="btn-efeito-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-    color: '#fff',
-    border: 'none',
-    padding: '12px 24px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
-  }}
->
-  <MdSecurity size={16} />
-  Segurança
-  {segurancaAlertaCount > 0 && (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 20,
-        height: 20,
-        padding: '0 6px',
-        borderRadius: 10,
-        background: '#dc2626',
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: 800,
-        fontFamily: "'Montserrat', sans-serif",
-        marginLeft: 2,
-        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
-      }}
-    >
-      {segurancaAlertaCount}
-    </span>
-  )}
-</button>
-<button
-  type="button"
-  onClick={() => navegarPara('financeiro')}
-  className="btn-efeito-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-    color: '#fff',
-    border: '1.5px solid #9c7826',
-    padding: '12px 24px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
-  }}
->
-  <MdAttachMoney size={16} />
-  Financeiro
-</button>
-         </div>
-              
-            </div>
-
-            {/* BARRA DE PESQUISA — colada no cabeçalho */}
-            {pacientes.length > 0 && (
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                borderRadius: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                padding: '8px 16px',
-                marginTop: '-4px',
+                background: 'rgba(255, 255, 255, 0.92)',
+                borderRadius: '16px',
+                border: '1px solid #e2d2f5',
+                padding: '20px 30px',
                 marginBottom: '20px',
                 boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+                backdropFilter: 'blur(5px)',
                 display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: '10px',
-                width: '100%',
-                boxSizing: 'border-box'
+                flexWrap: 'wrap',
+                gap: '15px'
               }}>
-                <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
-                <input
-                  id="termoBusca"
-                  name="termoBusca"
-                  type="text"
-                  placeholder="Pesquisar por nome ou documento..."
-                  value={termoBusca}
-                  onChange={(e) => setTermoBusca(e.target.value)}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    outline: 'none',
-                    background: 'transparent',
-                    fontSize: '12px',
-                    color: '#2c163a',
-                    fontFamily: "'Montserrat', sans-serif"
-                  }}
-                />
-                {termoBusca && (
+                <h2 style={{
+                  fontFamily: "'Cinzel', serif",
+                  color: '#2c163a',
+                  fontSize: '18px',
+                  margin: 0
+                }}>
+                  Pastas de Pacientes
+                </h2>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={() => setTermoBusca('')}
+                    onClick={() => navegarPara('criar_anamnese')}
+                    className="btn-efeito-hover"
                     style={{
-                      background: 'transparent',
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                      color: '#fff',
                       border: 'none',
-                      color: '#888',
-                      fontSize: '11px',
+                      padding: '12px 24px',
+                      borderRadius: '25px',
+                      fontSize: '13px',
+                      fontWeight: 700,
                       cursor: 'pointer',
-                      padding: 0,
-                      fontWeight: 600,
-                      flexShrink: 0
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 15px rgba(200, 162, 74, 0.4)'
                     }}
                   >
-                    Limpar
+                    <MdAssignment size={16} />
+                    Ficha de anamnese
                   </button>
-                )}
+
+                  <button
+                    type="button"
+                    onClick={() => navegarPara('agendamentos')}
+                    className="btn-efeito-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '25px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+                    }}
+                  >
+                    <MdCalendarMonth size={16} />
+                    Agendamentos
+                    {agendamentosPendentesCount > 0 && (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 20,
+                        height: 20,
+                        padding: '0 6px',
+                        borderRadius: 10,
+                        background: '#dc2626',
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        fontFamily: "'Montserrat', sans-serif",
+                        marginLeft: 2,
+                        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                      }}>
+                        {agendamentosPendentesCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navegarPara('seguranca')}
+                    className="btn-efeito-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '25px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
+                    }}
+                  >
+                    <MdSecurity size={16} />
+                    Segurança
+                    {segurancaAlertaCount > 0 && (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 20,
+                        height: 20,
+                        padding: '0 6px',
+                        borderRadius: 10,
+                        background: '#dc2626',
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        fontFamily: "'Montserrat', sans-serif",
+                        marginLeft: 2,
+                        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                      }}>
+                        {segurancaAlertaCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navegarPara('financeiro')}
+                    className="btn-efeito-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
+                      color: '#fff',
+                      border: '1.5px solid #9c7826',
+                      padding: '12px 24px',
+                      borderRadius: '25px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
+                    }}
+                  >
+                    <MdAttachMoney size={16} />
+                    Financeiro
+                  </button>
+                </div>
               </div>
-            )}
 
-     {/* BANNER DE FOTOS — abaixo da busca, com respiro */}
-{fotosPendentes.length > 0 && mostrarBannerFotos && (
-  <div style={{
-    marginTop: 4,
-    marginBottom: 20,
-    background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
-    border: '1.5px solid #a855f7',
-    borderRadius: 12,
-    padding: '14px 18px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  }}>
-    <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{
-        fontFamily: "'Cinzel', serif",
-        color: '#2c163a',
-        fontSize: 13,
-        fontWeight: 700,
-        marginBottom: 4,
-      }}>
-        {fotosPendentes.length === 1
-          ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
-          : `${fotosPendentes.length} pacientes enviaram fotos`}
-      </div>
-      <div style={{
-        fontSize: 11,
-        color: '#555',
-        fontFamily: "'Montserrat', sans-serif",
-      }}>
-        {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
-      </div>
-    </div>
-    <button
-      type="button"
-      onClick={() => {
-        const primeiro = fotosPendentes[0];
-        const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
-        if (pac) {
-          marcarFotosComoNotificadas(pac.id);
-          navegarPara('galeria', { paciente: pac });
-        }
-      }}
-      style={{
-        background: '#7e22ce', color: '#fff', border: 'none',
-        padding: '8px 14px', borderRadius: 16,
-        fontFamily: "'Cinzel', serif",
-        fontSize: 10, fontWeight: 700, cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-      }}
-    >
-      VER
-    </button>
-    <button
-      type="button"
-      onClick={() => setMostrarBannerFotos(false)}
-      style={{
-        background: 'transparent', border: 'none', color: '#888',
-        fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
-        flexShrink: 0,
-      }}
-      title="Fechar"
-    >
-      ×
-    </button>
-  </div>
-)}
+              {/* BARRA DE PESQUISA */}
+              {pacientes.length > 0 && (
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  padding: '8px 16px',
+                  marginTop: '-4px',
+                  marginBottom: '20px',
+                  boxShadow: '0 4px 16px rgba(44, 22, 58, 0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}>
+                  <MdSearch size={18} color="#C8A24A" style={{ flexShrink: 0 }} />
+                  <input
+                    id="termoBusca"
+                    name="termoBusca"
+                    type="text"
+                    placeholder="Pesquisar por nome ou documento..."
+                    value={termoBusca}
+                    onChange={(e) => setTermoBusca(e.target.value)}
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      fontSize: '12px',
+                      color: '#2c163a',
+                      fontFamily: "'Montserrat', sans-serif"
+                    }}
+                  />
+                  {termoBusca && (
+                    <button
+                      type="button"
+                      onClick={() => setTermoBusca('')}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#888',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: 0,
+                        fontWeight: 600,
+                        flexShrink: 0
+                      }}
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              )}
 
-{!jaCarregou ? (
-  <SpinnerLoading texto="Carregando pastas de pacientes…" />
-) : termoBusca.trim().length >= 2 ? (
-  /* ============================================================
-     MODO BUSCA GLOBAL — ignora paginação, varre TODOS os pacientes
-     ============================================================ */
- buscandoGlobal ? (
-  <div style={{
-    display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center',
-    gap: 14, padding: '40px 20px',
-    background: 'rgba(255, 255, 255, 0.92)',
-    borderRadius: '16px', border: '1px solid #e2d2f5',
-    boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
-  }}>
-    {/* Spinner dourado girando */}
-    <div style={{
-      width: '40px', height: '40px',
-      border: '4px solid #e2d2f5',
-      borderTop: '4px solid #C8A24A',
-      borderRadius: '50%',
-      animation: 'spinBusca 0.8s linear infinite',
-    }} />
-    <span style={{
-      fontFamily: "'Cinzel', serif",
-      color: '#55286f',
-      fontSize: 12,
-      fontWeight: 700,
-      letterSpacing: '0.3px',
-    }}>
-      BUSCANDO…
-    </span>
-    <style>{`
-      @keyframes spinBusca { to { transform: rotate(360deg); } }
-    `}</style>
-  </div>
-  ) : !resultadosBusca || resultadosBusca.length === 0 ? (
-    <div style={{
-      textAlign: 'center', padding: '40px 20px',
-      background: 'rgba(255, 255, 255, 0.92)',
-      borderRadius: '16px', border: '1px solid #e2d2f5',
-    }}>
-      <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>
-        Nenhum paciente encontrado para "{termoBusca}".
-      </p>
-      <button
-        type="button"
-        onClick={() => setTermoBusca('')}
-        style={{
-          background: 'transparent', border: 'none',
-          color: '#C8A24A', fontSize: '12px',
-          fontWeight: 700, cursor: 'pointer',
-        }}
-      >
-        Limpar busca
-      </button>
-    </div>
-  ) : (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-      {resultadosBusca.map((pac) => (
-        <div
-          key={pac.id}
-          onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-          className="card-pasta-hover"
-          style={{
-            background: 'rgba(255, 255, 255, 0.92)',
-            border: '1.5px solid #dfc6fc',
-            borderRadius: '12px',
-            padding: '20px',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
-            backdropFilter: 'blur(5px)'
-          }}
-        >
-          <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
-            Criado em: {pac.dataCriacao}
-          </div>
-          <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
-            Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
-          </div>
+              {/* BANNER DE FOTOS */}
+              {fotosPendentes.length > 0 && mostrarBannerFotos && (
+                <div style={{
+                  marginTop: 4,
+                  marginBottom: 20,
+                  background: 'linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%)',
+                  border: '1.5px solid #a855f7',
+                  borderRadius: 12,
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}>
+                  <MdPhotoLibrary size={24} color="#7e22ce" style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: "'Cinzel', serif",
+                      color: '#2c163a',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      marginBottom: 4,
+                    }}>
+                      {fotosPendentes.length === 1
+                        ? `Nova foto de ${fotosPendentes[0].pacienteNome}`
+                        : `${fotosPendentes.length} pacientes enviaram fotos`}
+                    </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: '#555',
+                      fontFamily: "'Montserrat', sans-serif",
+                    }}>
+                      {fotosPendentes.map((f) => f.pacienteNome).join(' · ')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const primeiro = fotosPendentes[0];
+                      const pac = pacientes.find((p) => p.id === primeiro.pacienteId);
+                      if (pac) {
+                        marcarFotosComoNotificadas(pac.id);
+                        navegarPara('galeria', { paciente: pac });
+                      }
+                    }}
+                    style={{
+                      background: '#7e22ce', color: '#fff', border: 'none',
+                      padding: '8px 14px', borderRadius: 16,
+                      fontFamily: "'Cinzel', serif",
+                      fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    VER
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarBannerFotos(false)}
+                    style={{
+                      background: 'transparent', border: 'none', color: '#888',
+                      fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
+                      flexShrink: 0,
+                    }}
+                    title="Fechar"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
 
-          <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
-            📁 {pac.nome}
-          </h3>
-          <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
-            Doc: {pac.documento || 'Não informado'}
-          </div>
-          <LinkAcessoPaciente pacienteId={pac.id} compacto />
-          <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
-            <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
-            <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-) : pacientes.length === 0 ? (
-  /* ============================================================
-     ESTADO VAZIO — nenhum paciente cadastrado
-     ============================================================ */
-  <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(255, 255, 255, 0.92)', borderRadius: '16px', border: '1px solid #e2d2f5' }}>
-    <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>Nenhum paciente cadastrado ainda.</p>
-    <span style={{ color: '#C8A24A', fontSize: '12px', fontWeight: 600 }}>Clique em "Ficha de anamnese" para começar.</span>
-  </div>
-) : (
-  /* ============================================================
-     LISTA PAGINADA — modo normal sem busca
-     ============================================================ */
-  <>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-      {pacientes.map((pac) => (
-        <div
-          key={pac.id}
-          onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
-          className="card-pasta-hover"
-          style={{
-            background: 'rgba(255, 255, 255, 0.92)',
-            border: '1.5px solid #dfc6fc',
-            borderRadius: '12px',
-            padding: '20px',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
-            backdropFilter: 'blur(5px)'
-          }}
-        >
-          <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px', fontFamily: "'Cinzel', serif" }}>
-            Criado em: {pac.dataCriacao}
-          </div>
-          <div style={{ fontSize: '10px', color: '#A6822B', marginBottom: '8px', fontFamily: "'Cinzel', serif", fontWeight: 600 }}>
-            Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
-          </div>
+              {/* ============================================================ */}
+              {/* ⚖️ LGPD — TABS: ATIVOS / ARQUIVADOS                          */}
+              {/* ============================================================ */}
+              {!termoBusca.trim() && pacientes.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  gap: 10,
+                  marginBottom: 20,
+                  flexWrap: 'wrap',
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setAbaPacientes('ativos')}
+                    className={`tab-pacientes ${abaPacientes === 'ativos' ? 'ativo' : ''}`}
+                  >
+                    <MdFolderOpen size={14} />
+                    Ativos
+                    <span className="tab-badge">{pacientesAtivos.length}</span>
+                  </button>
 
-          <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: '0 0 4px 0' }}>
-            📁 {pac.nome}
-          </h3>
-          <div style={{ fontSize: '11px', color: '#665078', fontWeight: 600, marginBottom: '10px' }}>
-            Doc: {pac.documento || 'Não informado'}
-          </div>
-          <LinkAcessoPaciente pacienteId={pac.id} compacto />
-          <div style={{ fontSize: '12px', color: '#555', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0e6fa', paddingTop: '10px', marginTop: '10px' }}>
-            <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
-            <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
-          </div>
-        </div>
-      ))}
-    </div>
+                  <button
+                    type="button"
+                    onClick={() => setAbaPacientes('arquivados')}
+                    className={`tab-pacientes ${abaPacientes === 'arquivados' ? 'ativo' : ''}`}
+                  >
+                    <MdFolder size={14} />
+                    Arquivadas
+                    <span className="tab-badge">{pacientesArquivados.length}</span>
+                  </button>
+                </div>
+              )}
 
-   {temMais && (
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
-        <button
-          type="button"
-          onClick={() => setLimitePagina((prev) => prev + TAMANHO_PAGINA)}
-          style={{
-            fontFamily: "'Cinzel', serif",
-            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-            color: '#fff',
-            border: 'none',
-            padding: '12px 28px',
-            borderRadius: '24px',
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 3px 12px rgba(200, 162, 74, 0.3)',
-          }}
-        >
-          CARREGAR MAIS PACIENTES
-        </button>
-      </div>
-    )}
-  </>
-)}
-   
- 
+              {/* ============================================================ */}
+              {/* CONTEÚDO: BUSCA / LISTA / ESTADO VAZIO                       */}
+              {/* ============================================================ */}
+              {!jaCarregou ? (
+                <SpinnerLoading texto="Carregando pastas de pacientes…" />
+              ) : termoBusca.trim().length >= 2 ? (
+                /* MODO BUSCA GLOBAL */
+                buscandoGlobal ? (
+                  <div style={{
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    gap: 14, padding: '40px 20px',
+                    background: 'rgba(255, 255, 255, 0.92)',
+                    borderRadius: '16px', border: '1px solid #e2d2f5',
+                    boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+                  }}>
+                    <div style={{
+                      width: '40px', height: '40px',
+                      border: '4px solid #e2d2f5',
+                      borderTop: '4px solid #C8A24A',
+                      borderRadius: '50%',
+                      animation: 'spinBusca 0.8s linear infinite',
+                    }} />
+                    <span style={{
+                      fontFamily: "'Cinzel', serif",
+                      color: '#55286f',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: '0.3px',
+                    }}>
+                      BUSCANDO…
+                    </span>
+                    <style>{`
+                      @keyframes spinBusca { to { transform: rotate(360deg); } }
+                    `}</style>
+                  </div>
+                ) : !resultadosBusca || resultadosBusca.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center', padding: '40px 20px',
+                    background: 'rgba(255, 255, 255, 0.92)',
+                    borderRadius: '16px', border: '1px solid #e2d2f5',
+                  }}>
+                    <p style={{ color: '#666', fontSize: '13px', marginBottom: '10px' }}>
+                      Nenhum paciente encontrado para "{termoBusca}".
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTermoBusca('')}
+                      style={{
+                        background: 'transparent', border: 'none',
+                        color: '#C8A24A', fontSize: '12px',
+                        fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      Limpar busca
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '20px'
+                  }}>
+                    {resultadosBusca.map((pac) => (
+                      <CardPaciente
+                        key={pac.id}
+                        pac={pac}
+                        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : listaParaRender.length === 0 ? (
+                /* ESTADO VAZIO — depende da aba */
+                <div style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  background: 'rgba(255, 255, 255, 0.92)',
+                  borderRadius: '16px',
+                  border: '1px solid #e2d2f5'
+                }}>
+                  {abaPacientes === 'arquivados' ? (
+                    <>
+                      <MdFolder size={42} color="#a855f7" style={{ marginBottom: 12 }} />
+                      <p style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>
+                        Nenhuma pasta arquivada.
+                      </p>
+                      <span style={{ color: '#999', fontSize: '12px' }}>
+                        Pastas de pacientes que excluíram a conta aparecem aqui.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
+                        Nenhum paciente cadastrado ainda.
+                      </p>
+                      <span style={{ color: '#C8A24A', fontSize: '12px', fontWeight: 600 }}>
+                        Clique em "Ficha de anamnese" para começar.
+                      </span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* LISTA PAGINADA */
+                <>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '20px'
+                  }}>
+                    {listaParaRender.map((pac) => (
+                      <CardPaciente
+                        key={pac.id}
+                        pac={pac}
+                        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                        arquivado={abaPacientes === 'arquivados'}
+                      />
+                    ))}
+                  </div>
+
+                  {temMais && abaPacientes === 'ativos' && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+                      <button
+                        type="button"
+                        onClick={() => setLimitePagina((prev) => prev + TAMANHO_PAGINA)}
+                        style={{
+                          fontFamily: "'Cinzel', serif",
+                          background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '12px 28px',
+                          borderRadius: '24px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 3px 12px rgba(200, 162, 74, 0.3)',
+                        }}
+                      >
+                        CARREGAR MAIS PACIENTES
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
+
+          {/* ============================================================ */}
+          {/* TELA: SEGURANÇA                                              */}
+          {/* ============================================================ */}
           {telaAtual === 'seguranca' && (
-  <div>
-    <button
-      type="button"
-      onClick={() => navegarPara('lista')}
-      className="btn-voltar-lista"
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-        color: '#2c163a',
-        border: '1.5px solid #C8A24A',
-        padding: '10px 22px',
-        borderRadius: '25px',
-        fontSize: '13px',
-        fontWeight: 700,
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '20px',
-      }}
-    >
-      <MdArrowBack size={16} color="#C8A24A" />
-      Voltar para lista de pacientes
-    </button>
-    <PainelSeguranca />
-  </div>
-)}
-{telaAtual === 'financeiro' && (
-  <div>
-    <button
-      type="button"
-      onClick={() => navegarPara('lista')}
-      className="btn-voltar-lista"
-      style={{
-        fontFamily: "'Cinzel', serif",
-        background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-        color: '#2c163a',
-        border: '1.5px solid #C8A24A',
-        padding: '10px 22px',
-        borderRadius: '25px',
-        fontSize: '13px',
-        fontWeight: 700,
-        letterSpacing: '0.5px',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '20px',
-        boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-        transition: 'all 0.25s ease',
-        backdropFilter: 'blur(6px)',
-      }}
-    >
-      <MdArrowBack size={16} color="#C8A24A" />
-      Voltar para lista de pacientes
-    </button>
+            <div>
+              <button
+                type="button"
+                onClick={() => navegarPara('lista')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 22px',
+                  borderRadius: '25px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '20px',
+                }}
+              >
+                <MdArrowBack size={16} color="#C8A24A" />
+                Voltar para lista de pacientes
+              </button>
+              <PainelSeguranca />
+            </div>
+          )}
 
-    <PainelFinanceiro uidEsteticista={auth.currentUser?.uid} />
-  </div>
-)}
+          {/* ============================================================ */}
+          {/* TELA: FINANCEIRO                                             */}
+          {/* ============================================================ */}
+          {telaAtual === 'financeiro' && (
+            <div>
+              <button
+                type="button"
+                onClick={() => navegarPara('lista')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 22px',
+                  borderRadius: '25px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '20px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={16} color="#C8A24A" />
+                Voltar para lista de pacientes
+              </button>
 
+              <PainelFinanceiro uidEsteticista={auth.currentUser?.uid} />
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* TELA: AGENDAMENTOS                                           */}
+          {/* ============================================================ */}
           {telaAtual === 'agendamentos' && (
-  <div>
-    <button
-  type="button"
-  onClick={() => navegarPara('lista')}
-  className="btn-voltar-lista"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #C8A24A',
-    padding: '10px 22px',
-    borderRadius: '25px',
-    fontSize: '13px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '20px',
-    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-    transition: 'all 0.25s ease',
-    backdropFilter: 'blur(6px)',
-  }}
->
-  <MdArrowBack size={16} color="#C8A24A" />
-  Voltar para lista de pacientes
-</button>
-   <PainelAgendamentosEsteticista
-  uidEsteticista={auth.currentUser?.uid}
-  onCampoSubstituido={handleCampoSubstituido}
-/>
-  </div>
-)}
+            <div>
+              <button
+                type="button"
+                onClick={() => navegarPara('lista')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 22px',
+                  borderRadius: '25px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '20px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={16} color="#C8A24A" />
+                Voltar para lista de pacientes
+              </button>
 
-          {/* DETALHES DA PASTA DO PACIENTE */}
+              <PainelAgendamentosEsteticista
+                uidEsteticista={auth.currentUser?.uid}
+                onCampoSubstituido={handleCampoSubstituido}
+              />
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* TELA: DETALHE DA PASTA                                       */}
+          {/* ============================================================ */}
           {telaAtual === 'detalhe_pasta' && pacienteSelecionado && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '25px',
+                flexWrap: 'wrap',
+                gap: '15px'
+              }}>
                 <div>
                   <button
                     type="button"
@@ -1843,12 +2007,22 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                     <MdArrowBack size={16} color="#C8A24A" />
                     Voltar para lista de pacientes
                   </button>
-                  <h2 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '22px', margin: 0 }}>
+
+                  <h2 style={{
+                    fontFamily: "'Cinzel', serif",
+                    color: '#2c163a',
+                    fontSize: '22px',
+                    margin: 0
+                  }}>
                     📁 {pacienteSelecionado.nome}
                     <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} />
                   </h2>
-                  <span style={{ fontSize: '11px', color: '#555', display: 'block', marginTop: '3px' }}>Doc: {pacienteSelecionado.documento || 'Não informado'}</span> 
-                  <span style={{ fontSize: '11px', color: '#555', display: 'block' }}>Pasta criada em: {pacienteSelecionado.dataCriacao}</span>
+                  <span style={{ fontSize: '11px', color: '#555', display: 'block', marginTop: '3px' }}>
+                    Doc: {pacienteSelecionado.documento || 'Não informado'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#555', display: 'block' }}>
+                    Pasta criada em: {pacienteSelecionado.dataCriacao}
+                  </span>
                   <span style={{ fontSize: '11px', color: '#A6822B', fontWeight: 600, display: 'block' }}>
                     Última edição: {pacienteSelecionado.dataUltimaEdicao || pacienteSelecionado.dataCriacao}
                   </span>
@@ -1875,12 +2049,13 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                   >
                     Ver Ficha de Anamnese
                   </button>
+
                   <button
                     type="button"
-                     onClick={() => {
-    marcarFotosComoNotificadas(pacienteSelecionado.id);
-    navegarPara('galeria');
-  }}
+                    onClick={() => {
+                      marcarFotosComoNotificadas(pacienteSelecionado.id);
+                      navegarPara('galeria');
+                    }}
                     className="btn-efeito-hover"
                     style={{
                       fontFamily: "'Cinzel', serif",
@@ -1902,13 +2077,14 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                     <MdPhotoLibrary size={14} color="#fff" />
                     Galeria do Paciente
                   </button>
+
                   <button
                     type="button"
                     onClick={() => navegarPara('criar_evolucao')}
                     className="btn-efeito-hover"
                     style={{
                       fontFamily: "'Cinzel', serif",
-                      background:'#C8A24A' ,
+                      background: '#C8A24A',
                       color: '#fdfcfa',
                       border: '1.5px solid #C8A24A',
                       padding: '8px 16px',
@@ -1920,29 +2096,30 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                   >
                     + Adicionar Evolução
                   </button>
-   <button
-  type="button"
-  onClick={() => setMostrarModalAgendar(true)}
-  className="btn-efeito-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-    color: '#fff',
-    border: '1.5px solid #9c7826',
-    padding: '8px 16px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
-  }}
->
-  <MdCalendarMonth size={14} color="#fff" />
-  Agendar Consulta
-</button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMostrarModalAgendar(true)}
+                    className="btn-efeito-hover"
+                    style={{
+                      fontFamily: "'Cinzel', serif",
+                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
+                      color: '#fff',
+                      border: '1.5px solid #9c7826',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
+                    }}
+                  >
+                    <MdCalendarMonth size={14} color="#fff" />
+                    Agendar Consulta
+                  </button>
 
                   <button
                     type="button"
@@ -1964,10 +2141,31 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                   </button>
                 </div>
               </div>
-           
-              <div style={{ background: 'rgba(255, 255, 255, 0.92)', padding: '25px', borderRadius: '12px', border: '1px solid #e2d2f5', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', backdropFilter: 'blur(5px)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px', flexWrap: 'wrap', gap: '15px' }}>
-                  <h3 style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '16px', margin: 0 }}>
+
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.92)',
+                padding: '25px',
+                borderRadius: '12px',
+                border: '1px solid #e2d2f5',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                backdropFilter: 'blur(5px)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '20px',
+                  borderBottom: '1px solid #eee',
+                  paddingBottom: '10px',
+                  flexWrap: 'wrap',
+                  gap: '15px'
+                }}>
+                  <h3 style={{
+                    fontFamily: "'Cinzel', serif",
+                    color: '#2c163a',
+                    fontSize: '16px',
+                    margin: 0
+                  }}>
                     Histórico de Fichas de Evolução ({pacienteSelecionado.evolucoes?.length || 0})
                   </h3>
 
@@ -2024,15 +2222,37 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                 </div>
 
                 {(!pacienteSelecionado.evolucoes || pacienteSelecionado.evolucoes.length === 0) ? (
-                  <p style={{ color: '#777', fontSize: '13px' }}>Nenhuma ficha de evolução registrada nesta pasta ainda.</p>
+                  <p style={{ color: '#777', fontSize: '13px' }}>
+                    Nenhuma ficha de evolução registrada nesta pasta ainda.
+                  </p>
                 ) : evolucoesFiltradas.length === 0 ? (
-                  <p style={{ color: '#777', fontSize: '13px' }}>Nenhuma evolução encontrada para a data "{termoBuscaEvolucao}".</p>
+                  <p style={{ color: '#777', fontSize: '13px' }}>
+                    Nenhuma evolução encontrada para a data "{termoBuscaEvolucao}".
+                  </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {evolucoesFiltradas.map((evo) => (
-                      <div key={evo.id} style={{ border: '1.5px solid #dfc6fc', borderRadius: '8px', padding: '15px', backgroundColor: 'rgba(250, 246, 253, 0.95)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontSize: '12px', fontWeight: 700 }}>
+                      <div
+                        key={evo.id}
+                        style={{
+                          border: '1.5px solid #dfc6fc',
+                          borderRadius: '8px',
+                          padding: '15px',
+                          backgroundColor: 'rgba(250, 246, 253, 0.95)'
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px'
+                        }}>
+                          <span style={{
+                            fontFamily: "'Cinzel', serif",
+                            color: '#C8A24A',
+                            fontSize: '12px',
+                            fontWeight: 700
+                          }}>
                             Evolução - {evo.dataCriacao}
                           </span>
                           <div style={{ display: 'flex', gap: '8px' }}>
@@ -2054,7 +2274,7 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                             >
                               Ver Evolução
                             </button>
-                            
+
                             <button
                               type="button"
                               onClick={() => solicitarExclusaoEvolucao(evo.id)}
@@ -2075,27 +2295,34 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                             </button>
                           </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#444',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
                           {evo.textoLivre ? evo.textoLivre : (evo.observacoes || evo.procedimentoRealizado || 'Nenhum texto adicional registrado.')}
                         </div>
                       </div>
                     ))}
-
                   </div>
                 )}
-                 </div>
-                 <HistoricoAgendamentosPaciente
-  pacienteId={pacienteSelecionado.id}
-  pacienteNome={pacienteSelecionado.nome}
-  pacienteDocumento={pacienteSelecionado.documento}
-  uidEsteticista={auth.currentUser?.uid}
-  modo="esteticista"
-  colapsavel={true}
-  abertoPorPadrao={false}
-/>
-<CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+              </div>
 
-{/* ✅ Card de Consentimento LGPD */}
+              <HistoricoAgendamentosPaciente
+                pacienteId={pacienteSelecionado.id}
+                pacienteNome={pacienteSelecionado.nome}
+                pacienteDocumento={pacienteSelecionado.documento}
+                uidEsteticista={auth.currentUser?.uid}
+                modo="esteticista"
+                colapsavel={true}
+                abertoPorPadrao={false}
+              />
+
+              <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+
+              {/* Card de Consentimento LGPD */}
               <div style={{
                 marginTop: '15px',
                 background: 'rgba(255, 255, 255, 0.92)',
@@ -2109,7 +2336,12 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                   <span style={{ fontSize: '13px' }}>
                     {pacienteSelecionado.consentimentoLGPD?.aceito ? '✅' : '⚠️'}
                   </span>
-                  <span style={{ fontFamily: "'Cinzel', serif", color: '#2c163a', fontSize: '12px', fontWeight: 700 }}>
+                  <span style={{
+                    fontFamily: "'Cinzel', serif",
+                    color: '#2c163a',
+                    fontSize: '12px',
+                    fontWeight: 700
+                  }}>
                     Consentimento LGPD
                   </span>
                 </div>
@@ -2157,6 +2389,9 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
             </div>
           )}
 
+          {/* ============================================================ */}
+          {/* TELA: GALERIA                                                */}
+          {/* ============================================================ */}
           {telaAtual === 'galeria' && pacienteSelecionado && (
             <div>
               <button
@@ -2196,14 +2431,17 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
             </div>
           )}
 
+          {/* ============================================================ */}
+          {/* TELA: VER EVOLUÇÃO                                           */}
+          {/* ============================================================ */}
           {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
             <div>
-              <FichaEvoDesktop 
-                mode="view" 
+              <FichaEvoDesktop
+                mode="view"
                 initialData={{
                   ...evolucaoSelecionada,
                   onIrParaEdicao: () => navegarPara('editar_evolucao')
-                }} 
+                }}
                 pacienteSelecionado={pacienteSelecionado}
                 uidEsteticista={auth.currentUser?.uid}
                 onVoltar={() => navegarPara('detalhe_pasta')}
@@ -2211,67 +2449,74 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
             </div>
           )}
 
+          {/* ============================================================ */}
+          {/* TELA: CRIAR EVOLUÇÃO                                         */}
+          {/* ============================================================ */}
           {telaAtual === 'criar_evolucao' && (
             <div>
-              <FichaEvoDesktop 
-                mode="create" 
+              <FichaEvoDesktop
+                mode="create"
                 pacienteSelecionado={pacienteSelecionado}
                 pacienteNomeProp={pacienteSelecionado?.nome}
                 uidEsteticista={auth.currentUser?.uid}
-                onSave={handleSalvarEvolucao} 
+                onSave={handleSalvarEvolucao}
                 onVoltar={() => navegarPara('detalhe_pasta')}
               />
             </div>
           )}
 
+          {/* ============================================================ */}
+          {/* TELA: EDITAR EVOLUÇÃO                                        */}
+          {/* ============================================================ */}
           {telaAtual === 'editar_evolucao' && evolucaoSelecionada && (
             <div>
-              <FichaEvoDesktop 
-                mode="edit" 
-                initialData={evolucaoSelecionada} 
+              <FichaEvoDesktop
+                mode="edit"
+                initialData={evolucaoSelecionada}
                 pacienteSelecionado={pacienteSelecionado}
                 uidEsteticista={auth.currentUser?.uid}
-                onSave={handleAtualizarEvolucao} 
+                onSave={handleAtualizarEvolucao}
                 onVoltar={() => navegarPara('detalhe_pasta')}
               />
             </div>
           )}
         </div>
       </div>
-{mostrarModalAgendar && pacienteSelecionado && (
-  <ModalAgendarParaPaciente
-    paciente={pacienteSelecionado}
-    uidEsteticista={auth.currentUser?.uid}
-    onFechar={() => setMostrarModalAgendar(false)}
-    onSucesso={(ag) => {
-      setMostrarModalAgendar(false);
-      // ✅ Abre direto o seletor de serviço
-      setAgendamentoRecemCriado(ag);
-    }}
-  />
-)}
 
-{/* ✅ NOVO: seletor de serviço automático após criar o agendamento */}
-{agendamentoRecemCriado && (
-  <ModalEscolherServico
-    agendamento={agendamentoRecemCriado}
-    uidEsteticista={auth.currentUser?.uid}
-    onFechar={() => setAgendamentoRecemCriado(null)}
-    onConfirmado={() => {
-      const ag = agendamentoRecemCriado;
-      setAgendamentoRecemCriado(null);
-      const [a, m, d] = (ag.data || '').split('-');
-      const dataBR = d && m && a ? `${d}/${m}/${a}` : ag.data;
-      setModalFeedback({
-        tipo: 'sucesso',
-        titulo: 'Agendamento confirmado!',
-        mensagem: `${pacienteSelecionado?.nome || ''}\n${dataBR} às ${ag.horaInicio}`,
-      });
-    }}
-  />
-)}
+      {/* ============================================================ */}
+      {/* MODAIS                                                       */}
+      {/* ============================================================ */}
+      {mostrarModalAgendar && pacienteSelecionado && (
+        <ModalAgendarParaPaciente
+          paciente={pacienteSelecionado}
+          uidEsteticista={auth.currentUser?.uid}
+          onFechar={() => setMostrarModalAgendar(false)}
+          onSucesso={(ag) => {
+            setMostrarModalAgendar(false);
+            setAgendamentoRecemCriado(ag);
+          }}
+        />
+      )}
 
-      {/* ✅ Modal do Termo de Consentimento */}
+      {agendamentoRecemCriado && (
+        <ModalEscolherServico
+          agendamento={agendamentoRecemCriado}
+          uidEsteticista={auth.currentUser?.uid}
+          onFechar={() => setAgendamentoRecemCriado(null)}
+          onConfirmado={() => {
+            const ag = agendamentoRecemCriado;
+            setAgendamentoRecemCriado(null);
+            const [a, m, d] = (ag.data || '').split('-');
+            const dataBR = d && m && a ? `${d}/${m}/${a}` : ag.data;
+            setModalFeedback({
+              tipo: 'sucesso',
+              titulo: 'Agendamento confirmado!',
+              mensagem: `${pacienteSelecionado?.nome || ''}\n${dataBR} às ${ag.horaInicio}`,
+            });
+          }}
+        />
+      )}
+
       {mostrarTermoPDF && pacienteSelecionado && (
         <TermoConsentimentoPDF
           pacienteData={pacienteSelecionado}
@@ -2279,14 +2524,16 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
         />
       )}
 
-{modalFeedback && (
-  <ModalFeedback
-    tipo={modalFeedback.tipo}
-    titulo={modalFeedback.titulo}
-    mensagem={modalFeedback.mensagem}
-    onFechar={() => setModalFeedback(null)}
-  />
-)}
+      {modalFeedback && (
+        <ModalFeedback
+          tipo={modalFeedback.tipo}
+          titulo={modalFeedback.titulo}
+          mensagem={modalFeedback.mensagem}
+          onFechar={() => setModalFeedback(null)}
+        />
+      )}
+
+      {/* MODAL DE EXCLUSÃO DE PASTA/EVOLUÇÃO */}
       {modalExclusao.isOpen && (
         <div style={{
           position: 'fixed',
@@ -2312,24 +2559,34 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
             textAlign: 'center',
             fontFamily: "'Montserrat', sans-serif"
           }}>
-            <h3 style={{ fontFamily: "'Cinzel', serif", color: '#c62828', fontSize: '18px', marginBottom: '15px' }}>
+            <h3 style={{
+              fontFamily: "'Cinzel', serif",
+              color: '#c62828',
+              fontSize: '18px',
+              marginBottom: '15px'
+            }}>
               ⚠️ Confirmação de Exclusão
             </h3>
-            <p style={{ fontSize: '14px', color: '#2c163a', marginBottom: '20px', fontWeight: 500 }}>
+            <p style={{
+              fontSize: '14px',
+              color: '#2c163a',
+              marginBottom: '20px',
+              fontWeight: 500
+            }}>
               {modalExclusao.titulo}
             </p>
             <p style={{ fontSize: '12px', color: '#666', marginBottom: '15px' }}>
               Para prosseguir, digite sua senha de usuário e pressione Enter:
             </p>
 
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              border: '1px solid #ccc', 
-              borderRadius: '8px', 
-              padding: '0 10px', 
-              marginBottom: '8px', 
-              backgroundColor: '#fff' 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              border: '1px solid #ccc',
+              borderRadius: '8px',
+              padding: '0 10px',
+              marginBottom: '8px',
+              backgroundColor: '#fff'
             }}>
               <input
                 id="senhaConfirmacaoExclusao"
@@ -2338,7 +2595,11 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                 type={modalExclusao.mostrarSenhaModal ? 'text' : 'password'}
                 placeholder="Digite sua senha"
                 value={modalExclusao.senhaInput}
-                onChange={(e) => setModalExclusao(prev => ({ ...prev, senhaInput: e.target.value, erroSenha: '' }))}
+                onChange={(e) => setModalExclusao(prev => ({
+                  ...prev,
+                  senhaInput: e.target.value,
+                  erroSenha: ''
+                }))}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     confirmarExclusao();
@@ -2356,7 +2617,10 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
               />
               <button
                 type="button"
-                onClick={() => setModalExclusao(prev => ({ ...prev, mostrarSenhaModal: !prev.mostrarSenhaModal }))}
+                onClick={() => setModalExclusao(prev => ({
+                  ...prev,
+                  mostrarSenhaModal: !prev.mostrarSenhaModal
+                }))}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -2376,7 +2640,13 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
             </div>
 
             {modalExclusao.erroSenha && (
-              <span style={{ color: '#c62828', fontSize: '12px', display: 'block', marginBottom: '15px', fontWeight: 600 }}>
+              <span style={{
+                color: '#c62828',
+                fontSize: '12px',
+                display: 'block',
+                marginBottom: '15px',
+                fontWeight: 600
+              }}>
                 {modalExclusao.erroSenha}
               </span>
             )}
@@ -2421,8 +2691,97 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
           </div>
         </div>
       )}
-         {/* ⬇️ BOTÃO CARREGAR MAIS — NOVO */}
- 
+    </div>
+  );
+
+function CardPaciente({ pac, onClick, arquivado = false }) {
+  return (
+    <div
+      onClick={onClick}
+      className="card-pasta-hover"
+      style={{
+        background: 'rgba(255, 255, 255, 0.92)',
+        border: arquivado
+          ? '1.5px dashed #c4b5d4'
+          : '1.5px solid #dfc6fc',
+        borderRadius: '12px',
+        padding: '20px',
+        cursor: 'pointer',
+        boxShadow: '0 4px 12px rgba(44, 22, 58, 0.05)',
+        backdropFilter: 'blur(5px)',
+        opacity: arquivado ? 0.85 : 1,
+      }}
+    >
+      {arquivado ? (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          background: '#fff8e1',
+          color: '#92400e',
+          border: '1px solid #fcd34d',
+          borderRadius: 8,
+          padding: '2px 8px',
+          fontSize: 9.5,
+          fontWeight: 700,
+          fontFamily: "'Cinzel', serif",
+          marginBottom: 6,
+        }}>
+          📂 Arquivada
+        </div>
+      ) : (
+        <div style={{
+          fontSize: '10px',
+          color: '#888',
+          marginBottom: '4px',
+          fontFamily: "'Cinzel', serif"
+        }}>
+          Criado em: {pac.dataCriacao}
+        </div>
+      )}
+
+      <div style={{
+        fontSize: '10px',
+        color: '#A6822B',
+        marginBottom: '8px',
+        fontFamily: "'Cinzel', serif",
+        fontWeight: 600
+      }}>
+        Última edição: {pac.dataUltimaEdicao || pac.dataCriacao}
+      </div>
+
+      <h3 style={{
+        fontFamily: "'Cinzel', serif",
+        color: '#2c163a',
+        fontSize: '16px',
+        margin: '0 0 4px 0'
+      }}>
+        📁 {pac.nome}
+      </h3>
+
+      <div style={{
+        fontSize: '11px',
+        color: '#665078',
+        fontWeight: 600,
+        marginBottom: '10px'
+      }}>
+        Doc: {pac.documento || 'Não informado'}
+      </div>
+
+      {!arquivado && <LinkAcessoPaciente pacienteId={pac.id} compacto />}
+
+      <div style={{
+        fontSize: '12px',
+        color: '#555',
+        display: 'flex',
+        justifyContent: 'space-between',
+        borderTop: '1px solid #f0e6fa',
+        paddingTop: '10px',
+        marginTop: '10px'
+      }}>
+        <span>Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong></span>
+        <span style={{ color: '#C8A24A', fontWeight: 700 }}>Abrir Pasta →</span>
+      </div>
     </div>
   );
 }

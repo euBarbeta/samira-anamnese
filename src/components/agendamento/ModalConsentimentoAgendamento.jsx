@@ -6,6 +6,10 @@ import { MdClose, MdLock, MdVerifiedUser } from 'react-icons/md';
  * Modal que exibe o termo de consentimento LGPD no fluxo de AGENDAMENTO.
  * É um resumo simplificado — o termo completo está em PoliticaPrivacidade.
  *
+ * ⚖️ LGPD + Lei 13.787/2018:
+ *  - Prontuário mantido por 20 anos (obrigação legal)
+ *  - Dados de contato anonimizados em caso de exclusão
+ *
  * Props:
  *  - onFechar: () => void
  */
@@ -192,7 +196,17 @@ export default function ModalConsentimentoAgendamento({ onFechar }) {
                   <strong>Onde:</strong> Google Firebase (banco de dados) e Cloudinary (imagens) — ambos em conformidade com a LGPD;
                 </li>
                 <li>
-                  <strong>Por quanto tempo:</strong> enquanto durar o relacionamento e pelos prazos legais aplicáveis (mínimo 5 anos para defesa em processos);
+                  <strong>Por quanto tempo:</strong> o prontuário de saúde (anamnese, evoluções, fotos clínicas)
+                  é mantido por <strong>no mínimo 20 (vinte) anos</strong> a contar do último registro,
+                  conforme <strong>Lei nº 13.787/2018, art. 6º</strong> e{' '}
+                  <strong>Resolução CFM nº 1.821/2007</strong>. Esse prazo é uma obrigação legal
+                  e, por isso, a LGPD permite expressamente a conservação dos dados mesmo após
+                  solicitação de exclusão (Art. 16, I da LGPD).
+                </li>
+                <li>
+                  <strong>Dados de contato:</strong> (telefone, e-mail, endereço) são anonimizados
+                  imediatamente após solicitação de exclusão. O nome e o documento, por fazerem
+                  parte do prontuário, são mantidos pelo mesmo prazo legal.
                 </li>
                 <li>
                   <strong>Com quem compartilha:</strong> apenas com a profissional responsável e os provedores técnicos (Firebase, Cloudinary, Netlify);

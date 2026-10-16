@@ -6,6 +6,8 @@
 //
 //    Body: { agendamentoId }
 //    — Lê o agendamento, e escreve/remove o slot público correspondente.
+//
+// ⚖️ LGPD: se o agendamento foi anonimizado, ele não ocupa mais slot.
 
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -54,12 +56,17 @@ exports.handler = async (event) => {
     const agRef = db.collection('agendamentos').doc(String(agendamentoId));
     const agSnap = await agRef.get();
 
+    // ============================================================
+    // ⚖️ LGPD: se o agendamento NÃO existe mais (removido por outro
+    //    processo), limpa o slot público correspondente.
+    // ============================================================
     if (!agSnap.exists) {
-      // Agendamento foi APAGADO — remove qualquer slot público dele
-      // (não temos como saber a chave exata sem o doc, então tentamos
-      //  remover por prefixo de ID — mas no seu caso, o ID do slot é
-      //  derivado do agendamento, então é só deletar o doc com mesmo id)
-      await db.collection('slots_ocupados_publicos').doc(String(agendamentoId)).delete().catch(() => {});
+      await db
+        .collection('slots_ocupados_publicos')
+        .doc(String(agendamentoId))
+        .delete()
+        .catch(() => {});
+
       return {
         statusCode: 200,
         headers: CORS,
@@ -70,13 +77,31 @@ exports.handler = async (event) => {
     const ag = agSnap.data();
     const { uidEsteticista, data, horaInicio, horaFim, status } = ag;
 
-    // 2) Decisão: ocupa ou não ocupa?
-    const ocupa = STATUS_OCUPADO.includes(status) && !ag.ocultoParaEsteticista;
+    // ============================================================
+    // ⚖️ LGPD: agendamento ANONIMIZADO não ocupa slot público
+    //    (o paciente saiu da lista dele, não faz sentido bloquear
+    //     o horário para outros pacientes)
+    // ============================================================
+    const foiAnonimizado = Boolean(ag.anonimizadoEm);
 
-    const slotRef = db.collection('slots_ocupados_publicos').doc(String(agendamentoId));
+    // 2) Decisão: ocupa ou não ocupa?
+    const ocupa =
+      STATUS_OCUPADO.includes(status) &&
+      !ag.ocultoParaEsteticista &&
+      !foiAnonimizado;
+
+    const slotRef = db
+      .collection('slots_ocupados_publicos')
+      .doc(String(agendamentoId));
 
     if (ocupa) {
+      // ============================================================
       // 3a) Escreve o slot público (SEM PII)
+      // ------------------------------------------------------------
+      // ⚖️ Este doc é PÚBLICO (allow read: if true nas rules).
+      //    Por isso NÃO colocamos nome, telefone ou email.
+      //    Só o que a agenda precisa: data, horário, duração.
+      // ============================================================
       await slotRef.set({
         uidEsteticista: String(uidEsteticista),
         data: data,
@@ -87,14 +112,17 @@ exports.handler = async (event) => {
         atualizadoEm: new Date().toISOString(),
       });
     } else {
+      // ============================================================
       // 3b) Não ocupa mais → remove da coleção pública
+      //    (cancelado, concluído, faltou, reagendado, anonimizado...)
+      // ============================================================
       await slotRef.delete().catch(() => {});
     }
 
     return {
       statusCode: 200,
       headers: CORS,
-      body: JSON.stringify({ ok: true, ocupa }),
+      body: JSON.stringify({ ok: true, ocupa, foiAnonimizado }),
     };
   } catch (err) {
     console.error('❌ Erro sincronizar-slot-publico:', err);

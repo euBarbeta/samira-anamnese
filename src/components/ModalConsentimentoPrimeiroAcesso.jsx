@@ -36,7 +36,7 @@ export default function ModalConsentimentoPrimeiroAcesso({
       const consentimentoLGPD = {
         aceito: true,
         dataAceite: new Date().toISOString(),
-        versaoTermo: '1.0',
+        versaoTermo: '2.0',
         plataforma: detectarPlataforma(),
         userAgent: (navigator.userAgent || '').slice(0, 200),
       };

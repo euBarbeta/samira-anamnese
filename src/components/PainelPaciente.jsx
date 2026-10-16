@@ -955,7 +955,7 @@ useEffect(() => {
 
   const consentimento = pacienteData.consentimentoLGPD;
   const aceito = consentimento?.aceito === true;
-  const versaoOk = consentimento?.versaoTermo === '1.0';
+  const versaoOk = consentimento?.versaoTermo === '2.0';
 
   if (aceito && versaoOk) {
     setMostrarConsentimento(false);

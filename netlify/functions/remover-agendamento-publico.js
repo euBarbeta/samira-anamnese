@@ -1,4 +1,13 @@
 // netlify/functions/remover-agendamento-publico.js
+//
+// ⚖️ LGPD + Lei 13.787/2018
+// ------------------------------------------------------------
+// Antes: fazia DELETE FÍSICO do agendamento (viola obrigação legal)
+// Depois: ANONIMIZA — apaga só contato, mantém nome/documento/histórico
+//
+// ⚠️ Isso NÃO é mais um "remover" no sentido de apagar — é um
+//    "arquivar" que preserva o prontuário por 20 anos.
+
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { checkRateLimit } = require('./_utils/rate-limit');
@@ -73,6 +82,7 @@ exports.handler = async (event) => {
 
     const ag = snap.data();
 
+    // 🔒 Valida nome
     if (normalizarNome(ag.nome) !== normalizarNome(nome)) {
       return {
         statusCode: 403,
@@ -81,6 +91,7 @@ exports.handler = async (event) => {
       };
     }
 
+    // 🔒 Valida documento
     if (String(ag.documento || '').trim() !== String(documento).trim()) {
       return {
         statusCode: 403,
@@ -89,21 +100,75 @@ exports.handler = async (event) => {
       };
     }
 
-    // Só pode remover se já estiver cancelado
+    // ⚖️ Só pode anonimizar se já estiver cancelado
     if (ag.status !== 'cancelado') {
       return {
         statusCode: 400,
         headers: CORS,
-        body: JSON.stringify({ error: 'só é possível remover agendamentos cancelados' }),
+        body: JSON.stringify({
+          error: 'só é possível remover da lista agendamentos cancelados',
+        }),
       };
     }
 
-    await ref.delete();
+    // ⚖️ Se já foi anonimizado, não faz nada
+    if (ag.anonimizadoEm) {
+      return {
+        statusCode: 200,
+        headers: CORS,
+        body: JSON.stringify({ ok: true, jaAnonimizado: true }),
+      };
+    }
+
+    // ============================================================
+    // ⚖️ LGPD + Lei 13.787/2018
+    // ------------------------------------------------------------
+    // ANONIMIZAÇÃO (não delete):
+    //   - Apaga: telefone, email, observações
+    //   - MANTÉM: nome, documento, data, horaInicio, servicoNome,
+    //             status, canceladoPor (tudo que é prontuário/registro)
+    //   - Marca: anonimizadoEm, ocultoParaPaciente
+    // ============================================================
+    const agora = new Date().toISOString();
+
+    await ref.update({
+      // ⚠️ Apaga SÓ os dados de contato
+      telefone: null,
+      email: null,
+      observacoes: null,
+
+      // ✅ Nome e documento FICAM (são prontuário)
+      // ✅ Data, hora, serviço, status FICAM (são histórico)
+
+      // ⚖️ Marcadores LGPD
+      anonimizadoEm: agora,
+      anonimizadoPor: 'paciente-removeu-da-lista',
+
+      // ✅ Esconde da lista do paciente
+      ocultoParaPaciente: true,
+      ocultadoPacienteEm: agora,
+
+      atualizadoEm: agora,
+    });
+
+    // ============================================================
+    // Sincroniza slot público (não bloqueia a resposta)
+    // ============================================================
+    try {
+      const baseUrl = process.env.URL || `https://${event.headers.host}`;
+      await fetch(`${baseUrl}/.netlify/functions/sincronizar-slot-publico`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamentoId }),
+      });
+    } catch (e) {
+      console.warn('Falha ao sincronizar slot público:', e);
+    }
 
     return {
       statusCode: 200,
       headers: CORS,
-      body: JSON.stringify({ ok: true }),
+      body: JSON.stringify({ ok: true, anonimizado: true }),
     };
   } catch (err) {
     console.error('❌ Erro remover-agendamento-publico:', err);
