@@ -107,6 +107,7 @@ await updateDoc(pacienteRef, {
   await anonimizarAgendamentosDoPaciente({
     pacienteId,
     uidEsteticista,
+      motivo,
   });
 
   // ============================================================
@@ -251,6 +252,7 @@ export async function reativarPaciente({
 export async function anonimizarAgendamentosDoPaciente({
   pacienteId,
   uidEsteticista,
+    motivo = 'anonimizacao',
 }) {
   const agsSnap = await getDocs(
     query(
