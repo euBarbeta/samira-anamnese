@@ -139,6 +139,33 @@ const limiteFimMin = Math.min(
       dentroDaSobra,
     };
   }, [agendamento, config, agendamentosDoDia]);
+  // ============================================================
+// ⚖️ Verifica se a sobra está POLUÍDA
+// ------------------------------------------------------------
+// Se tiver algum agendamento confirmado/pendente dentro do
+// intervalo da sobra, o botão BARRAR/LIBERAR não faz sentido.
+// ============================================================
+const sobraPoluida = useMemo(() => {
+  if (!infoSobra) return false;
+
+  const sobraInicioMin = toMin(infoSobra.inicio);
+  const sobraFimMin = toMin(infoSobra.fim);
+
+  const outrosDoDia = agendamentosDoDia.filter((outro) => {
+    if (outro.id === agendamento?.id) return false;
+    if (outro.status !== 'confirmado' && outro.status !== 'pendente') return false;
+    return true;
+  });
+
+  return outrosDoDia.some((outro) => {
+    const outroInicioMin = toMin(outro.horaInicio || '00:00');
+    const outroFimMin = outro.horaFim
+      ? toMin(outro.horaFim)
+      : outroInicioMin + (outro.duracaoMin || 60);
+
+    return sobraInicioMin < outroFimMin && outroInicioMin < sobraFimMin;
+  });
+}, [infoSobra, agendamentosDoDia, agendamento]);
 
   // ============================================================
   // ✅ Estado atual: a sobra está LIBERADA?
@@ -578,42 +605,68 @@ const limiteFimMin = Math.min(
 
         {erro && <div style={erroBox}>{erro}</div>}
 
+       
         {/* Botões */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {sobraLiberada ? (
-            <button
-              type="button"
-              onClick={handleBarrarClique}
-              disabled={salvando}
-              style={btnPerigo}
-            >
-              <MdLock size={16} />
-              {salvando ? 'SALVANDO…' : 'BARRAR ESSA SOBRA'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleLiberar}
-              disabled={salvando}
-              style={btnPrimario}
-            >
-              <MdEventAvailable size={16} />
-              {salvando ? 'SALVANDO…' : 'LIBERAR ESSA SOBRA'}
-            </button>
-          )}
+<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+  {/* ⚖️ Se a sobra está poluída, mostra aviso e bloqueia ação */}
+  {sobraPoluida ? (
+    <div style={{
+      background: '#fff8e1',
+      border: '1.5px solid #fcd34d',
+      borderRadius: 12,
+      padding: '12px 14px',
+      fontSize: 12,
+      color: '#92400e',
+      lineHeight: 1.6,
+      textAlign: 'center',
+    }}>
+      <MdWarning size={20} color="#92400e" style={{ marginBottom: 6 }} />
+      <div>
+        <strong>Esta sobra já foi ocupada</strong>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: '#78350f' }}>
+        Já existe um agendamento dentro deste intervalo. Não é possível
+        liberar nem barrar esta sobra.
+      </div>
+    </div>
+  ) : (
+    <>
+      {sobraLiberada ? (
+        <button
+          type="button"
+          onClick={handleBarrarClique}
+          disabled={salvando}
+          style={btnPerigo}
+        >
+          <MdLock size={16} />
+          {salvando ? 'SALVANDO…' : 'BARRAR ESSA SOBRA'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleLiberar}
+          disabled={salvando}
+          style={btnPrimario}
+        >
+          <MdEventAvailable size={16} />
+          {salvando ? 'SALVANDO…' : 'LIBERAR ESSA SOBRA'}
+        </button>
+      )}
+    </>
+  )}
 
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={salvando}
-            style={{
-              ...btnSecundario,
-              width: '100%',
-            }}
-          >
-            CANCELAR
-          </button>
-        </div>
+  <button
+    type="button"
+    onClick={onFechar}
+    disabled={salvando}
+    style={{
+      ...btnSecundario,
+      width: '100%',
+    }}
+  >
+    {sobraPoluida ? 'FECHAR' : 'CANCELAR'}
+  </button>
+</div>
       </div>
     </div>
   );

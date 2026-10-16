@@ -2385,69 +2385,115 @@ export default function PainelAgendamentosEsteticista({
                   )}
 
                   {/* ✅ ESTADO DA SOBRA */}
-                  {(ag.status === 'confirmado' || ag.status === 'concluido') && ag.horaFim && (
-                    (() => {
-                      const temSobra = Array.isArray(ag.liberacoesExtras) && ag.liberacoesExtras.length > 0;
-                      const sobra = temSobra ? ag.liberacoesExtras[0] : null;
+                {/* ✅ ESTADO DA SOBRA */}
+{(ag.status === 'confirmado' || ag.status === 'concluido') && ag.horaFim && (
+  (() => {
+    const temSobra = Array.isArray(ag.liberacoesExtras) && ag.liberacoesExtras.length > 0;
+    const sobra = temSobra ? ag.liberacoesExtras[0] : null;
 
-                      return (
-                        <div style={{
-                          marginTop: 8,
-                          padding: '8px 12px',
-                          background: temSobra ? '#f0fdf4' : '#fafafa',
-                          border: `1px solid ${temSobra ? '#86efac' : '#e0e0e0'}`,
-                          borderRadius: 10,
-                          fontSize: 11,
-                          color: temSobra ? '#166534' : '#666',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          flexWrap: 'wrap',
-                        }}>
-                          {temSobra ? (
-                            <MdCheckCircle size={14} color="#16a34a" />
-                          ) : (
-                            <MdLock size={14} color="#666" />
-                          )}
+    // ============================================================
+    // ⚖️ Verifica se a sobra está POLUÍDA
+    // ------------------------------------------------------------
+    // Se tiver qualquer agendamento confirmado/pendente dentro
+    // do intervalo da sobra, o botão BARRAR/LIBERAR some.
+    // ============================================================
+    const sobraPoluida = (() => {
+      if (!sobra) return false;
 
-                          <span style={{ flex: 1, minWidth: 0 }}>
-                            {temSobra ? (
-                              <>
-                                <strong>Sobra liberada:</strong> {sobra.inicio} → {sobra.fim}
-                                {sobra.duracaoMin ? ` (${sobra.duracaoMin} min)` : ''}
-                              </>
-                            ) : (
-                              <>
-                                <strong>Sobra bloqueada</strong>
-                                {' '}— o restante do bloco não aparece na agenda
-                              </>
-                            )}
-                          </span>
+      // Só valida se tem sobra liberada
+      const sobraInicioMin = (() => {
+        const [h, m] = sobra.inicio.split(':').map(Number);
+        return h * 60 + m;
+      })();
+      const sobraFimMin = (() => {
+        const [h, m] = sobra.fim.split(':').map(Number);
+        return h * 60 + m;
+      })();
 
-                          <button
-                            type="button"
-                            onClick={() => setAgendamentoParaEditarSobra(ag)}
-                            style={{
-                              fontFamily: "'Cinzel', serif",
-                              background: temSobra ? '#fff8e1' : '#f0fdf4',
-                              color: temSobra ? '#92400e' : '#166534',
-                              border: `1px solid ${temSobra ? '#fcd34d' : '#86efac'}`,
-                              padding: '4px 10px',
-                              borderRadius: 10,
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {temSobra ? 'BARRAR' : 'LIBERAR'}
-                          </button>
-                        </div>
-                      );
-                    })()
-                  )}
+      // Pega agendamentos do mesmo dia, exceto o próprio
+      const outrosDoDia = agendamentos.filter((outro) => {
+        if (outro.id === ag.id) return false;
+        if (outro.data !== ag.data) return false;
+        if (outro.status !== 'confirmado' && outro.status !== 'pendente') return false;
+        return true;
+      });
 
+      // Verifica se algum colide com a sobra
+      return outrosDoDia.some((outro) => {
+        const [h, m] = (outro.horaInicio || '00:00').split(':').map(Number);
+        const outroInicioMin = h * 60 + m;
+        const outroFimMin = outro.horaFim
+          ? (() => {
+              const [hh, mm] = outro.horaFim.split(':').map(Number);
+              return hh * 60 + mm;
+            })()
+          : outroInicioMin + (outro.duracaoMin || 60);
+
+        // Colisão por sobreposição
+        return sobraInicioMin < outroFimMin && outroInicioMin < sobraFimMin;
+      });
+    })();
+
+    return (
+      <div style={{
+        marginTop: 8,
+        padding: '8px 12px',
+        background: temSobra ? '#f0fdf4' : '#fafafa',
+        border: `1px solid ${temSobra ? '#86efac' : '#e0e0e0'}`,
+        borderRadius: 10,
+        fontSize: 11,
+        color: temSobra ? '#166534' : '#666',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        flexWrap: 'wrap',
+      }}>
+        {temSobra ? (
+          <MdCheckCircle size={14} color="#16a34a" />
+        ) : (
+          <MdLock size={14} color="#666" />
+        )}
+
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {temSobra ? (
+            <>
+              <strong>Sobra liberada:</strong> {sobra.inicio} → {sobra.fim}
+              {sobra.duracaoMin ? ` (${sobra.duracaoMin} min)` : ''}
+            </>
+          ) : (
+            <>
+              <strong>Sobra bloqueada</strong>
+              {' '}— o restante do bloco não aparece na agenda
+            </>
+          )}
+        </span>
+
+        {/* ⚖️ Só mostra o botão se a sobra estiver LIMPA */}
+        {!sobraPoluida && (
+          <button
+            type="button"
+            onClick={() => setAgendamentoParaEditarSobra(ag)}
+            style={{
+              fontFamily: "'Cinzel', serif",
+              background: temSobra ? '#fff8e1' : '#f0fdf4',
+              color: temSobra ? '#92400e' : '#166534',
+              border: `1px solid ${temSobra ? '#fcd34d' : '#86efac'}`,
+              padding: '4px 10px',
+              borderRadius: 10,
+              fontSize: 10,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {temSobra ? 'BARRAR' : 'LIBERAR'}
+          </button>
+        )}
+      </div>
+    );
+  })()
+)}
                   {/* ✅ Painel de divergências */}
                   {(() => {
                     const divs = divergenciasDoAgendamento(ag);
