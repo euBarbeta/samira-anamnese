@@ -1,5 +1,5 @@
 // src/components/financeiro/ModalDespesa.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MdClose, MdAttachMoney, MdCheckCircle, MdWarning,
   MdDelete, MdRepeat,
@@ -10,20 +10,20 @@ import {
   MdReceipt,        // Impostos
   MdBuild,          // Manutenção / Equipamento
   MdCampaign,       // Marketing / Anúncios
-  MdMoreHoriz,      // Outros
+  MdCategory,       // ✅ Outros (ícone de categoria/etiqueta)
 } from 'react-icons/md';
 
 // ============================================================
 // CATEGORIAS FIXAS — cada uma com seu ícone do react-icons
 // ============================================================
 const CATEGORIAS_FIXAS = [
-  { value: 'Aluguel',     label: 'Aluguel',                Icone: MdHome },
-  { value: 'Produto',     label: 'Produto / Estoque',      Icone: MdInventory2 },
-  { value: 'Luz/Água',    label: 'Luz / Água / Internet',  Icone: MdLightbulb },
-  { value: 'Impostos',    label: 'Impostos (DAS / MEI)',   Icone: MdReceipt },
-  { value: 'Manutenção',  label: 'Manutenção / Equipamento', Icone: MdBuild },
-  { value: 'Marketing',   label: 'Marketing / Anúncios',   Icone: MdCampaign },
-  { value: 'Outros',      label: 'Outros',                 Icone: MdMoreHoriz },
+  { value: 'Aluguel',     label: 'Aluguel',                Icone: MdHome,       cor: '#7e22ce' },
+  { value: 'Produto',     label: 'Produto',                Icone: MdInventory2, cor: '#C8A24A' },
+  { value: 'Luz/Água',    label: 'Luz / Água',             Icone: MdLightbulb,  cor: '#d97706' },
+  { value: 'Impostos',    label: 'Impostos',               Icone: MdReceipt,    cor: '#dc2626' },
+  { value: 'Manutenção',  label: 'Manutenção',             Icone: MdBuild,      cor: '#0891b2' },
+  { value: 'Marketing',   label: 'Marketing',              Icone: MdCampaign,   cor: '#db2777' },
+  { value: 'Outros',      label: 'Outros',                 Icone: MdCategory,   cor: '#64748b' },
 ];
 
 const FORMAS_PAGAMENTO = [
@@ -76,6 +76,17 @@ export default function ModalDespesa({
 }) {
   const editando = Boolean(lancamento?.id);
 
+  // ✅ Detecção de mobile
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth <= 640 : false
+  );
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
   const [valorStr, setValorStr] = useState(
     editando ? formatarMoeda(lancamento.valor) : ''
   );
@@ -104,7 +115,7 @@ export default function ModalDespesa({
 
   // Ícone da categoria selecionada
   const categoriaSelecionada =
-    CATEGORIAS_FIXAS.find((c) => c.value === categoria) || CATEGORIAS_FIXAS[0];
+    CATEGORIAS_FIXAS.find((c) => c.value === categoria) || CATEGORIAS_FIXAS[6];
   const IconeCategoria = categoriaSelecionada.Icone;
 
   const handleValorChange = (e) => {
@@ -189,7 +200,7 @@ export default function ModalDespesa({
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 2147483647,
-        padding: 20,
+        padding: isMobile ? 0 : 20,
         boxSizing: 'border-box',
       }}
     >
@@ -197,31 +208,35 @@ export default function ModalDespesa({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#fff',
-          borderRadius: 20,
-          padding: '26px 24px 22px',
-          maxWidth: 480,
+          borderRadius: isMobile ? 0 : 20,
+          padding: isMobile ? '20px 18px 18px' : '26px 24px 22px',
+          maxWidth: isMobile ? '100%' : 480,
           width: '100%',
-          maxHeight: '92vh',
+          height: isMobile ? '100%' : 'auto',
+          maxHeight: isMobile ? '100%' : '92vh',
           overflowY: 'auto',
-          boxShadow: '0 25px 70px rgba(44, 22, 58, 0.5)',
-          border: '1.5px solid #fca5a5',
+          boxShadow: isMobile ? 'none' : '0 25px 70px rgba(44, 22, 58, 0.5)',
+          border: isMobile ? 'none' : '1.5px solid #fca5a5',
           fontFamily: "'Montserrat', sans-serif",
           position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        {/* Header */}
+        {/* Header — fixo no topo em mobile */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 16,
           gap: 10,
+          flexShrink: 0,
         }}>
           <div style={{ minWidth: 0 }}>
             <h3 style={{
               fontFamily: "'Cinzel', serif",
               color: '#c62828',
-              fontSize: 16,
+              fontSize: isMobile ? 15 : 16,
               margin: 0,
               display: 'flex',
               alignItems: 'center',
@@ -251,169 +266,271 @@ export default function ModalDespesa({
               alignItems: 'center',
               justifyContent: 'center',
               color: '#888',
+              flexShrink: 0,
             }}
           >
             <MdClose size={22} />
           </button>
         </div>
 
-        {/* Valor */}
-        <label style={labelEstilo}>Valor (R$)</label>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 14,
-        }}>
-          <span style={{
-            fontFamily: "'Cinzel', serif",
-            color: '#c62828',
-            fontSize: 18,
-            fontWeight: 700,
-          }}>
-            R$
-          </span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={valorStr}
-            onChange={handleValorChange}
-            onBlur={handleValorBlur}
-            onKeyDown={(e) => {
-              if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
-                e.preventDefault();
-              }
-            }}
-            disabled={salvando || excluindo}
-            placeholder="0,00"
-            style={{
-              flex: 1,
-              fontSize: 22,
-              fontWeight: 700,
-              color: '#c62828',
-              fontFamily: "'Cinzel', serif",
-              padding: '10px 12px',
-              border: '2px solid #fca5a5',
-              borderRadius: 10,
-              outline: 'none',
-              background: '#fff',
-              textAlign: 'right',
-            }}
-          />
-        </div>
-
-        {/* Data */}
-        <label style={labelEstilo}>Data</label>
-        <input
-          type="date"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          disabled={salvando || excluindo}
-          style={{ ...inputEstilo, marginBottom: 14 }}
-        />
-
-        {/* Categoria — com ícone */}
-        <label style={labelEstilo}>Categoria</label>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginBottom: 14,
-        }}>
-          {/* Ícone da categoria selecionada — sempre visível à esquerda */}
+        {/* Conteúdo rolável */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Valor */}
+          <label style={labelEstilo}>Valor (R$)</label>
           <div style={{
-            width: 42,
-            height: 42,
-            borderRadius: 10,
-            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
-            border: '1.5px solid #fca5a5',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
+            gap: 8,
+            marginBottom: 14,
           }}>
-            <IconeCategoria size={22} color="#c62828" />
+            <span style={{
+              fontFamily: "'Cinzel', serif",
+              color: '#c62828',
+              fontSize: 18,
+              fontWeight: 700,
+            }}>
+              R$
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={valorStr}
+              onChange={handleValorChange}
+              onBlur={handleValorBlur}
+              onKeyDown={(e) => {
+                if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                  e.preventDefault();
+                }
+              }}
+              disabled={salvando || excluindo}
+              placeholder="0,00"
+              style={{
+                flex: 1,
+                fontSize: isMobile ? 20 : 22,
+                fontWeight: 700,
+                color: '#c62828',
+                fontFamily: "'Cinzel', serif",
+                padding: '10px 12px',
+                border: '2px solid #fca5a5',
+                borderRadius: 10,
+                outline: 'none',
+                background: '#fff',
+                textAlign: 'right',
+                WebkitAppearance: 'none',
+                appearance: 'none',
+              }}
+            />
           </div>
 
-          <select
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
+          {/* Data */}
+          <label style={labelEstilo}>Data</label>
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
             disabled={salvando || excluindo}
-            style={{ ...inputEstilo, marginBottom: 0, flex: 1 }}
+            style={{ ...inputEstilo, marginBottom: 14 }}
+          />
+
+          {/* ✅ Categoria — GRID visual de cards (em vez de select) */}
+          <label style={labelEstilo}>Categoria</label>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+            gap: 8,
+            marginBottom: 14,
+          }}>
+            {CATEGORIAS_FIXAS.map((c) => {
+              const Icone = c.Icone;
+              const ativa = categoria === c.value;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => {
+                    setCategoria(c.value);
+                    setErro('');
+                  }}
+                  disabled={salvando || excluindo}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    padding: '10px 4px',
+                    borderRadius: 12,
+                    border: ativa
+                      ? `2px solid ${c.cor}`
+                      : '1.5px solid #e0e0e0',
+                    background: ativa
+                      ? `linear-gradient(135deg, ${c.cor}15 0%, ${c.cor}25 100%)`
+                      : '#fafafa',
+                    color: ativa ? c.cor : '#666',
+                    cursor: salvando || excluindo ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Montserrat', sans-serif",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    transition: 'all 0.15s ease',
+                    boxShadow: ativa ? `0 2px 8px ${c.cor}33` : 'none',
+                    minHeight: 64,
+                  }}
+                >
+                  <Icone size={20} color={ativa ? c.cor : '#999'} />
+                  <span style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '100%',
+                    padding: '0 2px',
+                  }}>
+                    {c.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Descrição */}
+          <label style={labelEstilo}>Descrição</label>
+          <input
+            type="text"
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            disabled={salvando || excluindo}
+            placeholder="Ex: Aluguel de outubro, compra de máscaras..."
+            maxLength={120}
+            style={{ ...inputEstilo, marginBottom: 14 }}
+          />
+
+          {/* Forma de pagamento */}
+          <label style={labelEstilo}>Forma de pagamento</label>
+          <select
+            value={formaPagamento}
+            onChange={(e) => setFormaPagamento(e.target.value)}
+            disabled={salvando || excluindo}
+            style={{ ...inputEstilo, marginBottom: 14 }}
           >
-            {CATEGORIAS_FIXAS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
+            {FORMAS_PAGAMENTO.map((f) => (
+              <option key={f} value={f}>{f}</option>
             ))}
           </select>
+
+          {/* Recorrente */}
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            background: recorrente ? '#fef2f2' : '#fafafa',
+            border: `1.5px solid ${recorrente ? '#fca5a5' : '#e0e0e0'}`,
+            borderRadius: 10,
+            cursor: salvando || excluindo ? 'not-allowed' : 'pointer',
+            marginBottom: 14,
+          }}>
+            <input
+              type="checkbox"
+              checked={recorrente}
+              onChange={(e) => setRecorrente(e.target.checked)}
+              disabled={salvando || excluindo}
+              style={{ width: 18, height: 18 }}
+            />
+            <MdRepeat size={16} color={recorrente ? '#c62828' : '#888'} />
+            <span style={{
+              fontSize: 12,
+              color: recorrente ? '#c62828' : '#666',
+              fontWeight: 600,
+              flex: 1,
+            }}>
+              Despesa recorrente (todo mês)
+            </span>
+          </label>
+
+          {/* Erro */}
+          {erro && (
+            <div style={erroBox}>
+              <MdWarning size={16} />
+              {erro}
+            </div>
+          )}
+
+          {/* Confirmação de exclusão */}
+          {confirmarExclusao && (
+            <div style={{
+              marginTop: 8,
+              padding: 14,
+              background: '#fef2f2',
+              border: '1.5px solid #fca5a5',
+              borderRadius: 12,
+              marginBottom: 14,
+            }}>
+              <div style={{
+                fontSize: 12,
+                color: '#991b1b',
+                fontWeight: 600,
+                marginBottom: 10,
+                lineHeight: 1.5,
+              }}>
+                Tem certeza que deseja excluir esta despesa?
+                <br />
+                <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>
+                  Esta ação não pode ser desfeita.
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setConfirmarExclusao(false)}
+                  disabled={excluindo}
+                  style={{
+                    flex: 1,
+                    background: '#f0f0f0',
+                    color: '#333',
+                    border: 'none',
+                    padding: '10px',
+                    borderRadius: 16,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: excluindo ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Cinzel', serif",
+                  }}
+                >
+                  VOLTAR
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExcluir}
+                  disabled={excluindo}
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px',
+                    borderRadius: 16,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: excluindo ? 'wait' : 'pointer',
+                    fontFamily: "'Cinzel', serif",
+                    opacity: excluindo ? 0.7 : 1,
+                  }}
+                >
+                  {excluindo ? 'EXCLUINDO…' : 'SIM, EXCLUIR'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Descrição */}
-        <label style={labelEstilo}>Descrição</label>
-        <input
-          type="text"
-          value={descricao}
-          onChange={(e) => setDescricao(e.target.value)}
-          disabled={salvando || excluindo}
-          placeholder="Ex: Aluguel de outubro, compra de máscaras..."
-          maxLength={120}
-          style={{ ...inputEstilo, marginBottom: 14 }}
-        />
-
-        {/* Forma de pagamento */}
-        <label style={labelEstilo}>Forma de pagamento</label>
-        <select
-          value={formaPagamento}
-          onChange={(e) => setFormaPagamento(e.target.value)}
-          disabled={salvando || excluindo}
-          style={{ ...inputEstilo, marginBottom: 14 }}
-        >
-          {FORMAS_PAGAMENTO.map((f) => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
-
-        {/* Recorrente */}
-        <label style={{
+        {/* Botões — fixos no rodapé em mobile */}
+        <div style={{
           display: 'flex',
-          alignItems: 'center',
           gap: 10,
-          padding: '10px 12px',
-          background: recorrente ? '#fef2f2' : '#fafafa',
-          border: `1.5px solid ${recorrente ? '#fca5a5' : '#e0e0e0'}`,
-          borderRadius: 10,
-          cursor: salvando || excluindo ? 'not-allowed' : 'pointer',
-          marginBottom: 14,
+          marginTop: 12,
+          paddingTop: 12,
+          borderTop: isMobile ? '1px solid #f0f0f0' : 'none',
+          flexShrink: 0,
         }}>
-          <input
-            type="checkbox"
-            checked={recorrente}
-            onChange={(e) => setRecorrente(e.target.checked)}
-            disabled={salvando || excluindo}
-            style={{ width: 18, height: 18 }}
-          />
-          <MdRepeat size={16} color={recorrente ? '#c62828' : '#888'} />
-          <span style={{
-            fontSize: 12,
-            color: recorrente ? '#c62828' : '#666',
-            fontWeight: 600,
-            flex: 1,
-          }}>
-            Despesa recorrente (todo mês)
-          </span>
-        </label>
-
-        {/* Erro */}
-        {erro && (
-          <div style={erroBox}>
-            <MdWarning size={16} />
-            {erro}
-          </div>
-        )}
-
-        {/* Botões */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
           {editando && !confirmarExclusao && (
             <button
               type="button"
@@ -483,75 +600,9 @@ export default function ModalDespesa({
             }}
           >
             <MdCheckCircle size={16} />
-            {salvando ? 'SALVANDO…' : (editando ? 'SALVAR' : 'LANÇAR DESPESA')}
+            {salvando ? 'SALVANDO…' : (editando ? 'SALVAR' : 'LANÇAR')}
           </button>
         </div>
-
-        {/* Confirmação de exclusão */}
-        {confirmarExclusao && (
-          <div style={{
-            marginTop: 16,
-            padding: 14,
-            background: '#fef2f2',
-            border: '1.5px solid #fca5a5',
-            borderRadius: 12,
-          }}>
-            <div style={{
-              fontSize: 12,
-              color: '#991b1b',
-              fontWeight: 600,
-              marginBottom: 10,
-              lineHeight: 1.5,
-            }}>
-              Tem certeza que deseja excluir esta despesa?
-              <br />
-              <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>
-                Esta ação não pode ser desfeita.
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setConfirmarExclusao(false)}
-                disabled={excluindo}
-                style={{
-                  flex: 1,
-                  background: '#f0f0f0',
-                  color: '#333',
-                  border: 'none',
-                  padding: '10px',
-                  borderRadius: 16,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: excluindo ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Cinzel', serif",
-                }}
-              >
-                VOLTAR
-              </button>
-              <button
-                type="button"
-                onClick={handleExcluir}
-                disabled={excluindo}
-                style={{
-                  flex: 1,
-                  background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px',
-                  borderRadius: 16,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: excluindo ? 'wait' : 'pointer',
-                  fontFamily: "'Cinzel', serif",
-                  opacity: excluindo ? 0.7 : 1,
-                }}
-              >
-                {excluindo ? 'EXCLUINDO…' : 'SIM, EXCLUIR'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -580,6 +631,8 @@ const inputEstilo = {
   color: '#2c163a',
   fontFamily: "'Montserrat', sans-serif",
   background: '#fff',
+  WebkitAppearance: 'none',
+  appearance: 'none',
 };
 
 const erroBox = {
