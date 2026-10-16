@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { sanitizarFichaAnamnese } from '../utils/sanitizar';
 import {
+  anonimizarPaciente,
+  reativarPaciente,
+  estaAnonimizado,
+  reativarPorEdicao,
+} from '../utils/lgpdExclusao';
+import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,
   MdCalendarMonth, MdSecurity, MdAttachMoney, MdFolder, MdFolderOpen,
 } from 'react-icons/md';
@@ -34,14 +40,8 @@ import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEstet
 import PainelFinanceiro from './financeiro/PainelFinanceiro';
 import ModalEscolherServico from './agendamento/ModalEscolherServico';
 
-// ============================================================
-// ⚖️ LGPD — Helper central de anonimização e reativação
-// ============================================================
-import {
-  anonimizarPaciente,
-  reativarPaciente,
-  estaAnonimizado,
-} from '../utils/lgpdExclusao';
+// ⚠️ UID padrão da esteta (mantém o mesmo que você usa)
+import { UID_ESTETICISTA_PADRAO } from './constantes';
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -80,7 +80,7 @@ const SpinnerLoading = ({ texto = 'Carregando…' }) => (
 );
 
 /* ============================================================
-   MODAL DE FEEDBACK — substitui alert() nativo
+   MODAL DE FEEDBACK
    ============================================================ */
 function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
   const config = {
@@ -139,29 +139,25 @@ function ModalFeedback({ tipo = 'sucesso', titulo, mensagem, onFechar }) {
         </div>
 
         {titulo && (
-          <h3
-            style={{
-              fontFamily: "'Cinzel', serif",
-              color: cor,
-              fontSize: 17, fontWeight: 700,
-              margin: '0 0 10px 0',
-              letterSpacing: '0.4px',
-            }}
-          >
+          <h3 style={{
+            fontFamily: "'Cinzel', serif",
+            color: cor,
+            fontSize: 17, fontWeight: 700,
+            margin: '0 0 10px 0',
+            letterSpacing: '0.4px',
+          }}>
             {titulo}
           </h3>
         )}
 
         {mensagem && (
-          <p
-            style={{
-              fontSize: 13,
-              color: '#2c163a',
-              margin: '0 0 20px 0',
-              lineHeight: 1.6,
-              whiteSpace: 'pre-line',
-            }}
-          >
+          <p style={{
+            fontSize: 13,
+            color: '#2c163a',
+            margin: '0 0 20px 0',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-line',
+          }}>
             {mensagem}
           </p>
         )}
@@ -200,11 +196,8 @@ export default function PainelEsteticista({ onLogout }) {
   const [jaCarregou, setJaCarregou] = useState(false);
   const [pacientes, setPacientes] = useState([]);
 
-  // ✅ Filtro: 'ativos' | 'arquivados'
-  // ⚖️ LGPD: separa pacientes anonimizados dos ativos
   const [abaPacientes, setAbaPacientes] = useState('ativos');
 
-  // ✅ Busca global
   const [resultadosBusca, setResultadosBusca] = useState(null);
   const [buscandoGlobal, setBuscandoGlobal] = useState(false);
   const cacheBuscaRef = useRef(null);
@@ -225,7 +218,6 @@ export default function PainelEsteticista({ onLogout }) {
   const db = getFirestore();
   const auth = getAuth();
 
-  // ✅ Refs para evitar closures obsoletos em navegarPara/popstate
   const pacRef = useRef(null);
   const evoRef = useRef(null);
   const modalOpenRef = useRef(false);
@@ -239,9 +231,6 @@ export default function PainelEsteticista({ onLogout }) {
   const [agendamentosPendentesCount, setAgendamentosPendentesCount] = useState(0);
   const [segurancaAlertaCount, setSegurancaAlertaCount] = useState(0);
 
-  // ============================================================
-  // Contadores de pendências (agendamentos + segurança)
-  // ============================================================
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -297,52 +286,48 @@ export default function PainelEsteticista({ onLogout }) {
   // ============================================================
   // Sincroniza pacienteSelecionado com a lista
   // ============================================================
- useEffect(() => {
-  if (!jaCarregou) return;
-  if (!pacienteSelecionado) return;
+  useEffect(() => {
+    if (!jaCarregou) return;
+    if (!pacienteSelecionado) return;
 
-  const atual = pacientes.find(
-    (p) => String(p.id) === String(pacienteSelecionado.id)
-  );
-
-  // ⚖️ Caso 1: paciente SUMIU da lista (excluído por outro device)
-  if (!atual) {
-    setPacienteSelecionado(null);
-    setEvolucaoSelecionada(null);
-    setTelaAtual('lista');
-    window.history.replaceState(
-      { painelEsteticista: 'lista' },
-      '',
-      window.location.pathname
+    const atual = pacientes.find(
+      (p) => String(p.id) === String(pacienteSelecionado.id)
     );
-    return;
-  }
 
-  // ⚖️ Caso 2: paciente foi ANONIMIZADO (por ele mesmo em outro device)
-  //    ⚠️ Isso joga a esteta pra fora da pasta e volta pra lista
-  const foiAnonimizadoAgora =
-    estaAnonimizado(atual) && !estaAnonimizado(pacienteSelecionado);
+    // Caso 1: paciente SUMIU da lista
+    if (!atual) {
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+      setTelaAtual('lista');
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+      return;
+    }
 
-  if (foiAnonimizadoAgora) {
-    setPacienteSelecionado(null);
-    setEvolucaoSelecionada(null);
-    setTelaAtual('lista');
-    window.location.replaceState(
-      { painelEsteticista: 'lista' },
-      '',
-      window.location.pathname
-    );
-    return;
-  }
+    // Caso 2: paciente foi ANONIMIZADO em outro device
+    const foiAnonimizadoAgora =
+      estaAnonimizado(atual) && !estaAnonimizado(pacienteSelecionado);
 
-  if (atual !== pacienteSelecionado) {
-    setPacienteSelecionado(atual);
-  }
-}, [pacientes, jaCarregou, pacienteSelecionado]);
+    if (foiAnonimizadoAgora) {
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+      setTelaAtual('lista');
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+      return;
+    }
 
-  // ============================================================
-  // Agendar lembretes no backend
-  // ============================================================
+    if (atual !== pacienteSelecionado) {
+      setPacienteSelecionado(atual);
+    }
+  }, [pacientes, jaCarregou, pacienteSelecionado]);
+
   const agendarLembretesNoOneSignal = async (pacienteId, lembretes) => {
     if (!Array.isArray(lembretes)) return;
 
@@ -365,9 +350,6 @@ export default function PainelEsteticista({ onLogout }) {
     }
   };
 
-  // ============================================================
-  // NAVEGAÇÃO
-  // ============================================================
   const navegarPara = useCallback((novaTela, dados = {}) => {
     const pacId = 'paciente' in dados ? (dados.paciente?.id ?? null) : (pacRef.current?.id ?? null);
     const evoId = 'evolucao' in dados ? (dados.evolucao?.id ?? null) : (evoRef.current?.id ?? null);
@@ -396,7 +378,6 @@ export default function PainelEsteticista({ onLogout }) {
     if ('evolucao' in dados) setEvolucaoSelecionada(dados.evolucao);
   }, []);
 
-  // Handler do botão voltar (navegador + APK)
   useEffect(() => {
     const onPop = (e) => {
       const st = e.state;
@@ -442,7 +423,6 @@ export default function PainelEsteticista({ onLogout }) {
     return () => window.removeEventListener('popstate', onPop);
   }, [pacientes]);
 
-  // Estado inicial no histórico
   useEffect(() => {
     if (!window.history.state?.painelEsteticista) {
       window.history.replaceState(
@@ -462,9 +442,6 @@ export default function PainelEsteticista({ onLogout }) {
     });
   }, []);
 
-  // ============================================================
-  // Fotos pendentes em tempo real
-  // ============================================================
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -530,7 +507,6 @@ export default function PainelEsteticista({ onLogout }) {
     }
   };
 
-  // Publica UID global
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -602,7 +578,7 @@ export default function PainelEsteticista({ onLogout }) {
   }, [termoBusca]);
 
   // ============================================================
-  // LISTENER — pacientes em tempo real
+  // LISTENER — pacientes
   // ============================================================
   useEffect(() => {
     let unsubAuth = null;
@@ -648,10 +624,7 @@ export default function PainelEsteticista({ onLogout }) {
   }, [db, auth, limitePagina]);
 
   // ============================================================
-  // ⚖️ LGPD — Filtros de pacientes (ativos vs. arquivados)
-  // ------------------------------------------------------------
-  // - Ativos: sem `anonimizadoEm`
-  // - Arquivados: com `anonimizadoEm` (paciente excluiu conta)
+  // Filtros (ativos vs. arquivados)
   // ============================================================
   const pacientesAtivos = useMemo(
     () => pacientes.filter((p) => !estaAnonimizado(p)),
@@ -667,26 +640,21 @@ export default function PainelEsteticista({ onLogout }) {
     return abaPacientes === 'arquivados' ? pacientesArquivados : pacientesAtivos;
   }, [abaPacientes, pacientesAtivos, pacientesArquivados]);
 
-  // ============================================================
-  // ⚖️ LGPD — Anonimiza paciente (helper central)
-  // ============================================================
   const excluirPacienteDaNuvem = async (idPaciente) => {
     const user = auth.currentUser;
     if (!user) return;
 
     try {
-      // ✅ Usa o helper central (que faz anonimização completa)
       await anonimizarPaciente({
         pacienteId: idPaciente,
         uidEsteticista: user.uid,
         motivo: 'esteta-excluiu',
       });
 
-      // Invalida o cache da busca global
       cacheBuscaRef.current = null;
     } catch (e) {
       console.error('Erro ao anonimizar paciente:', e);
-      throw e; // propaga pro modal mostrar erro
+      throw e;
     }
   };
 
@@ -718,10 +686,7 @@ export default function PainelEsteticista({ onLogout }) {
   };
 
   // ============================================================
-  // ⚖️ LGPD — handleSalvarAnamnese com detecção de reativação
-  // ------------------------------------------------------------
-  // Se o paciente volta (mesmo nome + doc → mesmo UID determinístico),
-  // o sistema REATIVA a pasta antiga em vez de criar nova.
+  // handleSalvarAnamnese (com reativação automática)
   // ============================================================
   const handleSalvarAnamnese = async (dadosAnamnese) => {
     const userEsteticista = auth.currentUser;
@@ -733,7 +698,6 @@ export default function PainelEsteticista({ onLogout }) {
     const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
 
     try {
-      // 1) Tratamento do Nome para gerar o e-mail fictício
       const nomeOriginal = dadosAnamnese.nome ? dadosAnamnese.nome.trim() : '';
       let partes = nomeOriginal.split(/\s+/);
 
@@ -752,7 +716,6 @@ export default function PainelEsteticista({ onLogout }) {
 
       const emailFicticio = `${pNomeLimpo}.${sSobrenomeLimpo}@sistema.local`;
 
-      // 2) Extração do Documento e geração da senha
       const docFormatado = extrairDocumento(dadosAnamnese);
       const documentoLimpo = docFormatado.replace(/\D/g, '');
       const senhaFicticia = (documentoLimpo.length >= 6
@@ -762,7 +725,6 @@ export default function PainelEsteticista({ onLogout }) {
 
       let pacienteUid = '';
 
-      // 3) Criação ou recuperação da conta no Auth
       try {
         const userCredential = await createUserWithEmailAndPassword(
           secondaryAuth, emailFicticio, senhaFicticia
@@ -790,12 +752,6 @@ export default function PainelEsteticista({ onLogout }) {
         pacienteUid = String(Date.now());
       }
 
-      // ============================================================
-      // ⚖️ LGPD — Detecta se UID já existe E está anonimizado
-      // ------------------------------------------------------------
-      // Se sim → REATIVA a pasta antiga (mantém histórico)
-      // Senão → Cria pasta nova normalmente
-      // ============================================================
       let pastaExistente = null;
       try {
         const pacRef = doc(db, `usuarios/${userEsteticista.uid}/pacientes`, String(pacienteUid));
@@ -808,7 +764,7 @@ export default function PainelEsteticista({ onLogout }) {
       }
 
       if (pastaExistente && estaAnonimizado(pastaExistente)) {
-        // ✅ REATIVA a pasta existente
+        // ⚖️ REATIVA
         await reativarPaciente({
           pacienteId: pacienteUid,
           uidEsteticista: userEsteticista.uid,
@@ -816,8 +772,6 @@ export default function PainelEsteticista({ onLogout }) {
           documento: docFormatado,
         });
 
-        // Depois de reativar, atualiza os dados da anamnese nova
-        // (o contato, evoluções novas, etc — não sobrescreve dataCriacao)
         const dadosReativados = {
           ...pastaExistente,
           id: pacienteUid,
@@ -828,7 +782,6 @@ export default function PainelEsteticista({ onLogout }) {
           emailAcesso: pastaExistente.emailAcesso || emailFicticio,
           email: pastaExistente.emailAcesso || emailFicticio,
           criadoPorUid: userEsteticista.uid,
-          // ⚠️ Mantém dataCriacao ORIGINAL (não sobrescreve)
           dataCriacao: pastaExistente.dataCriacaoOriginal || pastaExistente.dataCriacao,
           dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
             ' às ' + new Date().toLocaleTimeString('pt-BR', {
@@ -846,7 +799,6 @@ export default function PainelEsteticista({ onLogout }) {
 
         await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
 
-        // Reconstrói o mapeamento de email
         await setDoc(
           doc(db, 'mapeamento_emails', emailFicticio),
           {
@@ -857,12 +809,10 @@ export default function PainelEsteticista({ onLogout }) {
           { merge: true }
         );
 
-        return; // ✅ Fim: paciente reativado
+        return;
       }
 
-      // ============================================================
-      // Caminho normal: paciente NOVO (ou já existente e ativo)
-      // ============================================================
+      // Paciente NOVO
       const agora = new Date();
       const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
         agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -911,6 +861,24 @@ export default function PainelEsteticista({ onLogout }) {
   };
 
   const handleAtualizarAnamnese = async (dadosAtualizados) => {
+    // ⚖️ LGPD — Se o paciente estava ARQUIVADO, reativar
+    if (pacienteSelecionado?.anonimizadoEm) {
+      const userEst = auth.currentUser;
+      if (userEst) {
+        await reativarPorEdicao({
+          pacienteId: pacienteSelecionado.id,
+          uidEsteticista: userEst.uid,
+          nome: dadosAtualizados.nome,
+          documento: extrairDocumento(dadosAtualizados),
+          telefone: dadosAtualizados.telefone,
+          emailContato: dadosAtualizados.emailContato,
+          endereco: dadosAtualizados.endereco,
+        });
+
+        cacheBuscaRef.current = null;
+      }
+    }
+
     const agora = new Date();
     const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
       agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -933,10 +901,8 @@ export default function PainelEsteticista({ onLogout }) {
           dataUltimaEdicao: dataHoraFormatada,
           anamnese: dadosAtualizados,
         };
-
         return pacienteAtualizadoSalvar;
       }
-
       return p;
     }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
 
@@ -1037,7 +1003,6 @@ export default function PainelEsteticista({ onLogout }) {
       await signInWithEmailAndPassword(auth, user.email, modalExclusao.senhaInput);
 
       if (modalExclusao.tipo === 'pasta') {
-        // ⚖️ LGPD — anonimiza (não deleta)
         await excluirPacienteDaNuvem(modalExclusao.idAlvo);
 
         const filtrados = pacientes.filter(p => p.id !== modalExclusao.idAlvo);
@@ -1287,7 +1252,6 @@ export default function PainelEsteticista({ onLogout }) {
           background: rgba(255, 255, 255, 0.98) !important;
         }
 
-        /* ⚖️ LGPD — Tab de pacientes (Ativos / Arquivadas) */
         .tab-pacientes {
           padding: 10px 20px;
           border-radius: 20px;
@@ -1336,9 +1300,6 @@ export default function PainelEsteticista({ onLogout }) {
           <AvisoNotificacoesEsteticista uidEsteticista={auth.currentUser.uid} />
         )}
 
-        {/* ============================================================ */}
-        {/* HEADER                                                       */}
-        {/* ============================================================ */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -1396,9 +1357,6 @@ export default function PainelEsteticista({ onLogout }) {
 
         <div style={{ padding: '20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
 
-          {/* ============================================================ */}
-          {/* TELA 1: LISTA DE PACIENTES                                  */}
-          {/* ============================================================ */}
           {telaAtual === 'lista' && (
             <div>
               <div style={{
@@ -1563,7 +1521,6 @@ export default function PainelEsteticista({ onLogout }) {
                 </div>
               </div>
 
-              {/* BARRA DE PESQUISA */}
               {pacientes.length > 0 && (
                 <div style={{
                   background: 'rgba(255, 255, 255, 0.15)',
@@ -1620,7 +1577,6 @@ export default function PainelEsteticista({ onLogout }) {
                 </div>
               )}
 
-              {/* BANNER DE FOTOS */}
               {fotosPendentes.length > 0 && mostrarBannerFotos && (
                 <div style={{
                   marginTop: 4,
@@ -1690,9 +1646,6 @@ export default function PainelEsteticista({ onLogout }) {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* ⚖️ LGPD — TABS: ATIVOS / ARQUIVADOS                          */}
-              {/* ============================================================ */}
               {!termoBusca.trim() && pacientes.length > 0 && (
                 <div style={{
                   display: 'flex',
@@ -1722,13 +1675,9 @@ export default function PainelEsteticista({ onLogout }) {
                 </div>
               )}
 
-              {/* ============================================================ */}
-              {/* CONTEÚDO: BUSCA / LISTA / ESTADO VAZIO                       */}
-              {/* ============================================================ */}
               {!jaCarregou ? (
                 <SpinnerLoading texto="Carregando pastas de pacientes…" />
               ) : termoBusca.trim().length >= 2 ? (
-                /* MODO BUSCA GLOBAL */
                 buscandoGlobal ? (
                   <div style={{
                     display: 'flex', flexDirection: 'column',
@@ -1789,13 +1738,20 @@ export default function PainelEsteticista({ onLogout }) {
                       <CardPaciente
                         key={pac.id}
                         pac={pac}
-                        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                        onClick={(pacArg, acao) => {
+                          if (acao === 'reativar') {
+                            setPacienteSelecionado(pacArg);
+                            navegarPara('editar_anamnese');
+                          } else {
+                            navegarPara('detalhe_pasta', { paciente: pacArg });
+                          }
+                        }}
+                        arquivado={estaAnonimizado(pac)}
                       />
                     ))}
                   </div>
                 )
               ) : listaParaRender.length === 0 ? (
-                /* ESTADO VAZIO — depende da aba */
                 <div style={{
                   textAlign: 'center',
                   padding: '60px 20px',
@@ -1825,7 +1781,6 @@ export default function PainelEsteticista({ onLogout }) {
                   )}
                 </div>
               ) : (
-                /* LISTA PAGINADA */
                 <>
                   <div style={{
                     display: 'grid',
@@ -1836,7 +1791,14 @@ export default function PainelEsteticista({ onLogout }) {
                       <CardPaciente
                         key={pac.id}
                         pac={pac}
-                        onClick={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                        onClick={(pacArg, acao) => {
+                          if (acao === 'reativar') {
+                            setPacienteSelecionado(pacArg);
+                            navegarPara('editar_anamnese');
+                          } else {
+                            navegarPara('detalhe_pasta', { paciente: pacArg });
+                          }
+                        }}
                         arquivado={abaPacientes === 'arquivados'}
                       />
                     ))}
@@ -1869,9 +1831,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: SEGURANÇA                                              */}
-          {/* ============================================================ */}
           {telaAtual === 'seguranca' && (
             <div>
               <button
@@ -1901,9 +1860,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: FINANCEIRO                                             */}
-          {/* ============================================================ */}
           {telaAtual === 'financeiro' && (
             <div>
               <button
@@ -1938,9 +1894,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: AGENDAMENTOS                                           */}
-          {/* ============================================================ */}
           {telaAtual === 'agendamentos' && (
             <div>
               <button
@@ -1978,9 +1931,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: DETALHE DA PASTA                                       */}
-          {/* ============================================================ */}
           {telaAtual === 'detalhe_pasta' && pacienteSelecionado && (
             <div>
               <div style={{
@@ -2334,7 +2284,6 @@ export default function PainelEsteticista({ onLogout }) {
 
               <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
 
-              {/* Card de Consentimento LGPD */}
               <div style={{
                 marginTop: '15px',
                 background: 'rgba(255, 255, 255, 0.92)',
@@ -2401,9 +2350,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: GALERIA                                                */}
-          {/* ============================================================ */}
           {telaAtual === 'galeria' && pacienteSelecionado && (
             <div>
               <button
@@ -2443,9 +2389,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: VER EVOLUÇÃO                                           */}
-          {/* ============================================================ */}
           {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
             <div>
               <FichaEvoDesktop
@@ -2461,9 +2404,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: CRIAR EVOLUÇÃO                                         */}
-          {/* ============================================================ */}
           {telaAtual === 'criar_evolucao' && (
             <div>
               <FichaEvoDesktop
@@ -2477,9 +2417,6 @@ export default function PainelEsteticista({ onLogout }) {
             </div>
           )}
 
-          {/* ============================================================ */}
-          {/* TELA: EDITAR EVOLUÇÃO                                        */}
-          {/* ============================================================ */}
           {telaAtual === 'editar_evolucao' && evolucaoSelecionada && (
             <div>
               <FichaEvoDesktop
@@ -2495,9 +2432,6 @@ export default function PainelEsteticista({ onLogout }) {
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* MODAIS                                                       */}
-      {/* ============================================================ */}
       {mostrarModalAgendar && pacienteSelecionado && (
         <ModalAgendarParaPaciente
           paciente={pacienteSelecionado}
@@ -2545,7 +2479,6 @@ export default function PainelEsteticista({ onLogout }) {
         />
       )}
 
-      {/* MODAL DE EXCLUSÃO DE PASTA/EVOLUÇÃO */}
       {modalExclusao.isOpen && (
         <div style={{
           position: 'fixed',
@@ -2705,11 +2638,19 @@ export default function PainelEsteticista({ onLogout }) {
       )}
     </div>
   );
+}
 
+/* ============================================================
+   CARD DE PACIENTE
+   ============================================================ */
 function CardPaciente({ pac, onClick, arquivado = false }) {
   return (
     <div
-      onClick={onClick}
+      onClick={(e) => {
+        // Se clicou no botão Reativar, o botão já tratou (stopPropagation)
+        // Se não, chama onClick normal
+        if (onClick) onClick(pac);
+      }}
       className="card-pasta-hover"
       style={{
         background: 'rgba(255, 255, 255, 0.92)',
@@ -2782,6 +2723,42 @@ function CardPaciente({ pac, onClick, arquivado = false }) {
 
       {!arquivado && <LinkAcessoPaciente pacienteId={pac.id} compacto />}
 
+      {/* ⚖️ LGPD — Botão Reativar quando arquivado */}
+      {arquivado && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onClick && onClick(pac, 'reativar')}
+            style={{
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+              color: '#fff',
+              border: '1.5px solid #9c7826',
+              padding: '10px 20px',
+              borderRadius: 20,
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
+              width: '100%',
+              justifyContent: 'center',
+            }}
+          >
+            🔄 Reativar paciente
+          </button>
+        </div>
+      )}
+
       <div style={{
         fontSize: '12px',
         color: '#555',
@@ -2796,4 +2773,4 @@ function CardPaciente({ pac, onClick, arquivado = false }) {
       </div>
     </div>
   );
-}}
+}

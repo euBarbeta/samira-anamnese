@@ -6,6 +6,15 @@ import {
 } from 'react-icons/md';
 import PainelSeguranca from './PainelSeguranca';
 import { sanitizarFichaAnamnese } from '../utils/sanitizar';
+
+// 🔧 CORRIGIDO: import único do helper (antes tinha 2)
+import {
+  anonimizarPaciente,
+  reativarPaciente,
+  estaAnonimizado,
+  reativarPorEdicao,
+} from '../utils/lgpdExclusao';
+
 import CardSegurancaPaciente from './CardSegurancaPaciente';
 import { log, logWarn, logError } from '../utils/log';
 import ModalEscolherServico from './agendamento/ModalEscolherServico';
@@ -38,14 +47,8 @@ import LinkAcessoPaciente from './LinkAcessoPaciente';
 import PainelAgendamentosEsteticista from './agendamento/PainelAgendamentosEsteticista';
 import PainelFinanceiro from './financeiro/PainelFinanceiro';
 
-// ============================================================
-// ⚖️ LGPD — Helper central de anonimização e reativação
-// ============================================================
-import {
-  anonimizarPaciente,
-  reativarPaciente,
-  estaAnonimizado,
-} from '../utils/lgpdExclusao';
+// ⚠️ UID padrão (você já tem isso em algum lugar — mantém igual)
+const UID_ESTETICISTA_PADRAO = 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
 
 const MODAL_FECHADO = {
   isOpen: false,
@@ -198,7 +201,6 @@ export default function PainelEsteticistaMobile({ onLogout }) {
 
   const [agendamentoRecemCriado, setAgendamentoRecemCriado] = useState(null);
 
-  // ✅ Busca global
   const [resultadosBusca, setResultadosBusca] = useState(null);
   const [buscandoGlobal, setBuscandoGlobal] = useState(false);
   const cacheBuscaRef = useRef(null);
@@ -213,8 +215,6 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const [carregandoNuvem, setCarregandoNuvem] = useState(true);
   const [jaCarregou, setJaCarregou] = useState(false);
 
-  // ✅ Filtro: 'ativos' | 'arquivados'
-  // ⚖️ LGPD: separa pacientes anonimizados dos ativos
   const [abaPacientes, setAbaPacientes] = useState('ativos');
 
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null);
@@ -224,7 +224,6 @@ export default function PainelEsteticistaMobile({ onLogout }) {
 
   const auth = getAuth();
 
-  // ✅ Refs
   const pacRef = useRef(null);
   const evoRef = useRef(null);
   const modalOpenRef = useRef(false);
@@ -239,7 +238,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const [segurancaAlertaCount, setSegurancaAlertaCount] = useState(0);
 
   // ============================================================
-  // Contadores de pendências
+  // Contadores
   // ============================================================
   useEffect(() => {
     const user = auth.currentUser;
@@ -296,48 +295,48 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   // ============================================================
   // Sincroniza pacienteSelecionado com a lista
   // ============================================================
-useEffect(() => {
-  if (!jaCarregou) return;
-  if (!pacienteSelecionado) return;
+  useEffect(() => {
+    if (!jaCarregou) return;
+    if (!pacienteSelecionado) return;
 
-  const atual = pacientes.find(
-    (p) => String(p.id) === String(pacienteSelecionado.id)
-  );
-
-  // ⚖️ Caso 1: paciente SUMIU da lista (excluído por outro device)
-  if (!atual) {
-    setPacienteSelecionado(null);
-    setEvolucaoSelecionada(null);
-    setTelaAtual('lista');
-    window.history.replaceState(
-      { painelEsteticista: 'lista' },
-      '',
-      window.location.pathname
+    const atual = pacientes.find(
+      (p) => String(p.id) === String(pacienteSelecionado.id)
     );
-    return;
-  }
 
-  // ⚖️ Caso 2: paciente foi ANONIMIZADO (por ele mesmo em outro device)
-  //    ⚠️ Isso joga a esteta pra fora da pasta e volta pra lista
-  const foiAnonimizadoAgora =
-    estaAnonimizado(atual) && !estaAnonimizado(pacienteSelecionado);
+    // ⚖️ Caso 1: paciente SUMIU da lista
+    if (!atual) {
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+      setTelaAtual('lista');
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+      return;
+    }
 
-  if (foiAnonimizadoAgora) {
-    setPacienteSelecionado(null);
-    setEvolucaoSelecionada(null);
-    setTelaAtual('lista');
-    window.location.replaceState(
-      { painelEsteticista: 'lista' },
-      '',
-      window.location.pathname
-    );
-    return;
-  }
+    // ⚖️ Caso 2: paciente foi ANONIMIZADO em outro device
+    const foiAnonimizadoAgora =
+      estaAnonimizado(atual) && !estaAnonimizado(pacienteSelecionado);
 
-  if (atual !== pacienteSelecionado) {
-    setPacienteSelecionado(atual);
-  }
-}, [pacientes, jaCarregou, pacienteSelecionado]);
+    if (foiAnonimizadoAgora) {
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+      setTelaAtual('lista');
+      // 🔧 CORRIGIDO: window.history (antes estava window.location)
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+      return;
+    }
+
+    if (atual !== pacienteSelecionado) {
+      setPacienteSelecionado(atual);
+    }
+  }, [pacientes, jaCarregou, pacienteSelecionado]);
 
   // ============================================================
   // Agendar lembretes
@@ -606,7 +605,7 @@ useEffect(() => {
   }, [termoBusca]);
 
   // ============================================================
-  // LISTENER — pacientes em tempo real
+  // LISTENER — pacientes
   // ============================================================
   useEffect(() => {
     let unsubAuth = null;
@@ -652,7 +651,7 @@ useEffect(() => {
   }, [db, auth, limitePagina]);
 
   // ============================================================
-  // ⚖️ LGPD — Filtros de pacientes (ativos vs. arquivados)
+  // Filtros (ativos vs. arquivados)
   // ============================================================
   const pacientesAtivos = useMemo(
     () => pacientes.filter((p) => !estaAnonimizado(p)),
@@ -669,7 +668,7 @@ useEffect(() => {
   }, [abaPacientes, pacientesAtivos, pacientesArquivados]);
 
   // ============================================================
-  // ⚖️ LGPD — Anonimiza paciente (helper central)
+  // Anonimiza paciente
   // ============================================================
   const excluirPacienteDaNuvem = async (idPaciente) => {
     const user = auth.currentUser;
@@ -717,7 +716,7 @@ useEffect(() => {
   };
 
   // ============================================================
-  // ⚖️ LGPD — handleSalvarAnamnese com detecção de reativação
+  // handleSalvarAnamnese com detecção de reativação
   // ============================================================
   const handleSalvarAnamnese = async (dadosAnamnese) => {
     const userEsteticista = auth.currentUser;
@@ -729,7 +728,6 @@ useEffect(() => {
     const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
 
     try {
-      // 1) Nome → e-mail fictício
       const nomeOriginal = dadosAnamnese.nome ? dadosAnamnese.nome.trim() : '';
       let partes = nomeOriginal.split(/\s+/);
 
@@ -748,7 +746,6 @@ useEffect(() => {
 
       const emailFicticio = `${pNomeLimpo}.${sSobrenomeLimpo}@sistema.local`;
 
-      // 2) Documento → senha
       const docFormatado = extrairDocumento(dadosAnamnese);
       const documentoLimpo = docFormatado.replace(/\D/g, '');
       const senhaFicticia = (documentoLimpo.length >= 6
@@ -758,7 +755,6 @@ useEffect(() => {
 
       let pacienteUid = '';
 
-      // 3) Auth
       try {
         const userCredential = await createUserWithEmailAndPassword(
           secondaryAuth, emailFicticio, senhaFicticia
@@ -788,9 +784,6 @@ useEffect(() => {
         pacienteUid = String(Date.now());
       }
 
-      // ============================================================
-      // ⚖️ LGPD — Detecção de reativação
-      // ============================================================
       let pastaExistente = null;
       try {
         const pacRef = doc(db, `usuarios/${userEsteticista.uid}/pacientes`, String(pacienteUid));
@@ -803,7 +796,7 @@ useEffect(() => {
       }
 
       if (pastaExistente && estaAnonimizado(pastaExistente)) {
-        // ✅ REATIVA
+        // ⚖️ REATIVA
         await reativarPaciente({
           pacienteId: pacienteUid,
           uidEsteticista: userEsteticista.uid,
@@ -851,9 +844,7 @@ useEffect(() => {
         return;
       }
 
-      // ============================================================
       // Paciente NOVO
-      // ============================================================
       const agora = new Date();
       const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
         agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -901,6 +892,24 @@ useEffect(() => {
   };
 
   const handleAtualizarAnamnese = async (dadosAtualizados) => {
+    // ⚖️ LGPD — Se o paciente estava ARQUIVADO, reativar
+    if (pacienteSelecionado?.anonimizadoEm) {
+      const userEst = auth.currentUser;
+      if (userEst) {
+        await reativarPorEdicao({
+          pacienteId: pacienteSelecionado.id,
+          uidEsteticista: userEst.uid,
+          nome: dadosAtualizados.nome,
+          documento: extrairDocumento(dadosAtualizados),
+          telefone: dadosAtualizados.telefone,
+          emailContato: dadosAtualizados.emailContato,
+          endereco: dadosAtualizados.endereco,
+        });
+
+        cacheBuscaRef.current = null;
+      }
+    }
+
     const agora = new Date();
     const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
       agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -1025,7 +1034,6 @@ useEffect(() => {
       await signInWithEmailAndPassword(auth, user.email, modalExclusao.senhaInput);
 
       if (modalExclusao.tipo === 'pasta') {
-        // ⚖️ LGPD — anonimiza
         await excluirPacienteDaNuvem(modalExclusao.idAlvo);
 
         const filtrados = pacientes.filter(p => p.id !== modalExclusao.idAlvo);
@@ -1337,7 +1345,6 @@ useEffect(() => {
           background: rgba(255, 255, 255, 0.98) !important;
         }
 
-        /* ⚖️ LGPD — Tab mobile (Ativos / Arquivadas) */
         .tab-pacientes-mobile {
           flex: 1;
           padding: 10px 12px;
@@ -1755,7 +1762,7 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* ⚖️ LGPD — TABS: ATIVOS / ARQUIVADOS */}
+              {/* TABS: ATIVOS / ARQUIVADOS */}
               {!termoBusca.trim() && pacientes.length > 0 && (
                 <div style={{
                   display: 'flex',
@@ -1846,7 +1853,15 @@ useEffect(() => {
                       <CardPacienteMobile
                         key={pac.id}
                         pac={pac}
-                        onAbrir={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                        // 🔧 CORRIGIDO: passa (pac, acao) pro pai
+                        onAbrir={(pacArg, acao) => {
+                          if (acao === 'reativar') {
+                            setPacienteSelecionado(pacArg);
+                            navegarPara('editar_anamnese');
+                          } else {
+                            navegarPara('detalhe_pasta', { paciente: pacArg });
+                          }
+                        }}
                         onExcluir={() => solicitarExclusaoPasta(pac.id)}
                       />
                     ))}
@@ -1890,7 +1905,15 @@ useEffect(() => {
                       <CardPacienteMobile
                         key={pac.id}
                         pac={pac}
-                        onAbrir={() => navegarPara('detalhe_pasta', { paciente: pac })}
+                        // 🔧 CORRIGIDO: passa (pac, acao) pro pai
+                        onAbrir={(pacArg, acao) => {
+                          if (acao === 'reativar') {
+                            setPacienteSelecionado(pacArg);
+                            navegarPara('editar_anamnese');
+                          } else {
+                            navegarPara('detalhe_pasta', { paciente: pacArg });
+                          }
+                        }}
                         onExcluir={() => solicitarExclusaoPasta(pac.id)}
                         arquivado={abaPacientes === 'arquivados'}
                       />
@@ -2743,7 +2766,6 @@ useEffect(() => {
 
 /* ============================================================
    CARD DE PACIENTE MOBILE
-   ⚖️ LGPD: aceita prop `arquivado` para estilo condicional
    ============================================================ */
 function CardPacienteMobile({ pac, onAbrir, onExcluir, arquivado = false }) {
   return (
@@ -2761,7 +2783,10 @@ function CardPacienteMobile({ pac, onAbrir, onExcluir, arquivado = false }) {
         opacity: arquivado ? 0.85 : 1,
       }}
     >
-      <div onClick={onAbrir} style={{ cursor: 'pointer' }}>
+      <div
+        onClick={() => onAbrir && onAbrir(pac)}
+        style={{ cursor: 'pointer' }}
+      >
         {arquivado ? (
           <div style={{
             display: 'inline-flex',
@@ -2823,6 +2848,37 @@ function CardPacienteMobile({ pac, onAbrir, onExcluir, arquivado = false }) {
         )}
       </div>
 
+      {/* ⚖️ LGPD — Botão Reativar quando arquivado */}
+      {arquivado && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onAbrir) onAbrir(pac, 'reativar');
+          }}
+          style={{
+            marginTop: 10,
+            width: '100%',
+            fontFamily: "'Cinzel', serif",
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
+            border: '1.5px solid #9c7826',
+            padding: '10px 16px',
+            borderRadius: 16,
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
+          }}
+        >
+          🔄 Reativar paciente
+        </button>
+      )}
+
       <div style={{
         fontSize: '11px',
         color: '#555',
@@ -2833,13 +2889,16 @@ function CardPacienteMobile({ pac, onAbrir, onExcluir, arquivado = false }) {
         paddingTop: '8px',
         marginTop: '8px'
       }}>
-        <span onClick={onAbrir} style={{ cursor: 'pointer' }}>
+        <span
+          onClick={() => onAbrir && onAbrir(pac)}
+          style={{ cursor: 'pointer' }}
+        >
           Fichas de Evolução: <strong>{pac.evolucoes?.length || 0}</strong>
         </span>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <span
-            onClick={onAbrir}
+            onClick={() => onAbrir && onAbrir(pac)}
             style={{ color: '#C8A24A', fontWeight: 700, cursor: 'pointer' }}
           >
             Abrir Pasta →

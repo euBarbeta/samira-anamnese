@@ -6,6 +6,9 @@ import ModalEscolherServico from './ModalEscolherServico';
 import ConfiguradorAgenda from './ConfiguradorAgenda';
 import FichaDesktop from '../FichaDesktop';
 import FichaMobile from '../FichaMobile';
+import {
+  reativarPorEdicao,
+} from '../../utils/lgpdExclusao';
 import ModalEditarSobra from './ModalEditarSobra';
 import ModalRegistrarReceita from '../financeiro/ModalRegistrarReceita';
 import { gerarPdfHistorico, salvarPdfHistorico } from '../../utils/gerarPdfHistorico';   // ✅ NOVO
@@ -1822,6 +1825,7 @@ export default function PainelAgendamentosEsteticista({
     return pacientesExistentes.has(`nome:${nomeNorm}|${docNorm}`);
   };
 
+
   const substituirCampo = async (pacId, campo, valor) => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -1847,6 +1851,36 @@ export default function PainelAgendamentosEsteticista({
       setSubstituindo(null);
     }
   };
+  // ============================================================
+// ⚖️ LGPD — Verifica se o paciente está arquivado
+// ============================================================
+const pacienteEstaArquivado = (ag) => {
+  if (!ag.pacienteId) return false;
+  const pac = pacientesPorId[ag.pacienteId];
+  return Boolean(pac?.anonimizadoEm);
+};
+
+// ============================================================
+// ⚖️ LGPD — Abre ficha do paciente arquivado pra reativar
+// ============================================================
+const abrirFichaParaReativar = async (ag) => {
+  if (!ag.pacienteId) return;
+
+  const pac = pacientesPorId[ag.pacienteId];
+  if (!pac) return;
+
+  setFichaPreenchida({
+    ...pac.anamnese,
+    // Marca que está vindo da reativação
+    _reativandoPacienteId: ag.pacienteId,
+    // Pré-preenche com o que já existe (vai ficar vazio)
+    nome: pac.nome || '',
+    numeroDocumento: pac.documento || '',
+    telefone: pac.telefone || '',
+    emailContato: pac.emailContato || '',
+    endereco: pac.endereco || '',
+  });
+};
 
   // ============================================================
   // ✅ DIVERGÊNCIAS — cada campo resolvido de forma INDEPENDENTE
@@ -2005,7 +2039,28 @@ export default function PainelAgendamentosEsteticista({
       },
       { merge: true }
     );
+// ============================================================
+// ⚖️ LGPD — Se está REATIVANDO um paciente arquivado
+// ============================================================
+if (fichaPreenchida?._reativandoPacienteId) {
+  await reativarPorEdicao({
+    pacienteId: fichaPreenchida._reativandoPacienteId,
+    uidEsteticista: user.uid,
+    nome: dadosAnamnese.nome,
+    documento: dadosAnamnese.numeroDocumento,
+    telefone: dadosAnamnese.telefone,
+    emailContato: dadosAnamnese.emailContato,
+    endereco: dadosAnamnese.endereco,
+  });
 
+  // Invalida o cache
+  cacheBuscaRef.current = null;
+
+  // Fecha a ficha
+  setFichaPreenchida(null);
+
+  return; // não continua o fluxo normal
+}
  if (fichaPreenchida?._agendamentoOrigemId) {
   // ⚠️ Só vincula o pacienteId ao agendamento.
   //    NÃO muda o status — concluir é ação manual (botão "Concluir").
@@ -2327,31 +2382,36 @@ export default function PainelAgendamentosEsteticista({
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                    {ag.aguardandoConsentimento && (
-                      <span style={badgeAguardando}>
-                        <MdHourglassEmpty size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                        Aguardando consentimento do paciente
-                      </span>
-                    )}
-                    {ag.consentimentoLGPD?.aceito ? (
-                      <span style={badgeOk}>
-                        <MdCheckCircle size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                        LGPD aceito
-                      </span>
-                    ) : (
-                      <span style={badgeWarn}>
-                        <MdWarning size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                        Sem LGPD
-                      </span>
-                    )}
-                    {ag.status === 'faltou' && (
-                      <span style={badgeFaltou}>
-                        <MdPersonOff size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                        Paciente não compareceu
-                      </span>
-                    )}
-                  </div>
+                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+  {ag.aguardandoConsentimento && (
+    <span style={badgeAguardando}>...</span>
+  )}
+  {ag.consentimentoLGPD?.aceito ? (
+    <span style={badgeOk}>...</span>
+  ) : (
+    <span style={badgeWarn}>...</span>
+  )}
+  {ag.status === 'faltou' && (
+    <span style={badgeFaltou}>...</span>
+  )}
+  
+  {/* ⚖️ LGPD — Badge de cliente arquivada */}
+  {pacienteEstaArquivado(ag) && (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      background: '#f5f5f5',
+      color: '#666',
+      border: '1px solid #ddd',
+      padding: '2px 10px',
+      borderRadius: 12,
+      fontSize: 10,
+      fontWeight: 700,
+    }}>
+      📂 Cliente na aba Arquivadas
+    </span>
+  )}
+</div>
 
                   {/* ✅ Horário real de conclusão */}
                   {ag.status === 'concluido' && ag.horaRealFim && (
@@ -2629,16 +2689,34 @@ export default function PainelAgendamentosEsteticista({
                     paddingTop: 12,
                     borderTop: '1px dashed #f0e6fa',
                   }}>
-                    {(ag.status === 'confirmado' || ag.status === 'concluido') && !pacienteJaExiste(ag) && (
-                      <button
-                        type="button"
-                        onClick={() => abrirFichaPreenchida(ag)}
-                        style={{ ...btnFicha, flex: '1 1 140px' }}
-                        title="Abrir ficha de anamnese pré-preenchida com os dados deste agendamento"
-                      >
-                        <MdAssignment size={14} /> Ficha de Anamnese
-                      </button>
-                    )}
+                  {/* ⚖️ LGPD — Se paciente está arquivado, mostra botão Reativar */}
+{pacienteEstaArquivado(ag) ? (
+  <button
+    type="button"
+    onClick={() => abrirFichaParaReativar(ag)}
+    style={{
+      ...btnFicha,
+      flex: '1 1 140px',
+      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+    }}
+    title="Reativar cadastro deste paciente (volta pra aba Ativos)"
+  >
+    <MdRefresh size={14} /> Reativar paciente
+  </button>
+) : (
+  <>
+    {(ag.status === 'confirmado' || ag.status === 'concluido') && !pacienteJaExiste(ag) && (
+      <button
+        type="button"
+        onClick={() => abrirFichaPreenchida(ag)}
+        style={{ ...btnFicha, flex: '1 1 140px' }}
+        title="Abrir ficha de anamnese pré-preenchida com os dados deste agendamento"
+      >
+        <MdAssignment size={14} /> Ficha de Anamnese
+      </button>
+    )}
+  </>
+)}
 
                     {ag.status === 'pendente' && (
                       <>

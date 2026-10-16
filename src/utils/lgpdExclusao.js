@@ -328,3 +328,85 @@ export async function anonimizarAgendamento({
 export function estaAnonimizado(paciente) {
   return Boolean(paciente?.anonimizadoEm);
 }
+// ============================================================
+// REATIVAR POR EDIÇÃO DE FICHA
+// ------------------------------------------------------------
+// Chamado quando a esteta edita a ficha de um paciente arquivado
+// (via botão "Reativar" nos painéis).
+//
+// - Remove marcadores de anonimização
+// - Atualiza nome, documento e contato
+// - Reativa o link
+// - Marca `reativadoEm` pra auditoria
+// ============================================================
+export async function reativarPorEdicao({
+  pacienteId,
+  uidEsteticista,
+  nome,
+  documento,
+  telefone,
+  emailContato,
+  endereco,
+}) {
+  if (!pacienteId || !uidEsteticista) {
+    throw new Error('pacienteId e uidEsteticista são obrigatórios.');
+  }
+
+  const agora = new Date().toISOString();
+
+  const pacienteRef = doc(
+    db,
+    'usuarios',
+    uidEsteticista,
+    'pacientes',
+    String(pacienteId)
+  );
+
+  const snap = await getDoc(pacienteRef);
+  if (!snap.exists()) {
+    throw new Error('Paciente não encontrado.');
+  }
+
+  const dados = snap.data();
+
+  // Só reativa se realmente estiver anonimizado
+  if (!dados.anonimizadoEm) {
+    return { ok: true, jaAtivo: true };
+  }
+
+  await updateDoc(pacienteRef, {
+    // ✅ Restaura dados
+    nome: nome || dados.nome,
+    documento: documento || dados.documento,
+    telefone: telefone || null,
+    emailContato: emailContato || null,
+    endereco: endereco || null,
+
+    // ⚖️ Limpa marcadores de anonimização
+    anonimizadoEm: null,
+    anonimizadoPor: null,
+    reativadoEm: agora,
+    reativadoPor: uidEsteticista,
+
+    dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
+      ' às ' + new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit', minute: '2-digit'
+      }),
+  });
+
+  // Reativa o link de acesso
+  try {
+    const linkRef = doc(db, 'links_pacientes', String(pacienteId));
+    const linkSnap = await getDoc(linkRef);
+    if (linkSnap.exists()) {
+      await updateDoc(linkRef, {
+        ativo: true,
+        reativadoEm: agora,
+      });
+    }
+  } catch (e) {
+    console.warn('Falha ao reativar link:', e);
+  }
+
+  return { ok: true, pacienteId, reativadoEm: agora };
+}
