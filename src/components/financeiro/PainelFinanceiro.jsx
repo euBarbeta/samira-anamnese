@@ -1,7 +1,7 @@
 // src/components/financeiro/PainelFinanceiro.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  collection, query, where, onSnapshot, doc, addDoc,
+  collection, query, onSnapshot, doc, addDoc,
   updateDoc, deleteDoc, orderBy,
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -12,23 +12,15 @@ import { gerarPdfFinanceiro, salvarPdfFinanceiro } from '../../utils/gerarPdfFin
 
 import {
   MdAdd, MdTrendingUp, MdTrendingDown, MdAttachMoney,
-  MdClear, MdPictureAsPdf, MdEdit,
+  MdPictureAsPdf, MdEdit,
   MdDelete, MdCalendarMonth, MdArrowBack, MdArrowForward,
   MdClose, MdDownload, MdPictureAsPdf as MdPdf,
-  MdExpandMore,   // ✅ NOVO — seta do dropdown de mês
+  MdExpandMore,
 } from 'react-icons/md';
 
 /* ============================================================
    Helpers
    ============================================================ */
-function isoHoje() {
-  const d = new Date();
-  const ano = d.getFullYear();
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const dia = String(d.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
-}
-
 function mesAnoDeHoje() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -80,10 +72,21 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   const [lancamentos, setLancamentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
 
+  // ✅ Detecção de mobile (reage ao resize)
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+  );
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
   // Navegação de mês
   const [mesRef, setMesRef] = useState(mesAnoDeHoje());
 
-  // ✅ Dropdown de mês/ano
+  // Dropdown de mês/ano
   const [dropdownMesAberto, setDropdownMesAberto] = useState(false);
   const [anoSelecionando, setAnoSelecionando] = useState(
     () => Number(mesAnoDeHoje().split('-')[0])
@@ -192,7 +195,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   }, [lancamentos, mesRef]);
 
   // ============================================================
-  // Categorias disponíveis (para o filtro)
+  // Categorias disponíveis
   // ============================================================
   const categoriasDisponiveis = useMemo(() => {
     const set = new Set();
@@ -203,7 +206,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   }, [dadosMes]);
 
   // ============================================================
-  // Lista filtrada (para exibição)
+  // Lista filtrada
   // ============================================================
   const lancamentosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -234,27 +237,22 @@ export default function PainelFinanceiro({ uidEsteticista }) {
     setBusca('');
   };
 
-  // ✅ Clicar numa barra do gráfico pula pro mês
   const irParaMesEspecifico = (anoMes) => {
     setMesRef(anoMes);
     setBusca('');
-    // Scroll suave pra cima (opcional — UX melhor)
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  // ✅ Selecionar mês no dropdown
   const selecionarMesDropdown = (anoMes) => {
     setMesRef(anoMes);
     setDropdownMesAberto(false);
     setBusca('');
   };
 
-  // ✅ Fechar dropdown com Esc
   useEffect(() => {
     if (!dropdownMesAberto) return;
-
     const handler = (e) => {
       if (e.key === 'Escape') setDropdownMesAberto(false);
     };
@@ -374,13 +372,21 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       {/* ============================================================ */}
       <div style={{
         display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 10,
+        alignItems: isMobile ? 'stretch' : 'center',
+        gap: isMobile ? 12 : 10,
         marginBottom: 18,
-        flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+        {/* Navegação de mês */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          position: 'relative',
+          justifyContent: 'space-between',
+          width: isMobile ? '100%' : 'auto',
+        }}>
           <button
             type="button"
             onClick={() => mudarMes(-1)}
@@ -390,7 +396,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             <MdArrowBack size={18} color="#7e22ce" />
           </button>
 
-          {/* ✅ Botão do mês/ano que abre o dropdown */}
           <button
             type="button"
             onClick={() => {
@@ -406,10 +411,11 @@ export default function PainelFinanceiro({ uidEsteticista }) {
               borderRadius: 10,
               cursor: 'pointer',
               color: '#2c163a',
-              fontSize: 16,
+              fontSize: isMobile ? 14 : 16,
               fontWeight: 700,
-              padding: '6px 14px',
-              minWidth: 200,
+              padding: '6px 12px',
+              flex: isMobile ? 1 : 'none',
+              minWidth: isMobile ? 0 : 200,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -425,6 +431,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
               style={{
                 transition: 'transform 0.2s ease',
                 transform: dropdownMesAberto ? 'rotate(180deg)' : 'rotate(0deg)',
+                flexShrink: 0,
               }}
             />
           </button>
@@ -438,10 +445,9 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             <MdArrowForward size={18} color="#7e22ce" />
           </button>
 
-          {/* ✅ DROPDOWN — grid de meses + navegação de ano */}
+          {/* DROPDOWN — grid de meses + navegação de ano */}
           {dropdownMesAberto && (
             <>
-              {/* Overlay pra fechar ao clicar fora */}
               <div
                 onClick={() => setDropdownMesAberto(false)}
                 style={{
@@ -456,7 +462,8 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                 style={{
                   position: 'absolute',
                   top: '100%',
-                  left: 0,
+                  left: isMobile ? 0 : 0,
+                  right: isMobile ? 0 : 'auto',
                   marginTop: 8,
                   background: '#fff',
                   border: '1.5px solid #C8A24A',
@@ -464,11 +471,10 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                   boxShadow: '0 15px 40px rgba(44, 22, 58, 0.25)',
                   padding: '14px 16px 16px',
                   zIndex: 1000,
-                  minWidth: 300,
+                  minWidth: isMobile ? 'auto' : 300,
                   fontFamily: "'Montserrat', sans-serif",
                 }}
               >
-                {/* Navegação de ANO */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -506,7 +512,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                   </button>
                 </div>
 
-                {/* Grid de 12 meses */}
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(3, 1fr)',
@@ -551,7 +556,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                   })}
                 </div>
 
-                {/* Botão "Hoje" */}
                 <button
                   type="button"
                   onClick={() => {
@@ -586,6 +590,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           )}
         </div>
 
+        {/* Botão Exportar PDF */}
         <button
           type="button"
           onClick={handleExportarPDF}
@@ -604,8 +609,10 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             cursor: gerandoPDF ? 'wait' : 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 6,
             boxShadow: gerandoPDF ? 'none' : '0 3px 10px rgba(126, 34, 206, 0.3)',
+            width: isMobile ? '100%' : 'auto',
           }}
         >
           <MdPictureAsPdf size={15} />
@@ -618,7 +625,9 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       {/* ============================================================ */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gridTemplateColumns: isMobile
+          ? '1fr'
+          : 'repeat(auto-fit, minmax(160px, 1fr))',
         gap: 12,
         marginBottom: 18,
       }}>
@@ -653,7 +662,12 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       {/* ============================================================ */}
       {/* AÇÕES — Nova Despesa */}
       {/* ============================================================ */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        marginBottom: 18,
+        flexWrap: 'wrap',
+      }}>
         <button
           type="button"
           onClick={() => {
@@ -672,8 +686,10 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 6,
             boxShadow: '0 3px 10px rgba(198, 40, 40, 0.3)',
+            width: isMobile ? '100%' : 'auto',
           }}
         >
           <MdAdd size={16} />
@@ -686,7 +702,11 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       {/* ============================================================ */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: porServico.length > 0 ? 'minmax(0, 1.3fr) minmax(0, 1fr)' : '1fr',
+        gridTemplateColumns: isMobile
+          ? '1fr'
+          : (porServico.length > 0
+              ? 'minmax(0, 1.3fr) minmax(0, 1fr)'
+              : '1fr'),
         gap: 16,
         marginBottom: 20,
       }}>
@@ -697,7 +717,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           </div>
           <GraficoBarras
             dados={ultimos12Meses}
-            altura={240}
+            altura={isMobile ? 200 : 240}
             animar={true}
             onClickMes={irParaMesEspecifico}
             mesSelecionado={mesRef}
@@ -710,7 +730,11 @@ export default function PainelFinanceiro({ uidEsteticista }) {
               <MdAttachMoney size={16} color="#7e22ce" />
               Faturamento por Serviço
             </div>
-            <GraficoPizza dados={porServico} tamanho={200} animar={true} />
+            <GraficoPizza
+              dados={porServico}
+              tamanho={isMobile ? 180 : 200}
+              animar={true}
+            />
           </div>
         )}
       </div>
@@ -736,12 +760,19 @@ export default function PainelFinanceiro({ uidEsteticista }) {
         {/* Filtros */}
         <div style={{
           display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
           gap: 8,
           marginBottom: 14,
           flexWrap: 'wrap',
-          alignItems: 'center',
+          alignItems: isMobile ? 'stretch' : 'center',
         }}>
-          <div style={{ display: 'flex', gap: 6 }}>
+          {/* Botões de tipo */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            width: isMobile ? '100%' : 'auto',
+          }}>
             {[
               { key: 'todos', label: 'Tudo', cor: '#7e22ce' },
               { key: 'receita', label: 'Receitas', cor: '#16a34a' },
@@ -761,6 +792,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                   fontSize: 10.5,
                   fontWeight: 700,
                   cursor: 'pointer',
+                  flex: isMobile ? 1 : 'none',
                 }}
               >
                 {f.label}
@@ -768,6 +800,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             ))}
           </div>
 
+          {/* Select categoria */}
           {categoriasDisponiveis.length > 0 && (
             <select
               value={filtroCategoria}
@@ -781,6 +814,8 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                 background: '#fff',
                 fontFamily: "'Montserrat', sans-serif",
                 outline: 'none',
+                width: isMobile ? '100%' : 'auto',
+                boxSizing: 'border-box',
               }}
             >
               <option value="todos">Todas categorias</option>
@@ -790,7 +825,12 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             </select>
           )}
 
-          <div style={{ flex: 1, minWidth: 160 }}>
+          {/* Busca */}
+          <div style={{
+            flex: 1,
+            minWidth: isMobile ? 'auto' : 160,
+            width: isMobile ? '100%' : 'auto',
+          }}>
             <input
               type="text"
               placeholder="Buscar por descrição, paciente..."
@@ -837,6 +877,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
               <ItemLancamento
                 key={l.id}
                 lancamento={l}
+                isMobile={isMobile}
                 onEditar={() => {
                   setDespesaEditando(l);
                   setModalDespesaAberto(true);
@@ -1077,13 +1118,14 @@ function CardResumo({ titulo, valor, Icone, cor, bg, borda }) {
   );
 }
 
-function ItemLancamento({ lancamento, onEditar, onExcluir }) {
+function ItemLancamento({ lancamento, isMobile, onEditar, onExcluir }) {
   const ehReceita = lancamento.tipo === 'receita';
   const cor = ehReceita ? '#16a34a' : '#c62828';
   const bg = ehReceita ? '#f0fdf4' : '#fef2f2';
   const borda = ehReceita ? '#86efac' : '#fca5a5';
   const Icone = ehReceita ? MdTrendingUp : MdTrendingDown;
 
+  // ✅ Layout mobile: coluna. Desktop: linha.
   return (
     <div style={{
       background: '#fff',
@@ -1091,100 +1133,120 @@ function ItemLancamento({ lancamento, onEditar, onExcluir }) {
       borderRadius: 10,
       padding: '12px 14px',
       display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      flexWrap: 'wrap',
+      flexDirection: isMobile ? 'column' : 'row',
+      alignItems: isMobile ? 'stretch' : 'center',
+      gap: isMobile ? 10 : 12,
     }}>
+      {/* Ícone + Info */}
       <div style={{
-        width: 36,
-        height: 36,
-        borderRadius: '50%',
-        background: bg,
-        border: `1.5px solid ${borda}`,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
+        gap: 12,
+        flex: 1,
+        minWidth: 0,
       }}>
-        <Icone size={18} color={cor} />
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: '50%',
+          background: bg,
+          border: `1.5px solid ${borda}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Icone size={18} color={cor} />
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: "'Cinzel', serif",
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: '#2c163a',
+            lineHeight: 1.3,
+            marginBottom: 2,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {lancamento.descricao || lancamento.servicoNome || '—'}
+          </div>
+          <div style={{
+            fontSize: 10.5,
+            color: '#666',
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}>
+            <span>{fmtDataBR(lancamento.data)}</span>
+            {lancamento.categoria && <span>· {lancamento.categoria}</span>}
+            {lancamento.formaPagamento && <span>· {lancamento.formaPagamento}</span>}
+            {lancamento.pacienteNome && (
+              <span style={{ color: '#7e22ce' }}>· {lancamento.pacienteNome}</span>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div style={{ flex: 1, minWidth: 160 }}>
+      {/* Valor + Ações */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: isMobile ? 'space-between' : 'flex-end',
+        gap: 8,
+        width: isMobile ? '100%' : 'auto',
+      }}>
         <div style={{
           fontFamily: "'Cinzel', serif",
-          fontSize: 12.5,
-          fontWeight: 700,
-          color: '#2c163a',
-          lineHeight: 1.3,
-          marginBottom: 2,
+          fontSize: 15,
+          fontWeight: 800,
+          color: cor,
+          whiteSpace: 'nowrap',
         }}>
-          {lancamento.descricao || lancamento.servicoNome || '—'}
+          {ehReceita ? '+' : '−'} R$ {fmtMoeda(lancamento.valor)}
         </div>
-        <div style={{
-          fontSize: 10.5,
-          color: '#666',
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}>
-          <span>{fmtDataBR(lancamento.data)}</span>
-          {lancamento.categoria && <span>· {lancamento.categoria}</span>}
-          {lancamento.formaPagamento && <span>· {lancamento.formaPagamento}</span>}
-          {lancamento.pacienteNome && (
-            <span style={{ color: '#7e22ce' }}>· {lancamento.pacienteNome}</span>
-          )}
+
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            type="button"
+            onClick={onEditar}
+            title="Editar"
+            style={{
+              background: '#faf5ff',
+              border: '1px solid #d8b4fe',
+              color: '#7e22ce',
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <MdEdit size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onExcluir}
+            title="Excluir"
+            style={{
+              background: '#fef2f2',
+              border: '1px solid #fca5a5',
+              color: '#c62828',
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <MdDelete size={14} />
+          </button>
         </div>
-      </div>
-
-      <div style={{
-        fontFamily: "'Cinzel', serif",
-        fontSize: 15,
-        fontWeight: 800,
-        color: cor,
-        whiteSpace: 'nowrap',
-      }}>
-        {ehReceita ? '+' : '−'} R$ {fmtMoeda(lancamento.valor)}
-      </div>
-
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button
-          type="button"
-          onClick={onEditar}
-          title="Editar"
-          style={{
-            background: '#faf5ff',
-            border: '1px solid #d8b4fe',
-            color: '#7e22ce',
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <MdEdit size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={onExcluir}
-          title="Excluir"
-          style={{
-            background: '#fef2f2',
-            border: '1px solid #fca5a5',
-            color: '#c62828',
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <MdDelete size={14} />
-        </button>
       </div>
     </div>
   );

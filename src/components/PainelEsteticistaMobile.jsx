@@ -2070,16 +2070,16 @@ if (!jaCarregou) {
                 >
                   Ver ficha de Anamnese
                 </button>
-                <button
+    <button
   type="button"
   onClick={() => setMostrarModalAgendar(true)}
   className="btn-efeito-hover"
   style={{
     width: '100%',
     fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
+    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
     color: '#fff',
-    border: 'none',
+    border: '1.5px solid #9c7826',
     padding: '10px',
     borderRadius: '15px',
     fontSize: '11px',
@@ -2089,7 +2089,7 @@ if (!jaCarregou) {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    boxShadow: '0 3px 10px rgba(34, 197, 94, 0.25)',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
   }}
 >
   <MdCalendarMonth size={14} color="#fff" />

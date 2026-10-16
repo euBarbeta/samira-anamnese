@@ -1920,15 +1920,15 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
                   >
                     + Adicionar Evolução
                   </button>
-                  <button
+   <button
   type="button"
   onClick={() => setMostrarModalAgendar(true)}
   className="btn-efeito-hover"
   style={{
     fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)',
+    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
     color: '#fff',
-    border: '1.5px solid #16a34a',
+    border: '1.5px solid #9c7826',
     padding: '8px 16px',
     borderRadius: '20px',
     fontSize: '11px',
@@ -1937,6 +1937,7 @@ const handleCampoSubstituido = (pacId, campo, valor) => {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
+    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
   }}
 >
   <MdCalendarMonth size={14} color="#fff" />
