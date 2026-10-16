@@ -8,6 +8,7 @@ import { db, auth } from '../firebase';
 import GraficoBarras, { GraficoPizza } from './GraficoBarras';
 import ModalDespesa from './ModalDespesa';
 import RelatorioFinanceiroPDF from './RelatorioFinanceiroPDF';
+import ModalBase from './ModalBase';
 import { gerarPdfFinanceiro, salvarPdfFinanceiro } from '../../utils/gerarPdfFinanceiro';
 
 import {
@@ -72,7 +73,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   const [lancamentos, setLancamentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
 
-  // ✅ Detecção de mobile (reage ao resize)
+  // ✅ Detecção de mobile
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   );
@@ -81,6 +82,20 @@ export default function PainelFinanceiro({ uidEsteticista }) {
     const handler = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  // ✅ Detecção de app nativo (APK)
+  const [isNativo, setIsNativo] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        setIsNativo(Capacitor.isNativePlatform());
+      } catch {
+        setIsNativo(false);
+      }
+    })();
   }, []);
 
   // Navegação de mês
@@ -107,6 +122,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewBlob, setPreviewBlob] = useState(null);
   const [nomeArquivoAtual, setNomeArquivoAtual] = useState('');
+  const [processandoPDF, setProcessandoPDF] = useState(false);
 
   // ============================================================
   // Listener — LANÇAMENTOS
@@ -163,7 +179,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   }, [dadosMes]);
 
   // ============================================================
-  // Lista — despesas por categoria (usado no PDF)
+  // Lista — despesas por categoria
   // ============================================================
   const porCategoria = useMemo(() => {
     const mapa = {};
@@ -345,18 +361,29 @@ export default function PainelFinanceiro({ uidEsteticista }) {
     setNomeArquivoAtual('');
   };
 
-  const baixarPDF = async () => {
+  // ✅ Salvar/Compartilhar (funciona em APK, PWA e web)
+  const salvarCompartilharPDF = async () => {
     if (!previewBlob) return;
+    setProcessandoPDF(true);
     try {
       await salvarPdfFinanceiro(previewBlob, nomeArquivoAtual);
+      fecharPreview();
     } catch (e) {
-      console.error(e);
-      alert('Erro ao baixar PDF.');
+      if (e?.message?.toLowerCase().includes('cancel')) {
+        setProcessandoPDF(false);
+        return;
+      }
+      console.error('Erro ao salvar/compartilhar PDF:', e);
+      alert('Não foi possível salvar. Tente novamente.');
+    } finally {
+      setProcessandoPDF(false);
     }
   };
 
+  // ✅ Abrir PDF — só funciona em desktop web (não no APK)
   const abrirPDF = () => {
-    if (previewUrl) window.open(previewUrl, '_blank', 'noopener,noreferrer');
+    if (!previewUrl) return;
+    window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 
   // ============================================================
@@ -364,6 +391,9 @@ export default function PainelFinanceiro({ uidEsteticista }) {
   // ============================================================
   const MES_LABEL = nomeMes(mesRef);
   const lucroPositivo = dadosMes.lucro >= 0;
+
+  // ✅ Mostrar botão ABRIR só em desktop web (não mobile, não APK)
+  const mostrarBotaoAbrir = !isMobile && !isNativo;
 
   return (
     <div style={{ padding: '10px 0' }}>
@@ -378,7 +408,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
         gap: isMobile ? 12 : 10,
         marginBottom: 18,
       }}>
-        {/* Navegação de mês */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -445,7 +474,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             <MdArrowForward size={18} color="#7e22ce" />
           </button>
 
-          {/* DROPDOWN — grid de meses + navegação de ano */}
+          {/* DROPDOWN */}
           {dropdownMesAberto && (
             <>
               <div
@@ -543,12 +572,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                           fontFamily: "'Montserrat', sans-serif",
                           transition: 'all 0.15s ease',
                         }}
-                        onMouseEnter={(e) => {
-                          if (!ehAtual) e.currentTarget.style.background = '#faf5ff';
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!ehAtual) e.currentTarget.style.background = '#fff';
-                        }}
                       >
                         {nomeMesAbrev}
                       </button>
@@ -576,12 +599,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#faf5ff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
                 >
                   Ir para o mês atual
                 </button>
@@ -590,7 +607,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           )}
         </div>
 
-        {/* Botão Exportar PDF */}
         <button
           type="button"
           onClick={handleExportarPDF}
@@ -621,7 +637,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       </div>
 
       {/* ============================================================ */}
-      {/* CARDS — Receitas / Despesas / Lucro */}
+      {/* CARDS */}
       {/* ============================================================ */}
       <div style={{
         display: 'grid',
@@ -660,7 +676,7 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       </div>
 
       {/* ============================================================ */}
-      {/* AÇÕES — Nova Despesa */}
+      {/* AÇÕES */}
       {/* ============================================================ */}
       <div style={{
         display: 'flex',
@@ -757,7 +773,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           </span>
         </div>
 
-        {/* Filtros */}
         <div style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
@@ -766,7 +781,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           flexWrap: 'wrap',
           alignItems: isMobile ? 'stretch' : 'center',
         }}>
-          {/* Botões de tipo */}
           <div style={{
             display: 'flex',
             gap: 6,
@@ -800,7 +814,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             ))}
           </div>
 
-          {/* Select categoria */}
           {categoriasDisponiveis.length > 0 && (
             <select
               value={filtroCategoria}
@@ -825,7 +838,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
             </select>
           )}
 
-          {/* Busca */}
           <div style={{
             flex: 1,
             minWidth: isMobile ? 'auto' : 160,
@@ -852,7 +864,6 @@ export default function PainelFinanceiro({ uidEsteticista }) {
           </div>
         </div>
 
-        {/* Lista */}
         {carregando ? (
           <div style={{ textAlign: 'center', padding: 30, color: '#888', fontSize: 12 }}>
             Carregando lançamentos…
@@ -930,149 +941,233 @@ export default function PainelFinanceiro({ uidEsteticista }) {
       )}
 
       {/* ============================================================ */}
-      {/* MODAL DE PREVIEW PDF */}
+      {/* MODAL PDF PRONTO — com ModalBase */}
       {/* ============================================================ */}
-      {previewUrl && (
-        <div
-          onClick={fecharPreview}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(44, 22, 58, 0.85)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2147483647,
-            padding: 16,
-            boxSizing: 'border-box',
-          }}
+      {previewBlob && (
+        <ModalBase
+          onFechar={fecharPreview}
+          bloquearFechar={processandoPDF}
+          isMobile={isMobile}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: '#fff',
-              borderRadius: 20,
-              width: '100%',
-              maxWidth: 480,
-              overflow: 'hidden',
-              boxShadow: '0 25px 70px rgba(0,0,0,0.5)',
-              border: '1.5px solid #C8A24A',
-            }}
-          >
-            <div style={{
-              padding: '14px 18px',
-              borderBottom: '1.5px solid #e2d2f5',
-              background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 10,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <MdPdf size={20} color="#7e22ce" />
-                <h3 style={{
-                  fontFamily: "'Cinzel', serif",
-                  color: '#2c163a',
-                  fontSize: 14,
-                  margin: 0,
-                }}>
-                  PDF pronto
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={fecharPreview}
-                aria-label="Fechar"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 6,
-                  borderRadius: '50%',
-                  display: 'flex',
-                }}
-              >
-                <MdClose size={22} color="#2c163a" />
-              </button>
-            </div>
-
-            <div style={{
-              padding: '24px 22px',
-              textAlign: 'center',
-              background: '#faf5ff',
-              fontFamily: "'Montserrat', sans-serif",
-            }}>
-              <MdPdf size={56} color="#7e22ce" style={{ marginBottom: 12 }} />
-              <div style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: '#2c163a',
-                marginBottom: 6,
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: isMobile ? '18px 18px 14px' : '24px 24px 16px',
+            gap: 10,
+            borderBottom: '1px solid #f0f0f0',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <MdPdf size={22} color="#7e22ce" />
+              <h3 style={{
                 fontFamily: "'Cinzel', serif",
+                color: '#2c163a',
+                fontSize: isMobile ? 15 : 16,
+                margin: 0,
               }}>
-                Seu relatório está pronto
-              </div>
-              <div style={{ fontSize: 12, color: '#666' }}>
-                {nomeArquivoAtual}
-              </div>
+                PDF pronto
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={fecharPreview}
+              disabled={processandoPDF}
+              aria-label="Fechar"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: processandoPDF ? 'not-allowed' : 'pointer',
+                padding: 4,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#888',
+                flexShrink: 0,
+                opacity: processandoPDF ? 0.5 : 1,
+              }}
+            >
+              <MdClose size={22} />
+            </button>
+          </div>
+
+          {/* Corpo */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: isMobile ? '24px 18px' : '28px 24px',
+            textAlign: 'center',
+            background: '#faf5ff',
+            fontFamily: "'Montserrat', sans-serif",
+          }}>
+            <MdPdf size={64} color="#7e22ce" style={{ marginBottom: 14 }} />
+            <div style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#2c163a',
+              marginBottom: 6,
+              fontFamily: "'Cinzel', serif",
+            }}>
+              Seu relatório está pronto
+            </div>
+            <div style={{
+              fontSize: 12,
+              color: '#666',
+              lineHeight: 1.6,
+              marginBottom: 16,
+              wordBreak: 'break-word',
+            }}>
+              {nomeArquivoAtual}
             </div>
 
-            <div style={{
-              padding: '14px 18px',
-              borderTop: '1.5px solid #e2d2f5',
-              background: '#fafafc',
-              display: 'flex',
-              gap: 10,
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-            }}>
+            {/* Dica contextual por plataforma */}
+            {isNativo && (
+              <div style={{
+                marginTop: 8,
+                fontSize: 11.5,
+                color: '#7e22ce',
+                lineHeight: 1.6,
+                background: '#f3e8ff',
+                borderRadius: 10,
+                padding: '10px 14px',
+                textAlign: 'left',
+              }}>
+                Toque em <strong>SALVAR / COMPARTILHAR</strong> abaixo para escolher onde salvar ou enviar.
+              </div>
+            )}
+
+            {!isNativo && isMobile && (
+              <div style={{
+                marginTop: 8,
+                fontSize: 11.5,
+                color: '#7e22ce',
+                lineHeight: 1.6,
+                background: '#f3e8ff',
+                borderRadius: 10,
+                padding: '10px 14px',
+                textAlign: 'left',
+              }}>
+                Toque em <strong>BAIXAR</strong> abaixo para salvar o arquivo no seu aparelho.
+              </div>
+            )}
+
+            {!isNativo && !isMobile && (
+              <div style={{
+                marginTop: 8,
+                fontSize: 11.5,
+                color: '#7e22ce',
+                lineHeight: 1.6,
+                background: '#f3e8ff',
+                borderRadius: 10,
+                padding: '10px 14px',
+                textAlign: 'left',
+              }}>
+                Toque em <strong>ABRIR PDF</strong> para visualizar numa nova aba,
+                ou em <strong>BAIXAR</strong> para salvar o arquivo.
+              </div>
+            )}
+          </div>
+
+          {/* Rodapé — botões adaptados por plataforma */}
+          <div style={{
+            display: 'flex',
+            gap: 10,
+            padding: isMobile ? '12px 18px 18px' : '14px 24px 20px',
+            borderTop: '1px solid #f0f0f0',
+            flexShrink: 0,
+            background: '#fff',
+            flexWrap: 'wrap',
+          }}>
+            <button
+              type="button"
+              onClick={fecharPreview}
+              disabled={processandoPDF}
+              style={{
+                flex: 1,
+                background: '#f0f0f0',
+                color: '#333',
+                border: 'none',
+                padding: '14px 20px',
+                borderRadius: 22,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: processandoPDF ? 'not-allowed' : 'pointer',
+                fontFamily: "'Cinzel', serif",
+                opacity: processandoPDF ? 0.6 : 1,
+                minWidth: 100,
+              }}
+            >
+              FECHAR
+            </button>
+
+            {/* ✅ ABRIR PDF — só em desktop web */}
+            {mostrarBotaoAbrir && (
               <button
                 type="button"
                 onClick={abrirPDF}
+                disabled={processandoPDF}
                 style={{
+                  flex: 1,
                   fontFamily: "'Cinzel', serif",
                   background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
                   color: '#fff',
                   border: '1.5px solid #6b21a8',
-                  padding: '10px 20px',
-                  borderRadius: 20,
-                  fontSize: 11,
+                  padding: '14px 20px',
+                  borderRadius: 22,
+                  fontSize: 12,
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
+                  cursor: processandoPDF ? 'not-allowed' : 'pointer',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: '0 4px 14px rgba(126, 34, 206, 0.35)',
+                  opacity: processandoPDF ? 0.7 : 1,
+                  minWidth: 100,
                 }}
               >
-                <MdPictureAsPdf size={15} />
+                <MdPictureAsPdf size={16} />
                 ABRIR PDF
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={baixarPDF}
-                style={{
-                  fontFamily: "'Cinzel', serif",
-                  background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                  color: '#fff',
-                  border: '1.5px solid #9c7826',
-                  padding: '10px 20px',
-                  borderRadius: 20,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <MdDownload size={16} />
-                BAIXAR
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={salvarCompartilharPDF}
+              disabled={processandoPDF}
+              style={{
+                flex: 1.2,
+                fontFamily: "'Cinzel', serif",
+                background: processandoPDF
+                  ? '#ddd'
+                  : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                color: processandoPDF ? '#888' : '#fff',
+                border: '1.5px solid #9c7826',
+                padding: '14px 20px',
+                borderRadius: 22,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: processandoPDF ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: processandoPDF ? 'none' : '0 4px 14px rgba(200, 162, 74, 0.35)',
+                minWidth: 120,
+              }}
+            >
+              <MdDownload size={16} />
+              {processandoPDF
+                ? 'PROCESSANDO…'
+                : isNativo
+                  ? 'SALVAR / COMPARTILHAR'
+                  : 'BAIXAR'}
+            </button>
           </div>
-        </div>
+        </ModalBase>
       )}
     </div>
   );
@@ -1125,7 +1220,6 @@ function ItemLancamento({ lancamento, isMobile, onEditar, onExcluir }) {
   const borda = ehReceita ? '#86efac' : '#fca5a5';
   const Icone = ehReceita ? MdTrendingUp : MdTrendingDown;
 
-  // ✅ Layout mobile: coluna. Desktop: linha.
   return (
     <div style={{
       background: '#fff',
@@ -1137,7 +1231,6 @@ function ItemLancamento({ lancamento, isMobile, onEditar, onExcluir }) {
       alignItems: isMobile ? 'stretch' : 'center',
       gap: isMobile ? 10 : 12,
     }}>
-      {/* Ícone + Info */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -1189,7 +1282,6 @@ function ItemLancamento({ lancamento, isMobile, onEditar, onExcluir }) {
         </div>
       </div>
 
-      {/* Valor + Ações */}
       <div style={{
         display: 'flex',
         alignItems: 'center',

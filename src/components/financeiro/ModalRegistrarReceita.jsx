@@ -4,6 +4,7 @@ import {
   MdClose, MdAttachMoney, MdCheckCircle, MdWarning,
   MdTrendingUp, MdTrendingDown, MdPayment,
 } from 'react-icons/md';
+import ModalBase from './ModalBase';
 
 function formatarMoeda(valor) {
   const num = Number(valor) || 0;
@@ -34,7 +35,6 @@ export default function ModalRegistrarReceita({
   onFechar,
   onConfirmar,
 }) {
-  // ✅ Detecção de mobile
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 640 : false
   );
@@ -166,459 +166,436 @@ export default function ModalRegistrarReceita({
     : modoAjuste === 'acrescimo' && temAjuste ? '#166534'
     : '#888';
 
-  const iconeDiferenca =
+  const IconeDiferenca =
     modoAjuste === 'desconto' ? MdTrendingDown : MdTrendingUp;
-  const IconeDiferenca = iconeDiferenca;
 
   return (
-    <div
-      onClick={salvando ? undefined : onFechar}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(44, 22, 58, 0.72)',
-        backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 2147483647,
-        padding: isMobile ? 0 : 20,
-        boxSizing: 'border-box',
-      }}
+    <ModalBase
+      onFechar={onFechar}
+      bloquearFechar={salvando}
+      isMobile={isMobile}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: '#fff',
-          borderRadius: isMobile ? 0 : 20,
-          padding: isMobile ? '20px 18px 18px' : '26px 24px 22px',
-          maxWidth: isMobile ? '100%' : 480,
-          width: '100%',
-          height: isMobile ? '100%' : 'auto',
-          maxHeight: isMobile ? '100%' : '92vh',
-          overflowY: 'auto',
-          boxShadow: isMobile ? 'none' : '0 25px 70px rgba(44, 22, 58, 0.5)',
-          border: isMobile ? 'none' : '1.5px solid #C8A24A',
-          fontFamily: "'Montserrat', sans-serif",
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {/* Header */}
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: isMobile ? '18px 18px 14px' : '24px 24px 16px',
+        gap: 10,
+        borderBottom: '1px solid #f0f0f0',
+        flexShrink: 0,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <h3 style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#2c163a',
+            fontSize: isMobile ? 15 : 16,
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <MdAttachMoney size={18} color="#C8A24A" />
+            Registrar Receita
+          </h3>
+          <span style={{ fontSize: 11, color: '#666' }}>
+            {agendamento?.nome} · {formatarDataBR(agendamento?.data)} às {agendamento?.horaInicio}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onFechar}
+          disabled={salvando}
+          aria-label="Fechar"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: salvando ? 'not-allowed' : 'pointer',
+            padding: 4,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#888',
+            flexShrink: 0,
+          }}
+        >
+          <MdClose size={22} />
+        </button>
+      </div>
+
+      {/* Conteúdo rolável */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        padding: isMobile ? '16px 18px' : '20px 24px',
+      }}>
+        {/* Serviço + Preço original */}
+        <div style={{
+          background: '#faf5ff',
+          border: '1px solid #e2d2f5',
+          borderRadius: 10,
+          padding: '12px 14px',
+          marginBottom: 16,
+        }}>
+          <div style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: '#7e22ce',
+            textTransform: 'uppercase',
+            letterSpacing: '0.3px',
+            marginBottom: 6,
+          }}>
+            Serviço
+          </div>
+          <div style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#2c163a',
+            fontSize: 14,
+            fontWeight: 700,
+            marginBottom: 6,
+          }}>
+            {agendamento?.servicoNome || 'Serviço não definido'}
+          </div>
+          <div style={{ fontSize: 11.5, color: '#666' }}>
+            Preço original:{' '}
+            <strong style={{ color: '#2c163a', fontSize: 13 }}>
+              R$ {formatarMoeda(precoOriginal)}
+            </strong>
+          </div>
+        </div>
+
+        {/* Valor final */}
+        <label style={labelEstilo}>Valor final recebido (R$)</label>
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 16,
-          gap: 10,
-          flexShrink: 0,
+          gap: 8,
+          marginBottom: 14,
         }}>
-          <div style={{ minWidth: 0 }}>
-            <h3 style={{
-              fontFamily: "'Cinzel', serif",
+          <span style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#2c163a',
+            fontSize: 18,
+            fontWeight: 700,
+          }}>
+            R$
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={inputValorStr}
+            onChange={handleValorChange}
+            onBlur={handleValorBlur}
+            onKeyDown={(e) => {
+              if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                e.preventDefault();
+              }
+            }}
+            disabled={salvando}
+            placeholder="0,00"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: isMobile ? 20 : 22,
+              fontWeight: 700,
               color: '#2c163a',
-              fontSize: isMobile ? 15 : 16,
-              margin: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}>
-              <MdAttachMoney size={18} color="#C8A24A" />
-              Registrar Receita
-            </h3>
-            <span style={{ fontSize: 11, color: '#666' }}>
-              {agendamento?.nome} · {formatarDataBR(agendamento?.data)} às {agendamento?.horaInicio}
-            </span>
-          </div>
+              fontFamily: "'Cinzel', serif",
+              padding: '10px 12px',
+              border: '2px solid #C8A24A',
+              borderRadius: 10,
+              outline: 'none',
+              background: '#fff',
+              textAlign: 'right',
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Toggle Desconto / Acréscimo */}
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 10,
+        }}>
           <button
             type="button"
-            onClick={onFechar}
+            onClick={() => handleToggleModo('desconto')}
             disabled={salvando}
-            aria-label="Fechar"
             style={{
-              background: 'transparent',
-              border: 'none',
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: 20,
+              border: `1.5px solid ${modoAjuste === 'desconto' ? '#c62828' : '#e0e0e0'}`,
+              background: modoAjuste === 'desconto' ? '#fef2f2' : '#fff',
+              color: modoAjuste === 'desconto' ? '#c62828' : '#888',
+              fontFamily: "'Cinzel', serif",
+              fontSize: 11,
+              fontWeight: 700,
               cursor: salvando ? 'not-allowed' : 'pointer',
-              padding: 4,
-              borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#888',
-              flexShrink: 0,
+              gap: 4,
+              transition: 'all 0.15s',
             }}
           >
-            <MdClose size={22} />
+            <MdTrendingDown size={14} />
+            Desconto −
+          </button>
+          <button
+            type="button"
+            onClick={() => handleToggleModo('acrescimo')}
+            disabled={salvando}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: 20,
+              border: `1.5px solid ${modoAjuste === 'acrescimo' ? '#166534' : '#e0e0e0'}`,
+              background: modoAjuste === 'acrescimo' ? '#f0fdf4' : '#fff',
+              color: modoAjuste === 'acrescimo' ? '#166534' : '#888',
+              fontFamily: "'Cinzel', serif",
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: salvando ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              transition: 'all 0.15s',
+            }}
+          >
+            <MdTrendingUp size={14} />
+            Acréscimo +
           </button>
         </div>
 
-        {/* Conteúdo rolável */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {/* Serviço + Preço original */}
-          <div style={{
-            background: '#faf5ff',
-            border: '1px solid #e2d2f5',
-            borderRadius: 10,
-            padding: '12px 14px',
-            marginBottom: 16,
+        {/* % */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 8,
+        }}>
+          <span style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: '#2c163a',
+            whiteSpace: 'nowrap',
           }}>
-            <div style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              color: '#7e22ce',
-              textTransform: 'uppercase',
-              letterSpacing: '0.3px',
-              marginBottom: 6,
-            }}>
-              Serviço
-            </div>
-            <div style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#2c163a',
-              fontSize: 14,
-              fontWeight: 700,
-              marginBottom: 6,
-            }}>
-              {agendamento?.servicoNome || 'Serviço não definido'}
-            </div>
-            <div style={{ fontSize: 11.5, color: '#666' }}>
-              Preço original:{' '}
-              <strong style={{ color: '#2c163a', fontSize: 13 }}>
-                R$ {formatarMoeda(precoOriginal)}
-              </strong>
-            </div>
-          </div>
-
-          {/* Valor final */}
-          <label style={labelEstilo}>Valor final recebido (R$)</label>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 14,
-          }}>
-            <span style={{
-              fontFamily: "'Cinzel', serif",
-              color: '#2c163a',
-              fontSize: 18,
-              fontWeight: 700,
-            }}>
-              R$
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={inputValorStr}
-              onChange={handleValorChange}
-              onBlur={handleValorBlur}
-              onKeyDown={(e) => {
-                if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
-                  e.preventDefault();
-                }
-              }}
-              disabled={salvando}
-              placeholder="0,00"
-              style={{
-                flex: 1,
-                fontSize: isMobile ? 20 : 22,
-                fontWeight: 700,
-                color: '#2c163a',
-                fontFamily: "'Cinzel', serif",
-                padding: '10px 12px',
-                border: '2px solid #C8A24A',
-                borderRadius: 10,
-                outline: 'none',
-                background: '#fff',
-                textAlign: 'right',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-              }}
-            />
-          </div>
-
-          {/* Toggle Desconto / Acréscimo */}
-          <div style={{
-            display: 'flex',
-            gap: 8,
-            marginBottom: 10,
-          }}>
-            <button
-              type="button"
-              onClick={() => handleToggleModo('desconto')}
-              disabled={salvando}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: 20,
-                border: `1.5px solid ${modoAjuste === 'desconto' ? '#c62828' : '#e0e0e0'}`,
-                background: modoAjuste === 'desconto' ? '#fef2f2' : '#fff',
-                color: modoAjuste === 'desconto' ? '#c62828' : '#888',
-                fontFamily: "'Cinzel', serif",
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: salvando ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                transition: 'all 0.15s',
-              }}
-            >
-              <MdTrendingDown size={14} />
-              Desconto −
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleModo('acrescimo')}
-              disabled={salvando}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: 20,
-                border: `1.5px solid ${modoAjuste === 'acrescimo' ? '#166534' : '#e0e0e0'}`,
-                background: modoAjuste === 'acrescimo' ? '#f0fdf4' : '#fff',
-                color: modoAjuste === 'acrescimo' ? '#166534' : '#888',
-                fontFamily: "'Cinzel', serif",
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: salvando ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                transition: 'all 0.15s',
-              }}
-            >
-              <MdTrendingUp size={14} />
-              Acréscimo +
-            </button>
-          </div>
-
-          {/* % */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 8,
-          }}>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#2c163a',
-              whiteSpace: 'nowrap',
-            }}>
-              {modoAjuste === 'desconto' ? '% de desconto:' : '% de acréscimo:'}
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={inputPercentStr}
-              onChange={handlePercentChange}
-              onBlur={handlePercentBlur}
-              onKeyDown={(e) => {
-                if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
-                  e.preventDefault();
-                }
-              }}
-              disabled={salvando || precoOriginal <= 0}
-              placeholder="0"
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: 700,
-                color: modoAjuste === 'desconto' ? '#c62828' : '#166534',
-                padding: '8px 12px',
-                border: `1.5px solid ${modoAjuste === 'desconto' ? '#fca5a5' : '#86efac'}`,
-                borderRadius: 8,
-                outline: 'none',
-                background: '#fff',
-                textAlign: 'right',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-              }}
-            />
-            <span style={{
+            {modoAjuste === 'desconto' ? '% de desconto:' : '% de acréscimo:'}
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={inputPercentStr}
+            onChange={handlePercentChange}
+            onBlur={handlePercentBlur}
+            onKeyDown={(e) => {
+              if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                e.preventDefault();
+              }
+            }}
+            disabled={salvando || precoOriginal <= 0}
+            placeholder="0"
+            style={{
+              flex: 1,
+              minWidth: 0,
               fontSize: 14,
               fontWeight: 700,
               color: modoAjuste === 'desconto' ? '#c62828' : '#166534',
-            }}>
-              %
-            </span>
-          </div>
+              padding: '8px 12px',
+              border: `1.5px solid ${modoAjuste === 'desconto' ? '#fca5a5' : '#86efac'}`,
+              borderRadius: 8,
+              outline: 'none',
+              background: '#fff',
+              textAlign: 'right',
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          <span style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: modoAjuste === 'desconto' ? '#c62828' : '#166534',
+          }}>
+            %
+          </span>
+        </div>
 
-          {/* Preview do desconto/acréscimo */}
-          {temAjuste && (
-            <div style={{
-              background: modoAjuste === 'desconto' ? '#fef2f2' : '#f0fdf4',
-              border: `1px solid ${modoAjuste === 'desconto' ? '#fca5a5' : '#86efac'}`,
-              borderRadius: 10,
-              padding: '10px 12px',
-              marginBottom: 14,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 12,
-              color: corDiferenca,
-              fontWeight: 600,
-            }}>
-              <IconeDiferenca size={16} color={corDiferenca} />
-              <span>
-                {modoAjuste === 'desconto' ? 'Desconto' : 'Acréscimo'} de{' '}
-                <strong>R$ {formatarMoeda(diffAbsoluto)}</strong>{' '}
-                ({percentual.toFixed(2).replace('.', ',')}%)
-              </span>
-            </div>
-          )}
-
-          {/* Forma de pagamento */}
-          <label style={labelEstilo}>Forma de pagamento</label>
+        {/* Preview */}
+        {temAjuste && (
           <div style={{
+            background: modoAjuste === 'desconto' ? '#fef2f2' : '#f0fdf4',
+            border: `1px solid ${modoAjuste === 'desconto' ? '#fca5a5' : '#86efac'}`,
+            borderRadius: 10,
+            padding: '10px 12px',
+            marginBottom: 14,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            marginBottom: 14,
+            fontSize: 12,
+            color: corDiferenca,
+            fontWeight: 600,
           }}>
-            <MdPayment size={16} color="#C8A24A" style={{ flexShrink: 0 }} />
-            <select
-              value={formaPagamento}
-              onChange={(e) => setFormaPagamento(e.target.value)}
-              disabled={salvando}
-              style={{
-                flex: 1,
-                padding: '10px 12px',
-                border: '1.5px solid #d8b4fe',
-                borderRadius: 10,
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#2c163a',
-                outline: 'none',
-                background: '#fff',
-                fontFamily: "'Montserrat', sans-serif",
-                WebkitAppearance: 'none',
-                appearance: 'none',
-              }}
-            >
-              <option value="Pix">Pix</option>
-              <option value="Dinheiro">Dinheiro</option>
-              <option value="Cartão de Débito">Cartão de Débito</option>
-              <option value="Cartão de Crédito">Cartão de Crédito</option>
-              <option value="Boleto">Boleto</option>
-              <option value="Transferência">Transferência</option>
-              <option value="Outro">Outro</option>
-            </select>
+            <IconeDiferenca size={16} color={corDiferenca} style={{ flexShrink: 0 }} />
+            <span style={{ minWidth: 0 }}>
+              {modoAjuste === 'desconto' ? 'Desconto' : 'Acréscimo'} de{' '}
+              <strong>R$ {formatarMoeda(diffAbsoluto)}</strong>{' '}
+              ({percentual.toFixed(2).replace('.', ',')}%)
+            </span>
           </div>
+        )}
 
-          {/* Observação */}
-          <label style={labelEstilo}>Observação (opcional)</label>
-          <textarea
-            value={observacao}
-            onChange={(e) => setObservacao(e.target.value)}
-            rows={2}
+        {/* Forma de pagamento */}
+        <label style={labelEstilo}>Forma de pagamento</label>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 14,
+        }}>
+          <MdPayment size={16} color="#C8A24A" style={{ flexShrink: 0 }} />
+          <select
+            value={formaPagamento}
+            onChange={(e) => setFormaPagamento(e.target.value)}
             disabled={salvando}
-            placeholder="Ex: paciente pagou metade em dinheiro..."
             style={{
-              width: '100%',
+              flex: 1,
+              minWidth: 0,
               padding: '10px 12px',
               border: '1.5px solid #d8b4fe',
               borderRadius: 10,
               fontSize: 13,
-              outline: 'none',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-              fontFamily: "'Montserrat', sans-serif",
-              color: '#2c163a',
-              minHeight: 60,
-              marginBottom: 14,
-            }}
-          />
-
-          {/* Erro */}
-          {erro && (
-            <div style={{
-              background: '#fde8e8',
-              border: '1px solid #f98080',
-              color: '#c81e1e',
-              padding: '9px 12px',
-              borderRadius: 8,
-              fontSize: 12,
               fontWeight: 600,
-              marginBottom: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}>
-              <MdWarning size={16} />
-              {erro}
-            </div>
-          )}
+              color: '#2c163a',
+              outline: 'none',
+              background: '#fff',
+              fontFamily: "'Montserrat', sans-serif",
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              boxSizing: 'border-box',
+            }}
+          >
+            <option value="Pix">Pix</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Cartão de Débito">Cartão de Débito</option>
+            <option value="Cartão de Crédito">Cartão de Crédito</option>
+            <option value="Boleto">Boleto</option>
+            <option value="Transferência">Transferência</option>
+            <option value="Outro">Outro</option>
+          </select>
         </div>
 
-        {/* Botões — fixos no rodapé em mobile */}
-        <div style={{
-          display: 'flex',
-          gap: 10,
-          marginTop: 12,
-          paddingTop: 12,
-          borderTop: isMobile ? '1px solid #f0f0f0' : 'none',
-          flexShrink: 0,
-        }}>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={salvando}
-            style={{
-              flex: 1,
-              background: '#f0f0f0',
-              color: '#333',
-              border: 'none',
-              padding: '14px 20px',
-              borderRadius: 22,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: salvando ? 'not-allowed' : 'pointer',
-              fontFamily: "'Cinzel', serif",
-              opacity: salvando ? 0.6 : 1,
-            }}
-          >
-            CANCELAR
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirmar}
-            disabled={salvando}
-            style={{
-              flex: 1.4,
-              background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-              color: '#fff',
-              border: '1.5px solid #15803d',
-              padding: '14px 20px',
-              borderRadius: 22,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: salvando ? 'wait' : 'pointer',
-              fontFamily: "'Cinzel', serif",
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
-              opacity: salvando ? 0.7 : 1,
-            }}
-          >
-            <MdCheckCircle size={16} />
-            {salvando ? 'SALVANDO…' : 'CONFIRMAR'}
-          </button>
-        </div>
+        {/* Observação */}
+        <label style={labelEstilo}>Observação (opcional)</label>
+        <textarea
+          value={observacao}
+          onChange={(e) => setObservacao(e.target.value)}
+          rows={2}
+          disabled={salvando}
+          placeholder="Ex: paciente pagou metade em dinheiro..."
+          style={{
+            width: '100%',
+            padding: '10px 12px',
+            border: '1.5px solid #d8b4fe',
+            borderRadius: 10,
+            fontSize: 13,
+            outline: 'none',
+            resize: 'vertical',
+            boxSizing: 'border-box',
+            fontFamily: "'Montserrat', sans-serif",
+            color: '#2c163a',
+            minHeight: 60,
+            marginBottom: 14,
+          }}
+        />
+
+        {/* Erro */}
+        {erro && (
+          <div style={{
+            background: '#fde8e8',
+            border: '1px solid #f98080',
+            color: '#c81e1e',
+            padding: '9px 12px',
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <MdWarning size={16} />
+            {erro}
+          </div>
+        )}
       </div>
-    </div>
+
+      {/* Botões */}
+      <div style={{
+        display: 'flex',
+        gap: 10,
+        padding: isMobile ? '12px 18px 18px' : '14px 24px 20px',
+        borderTop: '1px solid #f0f0f0',
+        flexShrink: 0,
+        background: '#fff',
+      }}>
+        <button
+          type="button"
+          onClick={onFechar}
+          disabled={salvando}
+          style={{
+            flex: 1,
+            background: '#f0f0f0',
+            color: '#333',
+            border: 'none',
+            padding: '14px 20px',
+            borderRadius: 22,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: salvando ? 'not-allowed' : 'pointer',
+            fontFamily: "'Cinzel', serif",
+            opacity: salvando ? 0.6 : 1,
+          }}
+        >
+          CANCELAR
+        </button>
+        <button
+          type="button"
+          onClick={handleConfirmar}
+          disabled={salvando}
+          style={{
+            flex: 1.4,
+            background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+            color: '#fff',
+            border: '1.5px solid #15803d',
+            padding: '14px 20px',
+            borderRadius: 22,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: salvando ? 'wait' : 'pointer',
+            fontFamily: "'Cinzel', serif",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
+            opacity: salvando ? 0.7 : 1,
+          }}
+        >
+          <MdCheckCircle size={16} />
+          {salvando ? 'SALVANDO…' : 'CONFIRMAR'}
+        </button>
+      </div>
+    </ModalBase>
   );
 }
 
-/* ============================================================
-   Estilos auxiliares
-   ============================================================ */
 const labelEstilo = {
   display: 'block',
   fontSize: 11,
