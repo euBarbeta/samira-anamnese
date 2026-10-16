@@ -2006,29 +2006,26 @@ export default function PainelAgendamentosEsteticista({
       { merge: true }
     );
 
-    if (fichaPreenchida?._agendamentoOrigemId) {
-      const patch = {
-        pacienteId: pacienteUid,
-        atualizadoEm: new Date().toISOString(),
-      };
-      if (fichaPreenchida._agendamentoStatusOriginal === 'confirmado') {
-        patch.status = 'concluido';
-        patch.concluidoPor = 'esteticista';
-        patch.concluidoEm = new Date().toISOString();
-      }
-      await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
+ if (fichaPreenchida?._agendamentoOrigemId) {
+  // ⚠️ Só vincula o pacienteId ao agendamento.
+  //    NÃO muda o status — concluir é ação manual (botão "Concluir").
+  const patch = {
+    pacienteId: pacienteUid,
+    atualizadoEm: new Date().toISOString(),
+  };
 
-      try {
-        await fetch('/.netlify/functions/sincronizar-slot-publico', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agendamentoId: fichaPreenchida._agendamentoOrigemId }),
-        });
-      } catch (e) {
-        console.warn('Falha ao sincronizar slot público:', e);
-      }
-    }
+  await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
 
+  try {
+    await fetch('/.netlify/functions/sincronizar-slot-publico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agendamentoId: fichaPreenchida._agendamentoOrigemId }),
+    });
+  } catch (e) {
+    console.warn('Falha ao sincronizar slot público:', e);
+  }
+}
     setFichaPreenchida(null);
   };
 
