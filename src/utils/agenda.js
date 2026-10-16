@@ -30,13 +30,18 @@ function toMin(hhmm) {
  *   - antecedenciaMinimaHoras
  *
  *   ✅ Colisão por SOBREPOSIÇÃO de intervalo
- *   ✅ Processa `liberacoesExtras` com CORTE INTELIGENTE:
- *      Se um agendamento cai DENTRO de uma sobra liberada,
- *      a sobra é DIVIDIDA em pedaços ao redor dele — em vez
- *      de ser descartada inteira.
  *
- *      Ex: sobra 09:08→12:00 com agendamento 10:00→10:45
- *      → vira 09:08→10:00 e 10:45→12:00
+ *   ⚖️ Regra das LIBERAÇÕES EXTRAS (sobras):
+ *      - Se a sobra está LIMPA (ninguém dentro) → gera o slot
+ *      - Se a sobra está POLUÍDA (qualquer agendamento dentro) →
+ *        DESCARTA a sobra inteira (não fatia, não gera resto)
+ *
+ *      Ex: sobra 09:15→10:00 + agendamento 09:15→09:23 dentro
+ *      → sobra é IGNORADA (não gera 09:15 nem 09:23)
+ *
+ *   ✅ Esteta pode LIBERAR/BARRAR a sobra a qualquer momento:
+ *      - LIBERAR → liberacoesExtras preenchido → sobra aparece
+ *      - BARRAR  → liberacoesExtras vazio      → sobra desaparece
  */
 export function gerarSlotsDisponiveis(
   config,
@@ -118,7 +123,7 @@ export function gerarSlotsDisponiveis(
       .map((l) => ({ inicio: l.inicio, fim: l.fim, duracaoMin: 60 }));
 
     // ============================================================
-    // ✅ PERCORRE OS BLOCOS E GERA OS SLOTS
+    // ✅ PERCORRE OS BLOCOS E GERA OS SLOTS DA GRADE
     // ============================================================
     for (const bloco of [...blocos, ...avulsos]) {
       const [hI, mI] = bloco.inicio.split(':').map(Number);
@@ -154,13 +159,21 @@ export function gerarSlotsDisponiveis(
     }
 
     // ============================================================
-    // ✅ LIBERAÇÕES EXTRAS — corte inteligente
+    // ⚖️ LIBERAÇÕES EXTRAS (sobras) — versão 2.0
     // ------------------------------------------------------------
-    // Cada `liberacaoExtra` é um INTERVALO que a esteta autorizou
-    // liberar. Se outro agendamento cair dentro, DIVIDE a sobra
-    // em pedaços em vez de descartar tudo.
+    // Regra:
+    //   - Se a sobra está LIMPA (ninguém dentro) → gera slot
+    //   - Se a sobra está POLUÍDA (qualquer agendamento dentro,
+    //     exceto o próprio) → DESCARTA a sobra inteira
+    //   - Sobra barrada (liberacoesExtras: []) → não faz nada
+    //
+    // Isso garante que:
+    //   ✅ LIBERAR → slot aparece (se estiver livre)
+    //   ✅ BARRAR  → slot desaparece (não aparece no agenda)
+    //   ✅ Reverter a qualquer momento (esteta clica de novo)
     // ============================================================
     const agsDoDia = agendamentosOcupados.filter((a) => a.data === iso);
+
     for (const a of agsDoDia) {
       if (!Array.isArray(a.liberacoesExtras)) continue;
 
@@ -170,77 +183,63 @@ export function gerarSlotsDisponiveis(
         const libInicioMin = toMin(lib.inicio);
         const libFimMin = toMin(lib.fim);
 
-        // Já passou? Pula
+        // Já passou da antecedência mínima? Pula
         const cursorLib = new Date(d);
-        cursorLib.setHours(Math.floor(libInicioMin / 60), libInicioMin % 60, 0, 0);
+        cursorLib.setHours(
+          Math.floor(libInicioMin / 60),
+          libInicioMin % 60,
+          0,
+          0
+        );
         if (cursorLib < minAntecedencia) continue;
 
         // ------------------------------------------------------------
-        // Encontra agendamentos que caem DENTRO da sobra
-        // (ignora o próprio agendamento do qual essa sobra veio)
+        // Identifica o próprio agendamento (pra ignorá-lo na checagem)
         // ------------------------------------------------------------
         const proprioInicioMin = toMin(a.horaInicio);
         const proprioFimMin = a.horaFim
           ? toMin(a.horaFim)
           : proprioInicioMin + (a.duracaoMin || 60);
 
-        const obstaculos = (ocupadosPorData[iso] || [])
-          .filter((o) => {
-            // Ignora o próprio agendamento
-            if (o.inicioMin === proprioInicioMin && o.fimMin === proprioFimMin) {
-              return false;
-            }
-            // Só considera se SOBREPÕE a sobra
-            return libInicioMin < o.fimMin && o.inicioMin < libFimMin;
-          })
-          .sort((x, y) => x.inicioMin - y.inicioMin);
-
         // ------------------------------------------------------------
-        // Monta os PEDAÇOS da sobra que sobraram
+        // ⚖️ Verifica se a sobra está POLUÍDA
         // ------------------------------------------------------------
-        const pedacos = [];
-        let cursor2 = libInicioMin;
-
-        for (const o of obstaculos) {
-          if (o.inicioMin > cursor2) {
-            pedacos.push({
-              inicioMin: cursor2,
-              fimMin: Math.min(o.inicioMin, libFimMin),
-            });
+        const temAlguemDentro = (ocupadosPorData[iso] || []).some((o) => {
+          // Ignora o próprio agendamento
+          if (
+            o.inicioMin === proprioInicioMin &&
+            o.fimMin === proprioFimMin
+          ) {
+            return false;
           }
-          cursor2 = Math.max(cursor2, o.fimMin);
-        }
+          // Colide com a sobra?
+          return libInicioMin < o.fimMin && o.inicioMin < libFimMin;
+        });
 
-        if (cursor2 < libFimMin) {
-          pedacos.push({ inicioMin: cursor2, fimMin: libFimMin });
-        }
+        // ⚠️ Se tem alguém dentro → DESCARTA a sobra inteira
+        if (temAlguemDentro) continue;
 
         // ------------------------------------------------------------
-        // Empurra cada pedaço válido (> 5 min) como slot avulso
+        // ✅ Sobra limpa → gera o slot completo
         // ------------------------------------------------------------
-        for (const p of pedacos) {
-          const duracaoPedaco = p.fimMin - p.inicioMin;
-          if (duracaoPedaco < 5) continue;
+        const horaInicio = `${pad(Math.floor(libInicioMin / 60))}:${pad(libInicioMin % 60)}`;
+        const horaFim = `${pad(Math.floor(libFimMin / 60))}:${pad(libFimMin % 60)}`;
 
-          const horaInicio = `${pad(Math.floor(p.inicioMin / 60))}:${pad(p.inicioMin % 60)}`;
-          const horaFim = `${pad(Math.floor(p.fimMin / 60))}:${pad(p.fimMin % 60)}`;
+        // Evita duplicata
+        const jaExiste = slots.some(
+          (s) =>
+            s.data === iso &&
+            s.horaInicio === horaInicio &&
+            s.horaFim === horaFim
+        );
+        if (jaExiste) continue;
 
-          // Já existe um slot idêntico? Pula (evita duplicata)
-          const jaExiste = slots.some(
-            (s) =>
-              s.data === iso &&
-              s.horaInicio === horaInicio &&
-              s.horaFim === horaFim
-          );
-          if (jaExiste) continue;
-
-          slots.push({
-            data: iso,
-            horaInicio,
-            horaFim,
-            _liberado: true,
-          });
-        }
+        slots.push({
+          data: iso,
+          horaInicio,
+          horaFim,
+          _liberado: true,
+        });
       }
     }
   }
