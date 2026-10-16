@@ -296,31 +296,48 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   // ============================================================
   // Sincroniza pacienteSelecionado com a lista
   // ============================================================
-  useEffect(() => {
-    if (!jaCarregou) return;
-    if (!pacienteSelecionado) return;
+useEffect(() => {
+  if (!jaCarregou) return;
+  if (!pacienteSelecionado) return;
 
-    const atual = pacientes.find(
-      (p) => String(p.id) === String(pacienteSelecionado.id)
+  const atual = pacientes.find(
+    (p) => String(p.id) === String(pacienteSelecionado.id)
+  );
+
+  // ⚖️ Caso 1: paciente SUMIU da lista (excluído por outro device)
+  if (!atual) {
+    setPacienteSelecionado(null);
+    setEvolucaoSelecionada(null);
+    setTelaAtual('lista');
+    window.history.replaceState(
+      { painelEsteticista: 'lista' },
+      '',
+      window.location.pathname
     );
+    return;
+  }
 
-    if (!atual) {
-      setPacienteSelecionado(null);
-      setEvolucaoSelecionada(null);
-      setTelaAtual('lista');
-      window.history.replaceState(
-        { painelEsteticista: 'lista' },
-        '',
-        window.location.pathname
-      );
-      return;
-    }
+  // ⚖️ Caso 2: paciente foi ANONIMIZADO (por ele mesmo em outro device)
+  //    ⚠️ Isso joga a esteta pra fora da pasta e volta pra lista
+  const foiAnonimizadoAgora =
+    estaAnonimizado(atual) && !estaAnonimizado(pacienteSelecionado);
 
-    if (atual !== pacienteSelecionado) {
-      setPacienteSelecionado(atual);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pacientes, jaCarregou]);
+  if (foiAnonimizadoAgora) {
+    setPacienteSelecionado(null);
+    setEvolucaoSelecionada(null);
+    setTelaAtual('lista');
+    window.location.replaceState(
+      { painelEsteticista: 'lista' },
+      '',
+      window.location.pathname
+    );
+    return;
+  }
+
+  if (atual !== pacienteSelecionado) {
+    setPacienteSelecionado(atual);
+  }
+}, [pacientes, jaCarregou, pacienteSelecionado]);
 
   // ============================================================
   // Agendar lembretes

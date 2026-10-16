@@ -84,6 +84,9 @@ await updateDoc(pacienteRef, {
 
   // ⚠️ Consentimento cai (foi revogado)
   consentimentoLGPD: null,
+   'anamnese.telefone': null,
+  'anamnese.emailContato': null,
+  'anamnese.endereco': null,
 
   // ✅ NOME e DOCUMENTO ficam intactos (não colocamos no update)
 
