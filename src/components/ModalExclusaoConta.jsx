@@ -29,127 +29,85 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
   const [excluindo, setExcluindo] = useState(false);
   const [confirmacaoTexto, setConfirmacaoTexto] = useState('');
 
-  const handleExcluir = async () => {
-    setErro('');
+const handleExcluir = async () => {
+  setErro('');
 
-    if (!senha) {
-      setErro('Digite sua senha para confirmar.');
-      return;
-    }
-
-    if (confirmacaoTexto.trim().toUpperCase() !== 'EXCLUIR') {
-      setErro('Digite EXCLUIR no campo de confirmação.');
-      return;
-    }
-
-    setExcluindo(true);
-
-    try {
-      const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;
-      if (!emailPaciente) {
-        throw new Error('E-mail do paciente não encontrado.');
-      }
-
-      // 1) Valida a senha fazendo re-login
-      await signInWithEmailAndPassword(auth, emailPaciente, senha);
-
-      const pacienteId = pacienteData.id;
-      const uidEsteticista = pacienteData.criadoPorUid;
-
-      if (uidEsteticista && pacienteId) {
-        // ============================================================
-        // ⚖️ 1) ANONIMIZAR PACIENTE (helper central)
-        //    - Anonimiza dados de contato (nome, telefone, email, endereço)
-        //    - Anonimiza TODOS os agendamentos do paciente
-        //    - Desativa o link de acesso
-        //    - Apaga mapeamento de email
-        //    - MANTÉM anamnese, evoluções e fotos (obrigação legal)
-        //    - Guarda nomeOriginal pra reativação futura
-        // ============================================================
-        await anonimizarPaciente({
-          pacienteId,
-          uidEsteticista,
-          motivo: 'paciente-solicitou',
-        });
-
-        // ============================================================
-        // ⚖️ 2) ANONIMIZAR DADOS DE SEGURANÇA
-        //    (seguranca_estado e dispositivos_autorizados)
-        // ============================================================
-        await anonimizarDadosSeguranca(pacienteId);
-
-        // ============================================================
-        // ⚖️ 3) NOTIFICAR A ESTETICISTA
-        // ============================================================
-        try {
-          await Promise.race([
-            fetch('/.netlify/functions/notificar-conta-excluida', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                uidEsteticista,
-                pacienteId,
-                pacienteNome: pacienteData?.nome || 'Paciente',
-              }),
-            }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Timeout')), 5000)
-            ),
-          ]);
-        } catch (e) {
-          console.warn('Falha ao notificar exclusão:', e);
-        }
-      }
-
-      // ============================================================
-      // ⚖️ 4) REMOVE O USUÁRIO DO FIREBASE AUTH (por último)
-      // ============================================================
-     // ============================================================
-// ⚖️ 4) REMOVE O USUÁRIO DO FIREBASE AUTH (por último)
-// ------------------------------------------------------------
-// ⚠️ O Firebase exige uma sessão MUITO RECENTE pra deletar a conta.
-//    Se passou tempo demais desde o re-login (anonimização, fetch
-//    de notificação, etc), o delete falha com "Missing or
-//    insufficient permissions".
-//
-//    Solução: re-autenticar IMEDIATAMENTE antes de deletar.
-// ============================================================
-try {
-  if (auth.currentUser) {
-    // ✅ Re-autentica com a senha pra garantir sessão fresca
-    await signInWithEmailAndPassword(auth, emailPaciente, senha);
-    // ✅ Agora deleta
-    await auth.currentUser.delete();
+  if (!senha) {
+    setErro('Digite sua senha para confirmar.');
+    return;
   }
-} catch (e) {
-  console.warn('Erro ao excluir usuário do Auth:', e);
 
-  // Se falhar mesmo assim, ao menos desloga o usuário
+  if (confirmacaoTexto.trim().toUpperCase() !== 'EXCLUIR') {
+    setErro('Digite EXCLUIR no campo de confirmação.');
+    return;
+  }
+
+  setExcluindo(true);
+
   try {
-    const { signOut } = await import('firebase/auth');
-    await signOut(auth);
-  } catch {}
-}
-
-      onExcluido?.();
-    } catch (err) {
-      console.error('Erro ao excluir conta:', err);
-      const code = err?.code || '';
-      if (
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential' ||
-        code === 'auth/invalid-login-credentials'
-      ) {
-        setErro('Senha incorreta. Tente novamente.');
-      } else if (code === 'auth/too-many-requests') {
-        setErro('Muitas tentativas. Aguarde alguns minutos.');
-      } else {
-        setErro(err?.message || 'Não foi possível excluir a conta. Tente novamente.');
-      }
-      setExcluindo(false);
+    const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;
+    if (!emailPaciente) {
+      throw new Error('E-mail do paciente não encontrado.');
     }
-  };
 
+    // 1) Valida a senha fazendo re-login
+    await signInWithEmailAndPassword(auth, emailPaciente, senha);
+
+    const pacienteId = pacienteData.id;
+    const uidEsteticista = pacienteData.criadoPorUid;
+
+    if (!uidEsteticista || !pacienteId) {
+      throw new Error('Dados do paciente incompletos.');
+    }
+
+    // 2) Chama a Function que faz a anonimização (bypassa as rules)
+    const user = auth.currentUser;
+    const token = await user.getIdToken();
+
+    const res = await fetch('/.netlify/functions/anonimizar-conta-paciente', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ uidEsteticista }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao anonimizar conta.');
+    }
+
+    // 3) Re-autentica e deleta do Auth (garantia de sessão fresca)
+    try {
+      await signInWithEmailAndPassword(auth, emailPaciente, senha);
+      await auth.currentUser.delete();
+    } catch (e) {
+      console.warn('Erro ao deletar do Auth:', e);
+      try {
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+      } catch {}
+    }
+
+    onExcluido?.();
+  } catch (err) {
+    console.error('Erro ao excluir conta:', err);
+    const code = err?.code || '';
+    if (
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/invalid-login-credentials'
+    ) {
+      setErro('Senha incorreta. Tente novamente.');
+    } else if (code === 'auth/too-many-requests') {
+      setErro('Muitas tentativas. Aguarde alguns minutos.');
+    } else {
+      setErro(err?.message || 'Não foi possível excluir a conta. Tente novamente.');
+    }
+    setExcluindo(false);
+  }
+};
   return (
     // ... (todo o JSX permanece IGUAL — nenhuma mudança visual)
     <div
