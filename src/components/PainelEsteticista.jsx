@@ -1195,11 +1195,6 @@ export default function PainelEsteticista({ onLogout }) {
     );
   }
 
-  // ⬇️ CONTINUA NA PARTE 2 — JSX / render
-  return null;
-}  // ============================================================
-  // RENDER
-  // ============================================================
   return (
     <div style={{
       width: '100%',
@@ -2784,4 +2779,4 @@ function CardPaciente({ pac, onClick, arquivado = false }) {
       </div>
     </div>
   );
-}
+}}
