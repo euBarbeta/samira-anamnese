@@ -540,7 +540,6 @@ export async function reativarPacienteCompleto({
   uidEsteticista,
   nome,
   documento,
-  // Opcionais — se não vierem, tentamos puxar do agendamento
   telefone = null,
   emailContato = null,
   endereco = null,
@@ -554,9 +553,7 @@ export async function reativarPacienteCompleto({
     throw new Error('Nome é obrigatório para reativar o paciente.');
   }
 
-  // ============================================================
-  // 1) Deriva email fictício + senha (mesma lógica do handleSalvarAnamnese)
-  // ============================================================
+  // Deriva email fictício + senha
   const partes = nomeFinal.split(/\s+/);
   const primeiroNome = (partes[0] || 'usuario')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -568,9 +565,26 @@ export async function reativarPacienteCompleto({
   const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456')
     .padEnd(6, '0');
 
-  // ============================================================
-  // 2) Recria Auth + mapeamento + reativa doc (tudo junto)
-  // ============================================================
+  // ✅ 1. Chama a Function para recriar o Auth com o UID ANTIGO (pacienteId)
+  try {
+    const res = await fetch('/.netlify/functions/recriar-auth-paciente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: String(pacienteId),
+        email: emailFicticio,
+        password: senha,
+      }),
+    });
+    
+    if (!res.ok) {
+      console.warn('Falha ao recriar Auth via function, tentando método antigo...');
+    }
+  } catch (e) {
+    console.warn('Erro de rede ao recriar Auth:', e);
+  }
+
+  // ✅ 2. Reativa o Firestore (o seu reativarPorEdicao antigo continua igual)
   const resultado = await reativarPorEdicao({
     pacienteId,
     uidEsteticista,
@@ -581,7 +595,7 @@ export async function reativarPacienteCompleto({
     endereco,
     emailFicticio,
     senha,
-    recriarAuth: true,
+    recriarAuth: false, // Não recria mais no frontend, a function já fez!
   });
 
   return {
