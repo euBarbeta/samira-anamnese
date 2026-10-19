@@ -396,6 +396,9 @@ async function garantirContaAuth({ emailFicticio, senha }) {
 //   - senha: senha fictícia derivada do documento
 //   - recriarAuth: boolean — se true, tenta recriar o Auth
 // ============================================================
+// ============================================================
+// REATIVAR POR EDIÇÃO DE FICHA
+// ------------------------------------------------------------
 export async function reativarPorEdicao({
   pacienteId,
   uidEsteticista,
@@ -471,7 +474,6 @@ export async function reativarPorEdicao({
     documento: documento || dados.documento || null,
 
     // ⚠️ LGPD: contato NÃO é restaurado automaticamente
-    //    (só preenche se a esteta passar explicitamente)
     telefone: telefone || null,
     emailContato: emailContato || null,
     endereco: endereco || null,
@@ -488,6 +490,10 @@ export async function reativarPorEdicao({
     nomeOriginal: null,
     reativadoEm: agora,
     reativadoPor: uidEsteticista,
+
+    // ✅ FORÇA O RESET DO LGPD (Raiz e Anamnese)
+    consentimentoLGPD: null,
+    'anamnese.consentimentoLGPD': null,
 
     dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
       ' às ' + new Date().toLocaleTimeString('pt-BR', {

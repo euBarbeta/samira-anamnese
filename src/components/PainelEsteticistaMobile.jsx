@@ -675,28 +675,24 @@ export default function PainelEsteticistaMobile({ onLogout }) {
     if (!user) return;
 
     try {
-      // 1. Anonimiza os dados no Firestore e desativa o link
-      await anonimizarPaciente({
-        pacienteId: idPaciente,
-        uidEsteticista: user.uid,
-        motivo: 'esteta-excluiu',
-      });
-
-      // 2. Deleta o acesso no Firebase Auth (para ele perder a conta)
-      // Chamamos a function para não precisar da senha do paciente
-      await fetch('/.netlify/functions/deletar-auth-paciente', {
+      // ✅ Chama a Function Mestra (ela ignora as regras e nunca dará Permission Denied)
+      const res = await fetch('/.netlify/functions/excluir-paciente-completo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pacienteId: idPaciente }),
-      }).catch(() => {});
+        body: JSON.stringify({
+          pacienteId: idPaciente,
+          uidEsteticista: user.uid,
+          motivo: 'esteta-excluiu',
+        }),
+      });
 
-      // 3. Dispara o Kick (Desloga o paciente)
-      // Como o app não tem WebSocket, vamos limpar os dados do Firestore
-      // A regra de segurança vai bloquear o paciente e o app dele vai deslogar.
-      
+      if (!res.ok) {
+        throw new Error('Falha ao excluir na nuvem');
+      }
+
       cacheBuscaRef.current = null;
     } catch (e) {
-      console.error('Erro ao anonimizar paciente:', e);
+      console.error('Erro ao excluir paciente:', e);
       throw e;
     }
   };
