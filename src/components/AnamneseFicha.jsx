@@ -221,21 +221,21 @@ export default function AnamneseFicha() {
     }
 
     const hashEhUID = hash && hash !== 'agendar' && !hash.startsWith('agendar/');
-
     if (hashEhUID) {
       setUidDaURL(hash);
       uidDaURLRef.current = hash;
-      (async () => {
-        const valido = await validarUIDPaciente(hash);
-        if (!valido) {
-          setRota('nao-encontrado');
-        } else {
-          setRota('login-uid');
-        }
-      })();
+      
+      // ✅ Não valida no Firestore se ainda não estiver logado.
+      // Se não estiver logado, mostra a tela de login. 
+      // A validação do link será feita DEPOIS que ele logar (no handleLoginSucesso).
+      if (autenticado && dadosPaciente && String(dadosPaciente.id) !== String(hash)) {
+        setRota('nao-encontrado');
+      } else {
+        setRota('login-uid');
+      }
       return;
     }
-
+    
     if (isNativo()) {
       if (hash && !hash.startsWith('agendar')) {
         (async () => {
@@ -308,19 +308,15 @@ export default function AnamneseFicha() {
         setRota('agendamento');
         return;
       }
-      if (h && h !== 'agendar') {
+           if (h && h !== 'agendar') {
         setUidDaURL(h);
         uidDaURLRef.current = h;
-        (async () => {
-          const valido = await validarUIDPaciente(h);
-          if (!valido) {
-            setRota((rotaAtual) =>
-              rotaAtual === 'autenticado' ? rotaAtual : 'nao-encontrado'
-            );
-          } else {
-            setRota('login-uid');
-          }
-        })();
+        
+        if (autenticado && dadosPaciente && String(dadosPaciente.id) !== String(h)) {
+          setRota('nao-encontrado');
+        } else {
+          setRota('login-uid');
+        }
       }
     };
     window.addEventListener('hashchange', onHashChange);
