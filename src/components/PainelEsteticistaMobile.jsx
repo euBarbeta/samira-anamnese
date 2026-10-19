@@ -23,7 +23,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
+  onAuthStateChanged,  EmailAuthProvider, reauthenticateWithCredential
 } from 'firebase/auth';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import {
@@ -670,17 +670,30 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   // ============================================================
   // Anonimiza paciente
   // ============================================================
-  const excluirPacienteDaNuvem = async (idPaciente) => {
+   const excluirPacienteDaNuvem = async (idPaciente) => {
     const user = auth.currentUser;
     if (!user) return;
 
     try {
+      // 1. Anonimiza os dados no Firestore e desativa o link
       await anonimizarPaciente({
         pacienteId: idPaciente,
         uidEsteticista: user.uid,
         motivo: 'esteta-excluiu',
       });
 
+      // 2. Deleta o acesso no Firebase Auth (para ele perder a conta)
+      // Chamamos a function para não precisar da senha do paciente
+      await fetch('/.netlify/functions/deletar-auth-paciente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pacienteId: idPaciente }),
+      }).catch(() => {});
+
+      // 3. Dispara o Kick (Desloga o paciente)
+      // Como o app não tem WebSocket, vamos limpar os dados do Firestore
+      // A regra de segurança vai bloquear o paciente e o app dele vai deslogar.
+      
       cacheBuscaRef.current = null;
     } catch (e) {
       console.error('Erro ao anonimizar paciente:', e);
@@ -1113,11 +1126,21 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       return;
     }
 
+    // ✅ 1. Valida a senha SEM deslogar a esteta
     try {
-      // ✅ 1. Valida a senha primeiro. Se falhar, o catch lá embaixo pega o erro e não exclui.
-      await signInWithEmailAndPassword(auth, user.email, modalExclusao.senhaInput);
+      const credential = EmailAuthProvider.credential(user.email, modalExclusao.senhaInput);
+      await reauthenticateWithCredential(user, credential);
+    } catch (error) {
+      console.error("Erro ao validar senha:", error);
+      setModalExclusao(prev => ({
+        ...prev,
+        erroSenha: 'Senha incorreta. Tente novamente.'
+      }));
+      return; // Para o código aqui se a senha estiver errada
+    }
 
-      // ✅ 2. Se a senha estiver correta, prossegue com a exclusão da pasta
+    // ✅ 2. Se a senha estiver correta, prossegue com a exclusão
+    try {
       if (modalExclusao.tipo === 'pasta') {
         await excluirPacienteDaNuvem(modalExclusao.idAlvo);
 
@@ -1136,7 +1159,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         return;
       }
 
-      // ✅ 3. Se for exclusão de evolução, faz o processo normal
       if (modalExclusao.tipo === 'evolucao') {
         let pacienteAtualizadoSalvar = null;
         const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
@@ -1162,14 +1184,9 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         setTelaAtual('detalhe_pasta');
         setModalExclusao(MODAL_FECHADO);
       }
-
     } catch (error) {
-      console.error("Erro ao validar senha:", error);
-      // Se a senha falhar, mostra o erro na tela do modal e NÃO exclui nada
-      setModalExclusao(prev => ({
-        ...prev,
-        erroSenha: 'Senha incorreta. Tente novamente.'
-      }));
+      console.error("Erro ao excluir paciente:", error);
+      alert("Erro ao excluir da nuvem. Tente novamente.");
     }
   };
 
