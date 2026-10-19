@@ -23,11 +23,7 @@ export default function PainelSeguranca() {
   const [motivo, setMotivo] = useState('');
 
   // ============================================================
-  // 🧠 ÍNDICE DE PACIENTES — { pacienteId: { nome, documento } }
-  // ------------------------------------------------------------
-  // Carrega TODOS os pacientes das estetas (Samira + MbTech) pra
-  // poder mostrar nome/documento a partir do `pacienteId` que vem
-  // nos docs de segurança.
+  // 🧠 ÍNDICE DE PACIENTES
   // ============================================================
   const [indicePacientes, setIndicePacientes] = useState({});
 
@@ -72,7 +68,7 @@ export default function PainelSeguranca() {
     indicePacientes[String(pacienteId)]?.documento || '—';
 
   // ============================================================
-  // Listener — dispositivos PENDENTES
+  // Listeners
   // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(
@@ -90,9 +86,6 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
-  // ============================================================
-  // Listener — dispositivos BLOQUEADOS (autorizado=false)
-  // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(
       query(
@@ -109,9 +102,6 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
-  // ============================================================
-  // Listener — tentativas de login
-  // ============================================================
   useEffect(() => {
     const q = query(
       collection(db, 'tentativas_login'),
@@ -124,9 +114,6 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
-  // ============================================================
-  // Listener — bloqueios (tentativas erradas)
-  // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'bloqueios_login'), (snap) => {
       setBloqueios(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -134,9 +121,6 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
-  // ============================================================
-  // Listener — estados de segurança (localização)
-  // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'seguranca_estado'), (snap) => {
       setEstados(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -220,18 +204,14 @@ export default function PainelSeguranca() {
   const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id));
   const bloqueadosLista = relevantes.filter((t) => estaBloqueado(t.id));
 
- const semLocalizacao = useMemo(() => {
-  const estadosIgnorar = ['prompt', 'timeout', 'nao_suportado', 'indisponivel'];
-  return estados.filter((e) => {
-    const s = e.localizacaoStatus;
-    // ✅ Só mostra se for explicitamente gps_desligado ou negada
-    if (s === 'gps_desligado' || s === 'negada') return true;
-    // ✅ Se for "ativa"/"ligado" → não mostra (está tudo bem)
-    if (s === 'ativa' || s === 'ligado') return false;
-    // ✅ Outros → ignora (não polui a tela)
-    return false;
-  });
-}, [estados]);
+  const semLocalizacao = useMemo(() => {
+    return estados.filter((e) => {
+      const s = e.localizacaoStatus;
+      if (s === 'gps_desligado' || s === 'negada') return true;
+      return false;
+    });
+  }, [estados]);
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -248,9 +228,7 @@ export default function PainelSeguranca() {
         <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Carregando…</div>
       ) : (
         <>
-          {/* ============================================== */}
-          {/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO       */}
-          {/* ============================================== */}
+          {/* DISPOSITIVOS NOVOS AGUARDANDO APROVAÇÃO */}
           {dispositivosPendentes.length > 0 && (
             <>
               <h4 style={tituloSecao}>
@@ -314,9 +292,7 @@ export default function PainelSeguranca() {
             </>
           )}
 
-          {/* ============================================== */}
-          {/* DISPOSITIVOS BLOQUEADOS — PERMITE DESBLOQUEAR  */}
-          {/* ============================================== */}
+          {/* DISPOSITIVOS BLOQUEADOS */}
           {dispositivosBloqueados.length > 0 && (
             <>
               <h4 style={tituloSecao}>
@@ -369,9 +345,7 @@ export default function PainelSeguranca() {
             </>
           )}
 
-          {/* ============================================== */}
-          {/* CONTAS BLOQUEADAS (tentativas erradas)         */}
-          {/* ============================================== */}
+          {/* CONTAS BLOQUEADAS (tentativas erradas) */}
           {bloqueadosLista.length > 0 && (
             <>
               <h4 style={tituloSecao}>
@@ -394,6 +368,16 @@ export default function PainelSeguranca() {
                         </div>
                       </div>
                     </div>
+
+                    {/* ✅ IP e Localização */}
+                    {t.ultimoIp && t.ultimoIp !== 'desconhecido' && (
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <MdLocationOff size={12} color="#666" />
+                        <span>
+                          {t.ultimaCidade !== 'desconhecido' ? `${t.ultimaCidade}, ${t.ultimoPais}` : t.ultimoPais} · IP: <strong>{t.ultimoIp}</strong>
+                        </span>
+                      </div>
+                    )}
 
                     {b?.motivo && (
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' }}>
@@ -420,9 +404,7 @@ export default function PainelSeguranca() {
             </>
           )}
 
-          {/* ============================================== */}
-          {/* ATIVIDADE SUSPEITA                             */}
-          {/* ============================================== */}
+          {/* ATIVIDADE SUSPEITA */}
           <h4 style={tituloSecao}>
             <MdWarning size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
             Atividade suspeita ({suspeitos.length})
@@ -458,6 +440,16 @@ export default function PainelSeguranca() {
                     </div>
                   </div>
 
+                  {/* ✅ IP e Localização */}
+                  {t.ultimoIp && t.ultimoIp !== 'desconhecido' && (
+                    <div style={{ fontSize: 11, color: '#666', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <MdLocationOff size={12} color="#666" />
+                      <span>
+                        {t.ultimaCidade !== 'desconhecido' ? `${t.ultimaCidade}, ${t.ultimoPais}` : t.ultimoPais} · IP: <strong>{t.ultimoIp}</strong>
+                      </span>
+                    </div>
+                  )}
+
                   {ultima && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#666', marginBottom: 6 }}>
                       <MdAccessTime size={12} />
@@ -491,9 +483,7 @@ export default function PainelSeguranca() {
             })
           )}
 
-          {/* ============================================== */}
-          {/* LOCALIZAÇÕES DESLIGADAS / NEGADAS / NÃO DISP.  */}
-          {/* ============================================== */}
+          {/* LOCALIZAÇÕES DESLIGADAS */}
           <h4 style={tituloSecao}>
             <MdLocationOff size={16} color="#92400e" style={{ verticalAlign: 'middle', marginRight: 6 }} />
             Pacientes sem localização ativa ({semLocalizacao.length})
@@ -540,9 +530,7 @@ export default function PainelSeguranca() {
         </>
       )}
 
-      {/* ============================================== */}
-      {/* MODAL DE BLOQUEIO                              */}
-      {/* ============================================== */}
+      {/* MODAL DE BLOQUEIO */}
       {mostrarModal && (
         <div
           onClick={() => setMostrarModal(null)}

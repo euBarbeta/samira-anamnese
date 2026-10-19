@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { MdLock, MdPerson, MdArrowForward } from 'react-icons/md';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { EMAILS_ESTETICISTAS } from './constantes';
 import { isNativo } from './push-notifications-native';
-
 
 export default function TelaInicial({
   onLoginSucesso,
@@ -18,118 +17,107 @@ export default function TelaInicial({
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
-    useEffect(() => {
+
+  useEffect(() => {
     if (erroExterno) setErro(erroExterno);
   }, [erroExterno]);
 
- const handleLoginSubmit = async (e) => {
-  e.preventDefault();
-  setErro('');
-  setCarregando(true);
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setErro('');
+    setCarregando(true);
 
-  try {
-    const nomeLimpo = nomeCompleto.trim().toLowerCase();
-    let emailFicticio = '';
-
-    if (nomeLimpo === 'mbtech') {
-      emailFicticio = 'mbtech@sistema.local';
-    } else if (nomeLimpo === 'samira ferreira' || nomeLimpo === 'samira') {
-      emailFicticio = 'samira.ferreira@sistema.local';
-    } else {
-      const partes = nomeCompleto.trim().split(/\s+/);
-      if (partes.length < 2) {
-        setErro('Por favor, digite o nome completo corretamente.');
-        setCarregando(false);
-        return;
-      }
-
-      const primeiroNome = partes[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const sobrenome = partes[partes.length - 1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-      emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
-    }
-
-    // ✅ No APK, não restringimos nada — deixa qualquer um logar
-    const ehNativo = isNativo();
-
-    if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
-      setErro('Acesso não autorizado.');
-      setCarregando(false);
-      return;
-    }
-
-    // ============================================================
-    // 🔒 VERIFICA BLOQUEIO ANTES DE TENTAR LOGAR
-    // ============================================================
     try {
-      const check = await fetch('/.netlify/functions/verificar-bloqueio-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailFicticio }),
-      });
-      const checkData = await check.json();
+      const nomeLimpo = nomeCompleto.trim().toLowerCase();
+      let emailFicticio = '';
 
-      if (checkData.bloqueado === true) {
-        setErro(
-          `🚫 Acesso suspenso. ${checkData.motivo ? `Motivo: ${checkData.motivo}` : 'Entre em contato com a profissional.'}`
-        );
-        setCarregando(false);
-        return;
-      }
-    } catch (e) {
-      console.warn('Falha ao verificar bloqueio (segue tentando):', e);
-    }
-
-    // ============================================================
-    // 🔒 TENTA LOGAR
-    // ============================================================
-    try {
-      await signInWithEmailAndPassword(auth, emailFicticio, senha);
-      setCarregando(false);
-
-      // ✅ Sucesso → registra pra limpar tentativas
-      fetch('/.netlify/functions/registrar-tentativa-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: emailFicticio,
-          sucesso: true,
-          userAgent: navigator.userAgent,
-          plataforma: isNativo() ? 'apk' : 'pwa',
-        }),
-      }).catch(() => {});
-    } catch (error) {
-      console.error("Erro no login:", error);
-
-      // ✅ Falha → registra tentativa falha
-      fetch('/.netlify/functions/registrar-tentativa-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: emailFicticio,
-          sucesso: false,
-          userAgent: navigator.userAgent,
-          plataforma: isNativo() ? 'apk' : 'pwa',
-        }),
-      }).catch(() => {});
-
-      setCarregando(false);
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        setErro('Nome ou senha incorretos.');
-      } else if (error.code === 'auth/too-many-requests') {
-        setErro('Muitas tentativas. Aguarde alguns minutos.');
+      if (nomeLimpo === 'mbtech') {
+        emailFicticio = 'mbtech@sistema.local';
+      } else if (nomeLimpo === 'samira ferreira' || nomeLimpo === 'samira') {
+        emailFicticio = 'samira.ferreira@sistema.local';
       } else {
-        setErro('Erro ao realizar login. Tente novamente.');
+        const partes = nomeCompleto.trim().split(/\s+/);
+        if (partes.length < 2) {
+          setErro('Por favor, digite o nome completo corretamente.');
+          setCarregando(false);
+          return;
+        }
+        const primeiroNome = partes[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const sobrenome = partes[partes.length - 1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
       }
-    }
-  } catch (error) {
-    console.error("Erro no login:", error);
-    setCarregando(false);
-    setErro('Erro ao realizar login. Tente novamente.');
-  }
-};
 
-  return (
+      const ehNativo = isNativo();
+
+      if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
+        setErro('Acesso não autorizado.');
+        setCarregando(false);
+        return;
+      }
+
+      // 🚀 1. TENTA O LOGIN NO FIREBASE PRIMEIRO
+      try {
+        await signInWithEmailAndPassword(auth, emailFicticio, senha);
+
+        // ✅ 2. VERIFICA BLOQUEIO (Atrasa o mínimo possível)
+        try {
+          const check = await fetch('/.netlify/functions/verificar-bloqueio-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailFicticio }),
+          });
+          const checkData = await check.json();
+
+          if (checkData.bloqueado === true) {
+            await signOut(auth);
+            setErro(`🚫 Acesso suspenso. ${checkData.motivo ? `Motivo: ${checkData.motivo}` : 'Entre em contato com a profissional.'}`);
+            setCarregando(false);
+            
+            fetch('/.netlify/functions/registrar-tentativa-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: emailFicticio, sucesso: false, userAgent: navigator.userAgent, plataforma: ehNativo ? 'apk' : 'pwa' }),
+            }).catch(() => {});
+            
+            return;
+          }
+        } catch (e) {
+          console.warn('Falha ao verificar bloqueio (segue tentando):', e);
+        }
+
+        setCarregando(false);
+
+        fetch('/.netlify/functions/registrar-tentativa-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailFicticio, sucesso: true, userAgent: navigator.userAgent, plataforma: ehNativo ? 'apk' : 'pwa' }),
+        }).catch(() => {});
+
+      } catch (error) {
+        console.error("Erro no login:", error);
+
+        fetch('/.netlify/functions/registrar-tentativa-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailFicticio, sucesso: false, userAgent: navigator.userAgent, plataforma: ehNativo ? 'apk' : 'pwa' }),
+        }).catch(() => {});
+
+        setCarregando(false);
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+          setErro('Nome ou senha incorretos.');
+        } else if (error.code === 'auth/too-many-requests') {
+          setErro('Muitas tentativas. Aguarde alguns minutos.');
+        } else {
+          setErro('Erro ao realizar login. Tente novamente.');
+        }
+      }
+    } catch (error) {
+      console.error("Erro geral no login:", error);
+      setCarregando(false);
+      setErro('Erro ao realizar login. Tente novamente.');
+    }
+  };
+ return (
     <div style={{
       backgroundColor: '#d7cee0',
       width: '100vw',

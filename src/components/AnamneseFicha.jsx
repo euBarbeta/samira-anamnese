@@ -491,107 +491,85 @@ export default function AnamneseFicha() {
   // ============================================================
   // 📍 MONITOR DE LOCALIZAÇÃO EM TEMPO REAL
   // ============================================================
-useEffect(() => {
-  if (!dadosPaciente?.id) return;
+  useEffect(() => {
+    if (!dadosPaciente?.id) return;
 
-  let pararMonitor = null;
-  let cancelado = false;
+    let pararMonitor = null;
+    let cancelado = false;
 
-  (async () => {
-    const { iniciarMonitorLocalizacao } = await import('../utils/monitorLocalizacao');
-    const { atualizarEstadoSeguranca } = await import('../utils/segurancaEstado');
+    (async () => {
+      const { iniciarMonitorLocalizacao } = await import('../utils/monitorLocalizacao');
+      const { atualizarEstadoSeguranca } = await import('../utils/segurancaEstado');
 
-    pararMonitor = iniciarMonitorLocalizacao(async (novoEstado, anterior) => {
-      if (cancelado) return;
+      pararMonitor = iniciarMonitorLocalizacao(async (novoEstado, anterior) => {
+        if (cancelado) return;
 
-      // ============================================================
-      // ✅ NORMALIZA O ESTADO — só existem 3 estados válidos no Firestore:
-      //    'ativa' | 'gps_desligado' | 'negada'
-      //
-      //    Qualquer variação é convertida:
-      //      ligado / ativa                 → 'ativa'
-      //      gps_desligado                  → 'gps_desligado'
-      //      negada                         → 'negada'
-      //      prompt                         → ignora (não muda nada)
-      //      timeout / indisponivel / outro → 'gps_desligado'
-      // ============================================================
-      let estadoNormalizado;
-      if (novoEstado === 'ligado' || novoEstado === 'ativa') {
-        estadoNormalizado = 'ativa';
-      } else if (novoEstado === 'negada') {
-        estadoNormalizado = 'negada';
-      } else if (novoEstado === 'prompt') {
-        // Não mexe no Firestore se está aguardando autorização
-        return;
-      } else {
-        // Qualquer outro = assume desligado
-        estadoNormalizado = 'gps_desligado';
-      }
-
-      // ------------------------------------------------------------
-      // 1) Sempre atualiza o Firestore
-      // ------------------------------------------------------------
-      try {
-        if (estadoNormalizado === 'ativa') {
-          // Se está ativo, delega ao atualizarEstadoSeguranca
-          // (que pega cidade/país e grava tudo de uma vez)
-          await atualizarEstadoSeguranca(dadosPaciente.id, {
-            incluirLocalizacao: true,
-          });
+        let estadoNormalizado;
+        if (novoEstado === 'ligado' || novoEstado === 'ativa') {
+          estadoNormalizado = 'ativa';
+        } else if (novoEstado === 'negada') {
+          estadoNormalizado = 'negada';
+        } else if (novoEstado === 'prompt') {
+          return;
         } else {
-          // Se está desligado/negado, grava direto com o status exato
-          const { doc: dRef, setDoc } = await import('firebase/firestore');
-          const { db: dbRef } = await import('./firebase');
-
-          await setDoc(
-            dRef(dbRef, 'seguranca_estado', String(dadosPaciente.id)),
-            {
-              pacienteId: String(dadosPaciente.id),
-              localizacaoStatus: estadoNormalizado,
-              ultimaVerificacao: new Date().toISOString(),
-              atualizadoEm: new Date().toISOString(),
-            },
-            { merge: true }
-          );
+          estadoNormalizado = 'gps_desligado';
         }
-      } catch (e) {
-        console.warn('Falha atualizando estado GPS:', e);
-      }
 
-      // ------------------------------------------------------------
-      // 2) Modal de aviso
-      // ------------------------------------------------------------
-      const dispensados = (() => {
         try {
-          const s = sessionStorage.getItem('af_avisos_loc_dispensados');
-          return s ? JSON.parse(s) : {};
-        } catch { return {}; }
-      })();
+          if (estadoNormalizado === 'ativa') {
+            await atualizarEstadoSeguranca(dadosPaciente.id, {
+              incluirLocalizacao: true,
+            });
+          } else {
+            const { doc: dRef, setDoc } = await import('firebase/firestore');
+            const { db: dbRef } = await import('./firebase');
 
-      const anteriorNormalizado =
-        anterior === 'ligado' ? 'ativa' :
-        (anterior === 'timeout' || anterior === 'indisponivel' || anterior === 'nao_suportado')
-          ? 'gps_desligado'
-          : anterior;
+            await setDoc(
+              dRef(dbRef, 'seguranca_estado', String(dadosPaciente.id)),
+              {
+                pacienteId: String(dadosPaciente.id),
+                localizacaoStatus: estadoNormalizado,
+                ultimaVerificacao: new Date().toISOString(),
+                atualizadoEm: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+          }
+        } catch (e) {
+          console.warn('Falha atualizando estado GPS:', e);
+        }
 
-      if (estadoNormalizado === 'gps_desligado' && dispensados.gps !== true) {
-        setAvisoLocalizacao({ tipo: 'gps_desligado' });
-      } else if (estadoNormalizado === 'negada' && dispensados.perm !== true) {
-        setAvisoLocalizacao({ tipo: 'negada' });
-      } else if (
-        estadoNormalizado === 'ativa' &&
-        (anteriorNormalizado === 'gps_desligado' || anteriorNormalizado === 'negada')
-      ) {
-        setAvisoLocalizacao({ tipo: 'reativada' });
-      }
-    });
-  })();
+        const dispensados = (() => {
+          try {
+            const s = sessionStorage.getItem('af_avisos_loc_dispensados');
+            return s ? JSON.parse(s) : {};
+          } catch { return {}; }
+        })();
 
-  return () => {
-    cancelado = true;
-    if (pararMonitor) pararMonitor();
-  };
-}, [dadosPaciente?.id]);
+        const anteriorNormalizado =
+          anterior === 'ligado' ? 'ativa' :
+          (anterior === 'timeout' || anterior === 'indisponivel' || anterior === 'nao_suportado')
+            ? 'gps_desligado'
+            : anterior;
+
+        if (estadoNormalizado === 'gps_desligado' && dispensados.gps !== true) {
+          setAvisoLocalizacao({ tipo: 'gps_desligado' });
+        } else if (estadoNormalizado === 'negada' && dispensados.perm !== true) {
+          setAvisoLocalizacao({ tipo: 'negada' });
+        } else if (
+          estadoNormalizado === 'ativa' &&
+          (anteriorNormalizado === 'gps_desligado' || anteriorNormalizado === 'negada')
+        ) {
+          setAvisoLocalizacao({ tipo: 'reativada' });
+        }
+      });
+    })();
+
+    return () => {
+      cancelado = true;
+      if (pararMonitor) pararMonitor();
+    };
+  }, [dadosPaciente?.id]);
 
   useEffect(() => {
     try {
@@ -679,6 +657,7 @@ useEffect(() => {
       setUsuarioLogado(user);
       const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
 
+      // 🚀 1. É ESTETA? ENTRA DIRETO, SEM ESPERAR NADA.
       if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
         setUidDaURL(null);
         setModoAdmin(true);
@@ -686,6 +665,7 @@ useEffect(() => {
         window.history.replaceState({ abaAtiva: 'painel' }, '', '/admin');
         setAbaAtiva('painel');
         setAutenticado(true);
+        processandoLoginRef.current = false;
         return;
       }
 
@@ -694,6 +674,7 @@ useEffect(() => {
       let pacienteEncontrado = null;
       let mapSnap2Data = null;
 
+      // Fallback Nativo
       if (isNativo() && !uidDaURL) {
         const { value } = await Preferences.get({ key: 'pacienteId' });
         if (value) {
@@ -720,6 +701,7 @@ useEffect(() => {
 
       const mapRef = doc(db, 'mapeamento_emails', emailUsuario);
 
+      // 🚀 2. BUSCA DIRETA NO MAPEAMENTO (Rápido)
       if (!pacienteEncontrado) {
         const mapSnap = await getDoc(mapRef);
         if (mapSnap.exists()) {
@@ -733,6 +715,7 @@ useEffect(() => {
         }
       }
 
+      // 🚀 FALLBACK 100% MANTIDO: BUSCA ANTIGA VARRENDO AS ESTETAS
       if (!pacienteEncontrado) {
         const esteticistasUids = [
           'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
@@ -768,6 +751,21 @@ useEffect(() => {
       }
 
       if (pacienteEncontrado) {
+        
+        // 🚀 3. VERIFICA SE ESTÁ ARQUIVADO (Bloqueio de conta excluída)
+        if (pacienteEncontrado.anonimizadoEm) {
+          await signOutSafe();
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setBuscandoPaciente(false);
+          setErroLoginExterno('Sua conta foi excluída. Entre em contato com a profissional.');
+          setRota('login-uid');
+          setAuthVerificado(true);
+          processandoLoginRef.current = false;
+          return;
+        }
+
         if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
           setErroLoginExterno('Nome ou Senha incorretos');
           await signOutSafe();
@@ -777,6 +775,7 @@ useEffect(() => {
           setBuscandoPaciente(false);
           setRota('login-uid');
           setAuthVerificado(true);
+          processandoLoginRef.current = false;
           return;
         }
 
@@ -791,6 +790,7 @@ useEffect(() => {
           );
           setRota('login-uid');
           setAuthVerificado(true);
+          processandoLoginRef.current = false;
           return;
         }
 
@@ -803,61 +803,58 @@ useEffect(() => {
 
         setDadosPaciente(pacienteEncontrado);
 
-        try {
-          const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import("../utils/dispositivos");
-          const fingerprint = gerarFingerprintEstavel();
-          const dispositivo = rotuloDispositivoCurto();
-
-          let geo = { cidade: null, pais: null, lat: null, lng: null };
-          try {
-            const { obterLocalizacao } = await import('../utils/geolocalizacao');
-            const loc = await obterLocalizacao();
-            if (loc.status === 'ativa') {
-              geo = {
-                cidade: loc.cidade || null,
-                pais: loc.pais || null,
-                lat: loc.lat ?? null,
-                lng: loc.lng ?? null,
-              };
-            }
-          } catch {}
-
-          const res = await fetch('/.netlify/functions/verificar-dispositivo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              pacienteId: String(pacienteEncontrado.id),
-              fingerprint,
-              dispositivo,
-              plataforma: isNativo() ? 'apk' : 'pwa',
-              ...geo,
-            }),
-          });
-
-          const data = await res.json();
-
-          if (data.status === 'bloqueado') {
-            await signOutSafe();
-            setAutenticado(false);
-            setUsuarioLogado(null);
-            setDadosPaciente(null);
-            setBuscandoPaciente(false);
-            setErroLoginExterno(
-              data.motivo || 'Acesso suspenso pela profissional. Entre em contato.'
-            );
-            setRota('login-uid');
-            setAuthVerificado(true);
-            return;
-          }
-        } catch (e) {
-          console.warn('Falha ao verificar dispositivo:', e);
-        }
-
+        // 🚀 SEGREDO: GPS e Verificação de Dispositivo em background!
         import('../utils/segurancaEstado')
           .then(({ atualizarEstadoSeguranca }) => {
             atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
           })
           .catch(() => {});
+
+        import('../utils/dispositivos').then(async ({ gerarFingerprintEstavel, rotuloDispositivoCurto }) => {
+          try {
+            const fingerprint = gerarFingerprintEstavel();
+            const dispositivo = rotuloDispositivoCurto();
+
+            let geo = { cidade: null, pais: null, lat: null, lng: null };
+            try {
+              const { obterLocalizacao } = await import('../utils/geolocalizacao');
+              const loc = await obterLocalizacao();
+              if (loc.status === 'ativa') {
+                geo = {
+                  cidade: loc.cidade || null,
+                  pais: loc.pais || null,
+                  lat: loc.lat ?? null,
+                  lng: loc.lng ?? null,
+                };
+              }
+            } catch {}
+
+            const res = await fetch('/.netlify/functions/verificar-dispositivo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pacienteId: String(pacienteEncontrado.id),
+                fingerprint,
+                dispositivo,
+                plataforma: isNativo() ? 'apk' : 'pwa',
+                ...geo,
+              }),
+            });
+
+            const data = await res.json();
+
+            if (data.status === 'bloqueado') {
+              await signOutSafe();
+              setAutenticado(false);
+              setUsuarioLogado(null);
+              setDadosPaciente(null);
+              setErroLoginExterno(data.motivo || 'Acesso suspenso pela profissional. Entre em contato.');
+              setRota('login-uid');
+            }
+          } catch (e) {
+            console.warn('Falha ao verificar dispositivo em background:', e);
+          }
+        });
 
         const estetaUidParaPath =
           pacienteEncontrado.criadoPorUid ||

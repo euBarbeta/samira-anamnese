@@ -48,6 +48,17 @@ exports.handler = async (event) => {
     const docRef = db.collection('tentativas_login').doc(emailHash);
     const agora = Date.now();
 
+    // ============================================================
+    // ✅ CAPTURA DE IP E GEOLOCALIZAÇÃO (fornecidos pelo Netlify)
+    // ============================================================
+    const clientIp = 
+      event.headers['x-nf-client-connection-ip'] || 
+      event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+      'desconhecido';
+    
+    const country = event.headers['x-country'] || 'desconhecido';
+    const city = event.headers['x-city'] || 'desconhecido';
+
     const snap = await docRef.get();
     const dados = snap.exists ? snap.data() : null;
     const tentativas = (dados?.tentativas || []).filter((t) => agora - t < JANELA_MS);
@@ -61,6 +72,9 @@ exports.handler = async (event) => {
           ultimoSucesso: new Date().toISOString(),
           ultimoDispositivo: userAgent.slice(0, 200),
           ultimaPlataforma: plataforma,
+          ultimoIp: clientIp,
+          ultimaCidade: city,
+          ultimoPais: country,
           atualizadoEm: new Date().toISOString(),
         },
         { merge: true }
@@ -81,6 +95,9 @@ exports.handler = async (event) => {
         ultimaTentativa: new Date().toISOString(),
         ultimoDispositivo: userAgent.slice(0, 200),
         ultimaPlataforma: plataforma,
+        ultimoIp: clientIp,
+        ultimaCidade: city,
+        ultimoPais: country,
         requerBloqueio: bloqueado,
         atualizadoEm: new Date().toISOString(),
       },
