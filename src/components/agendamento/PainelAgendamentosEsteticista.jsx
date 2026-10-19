@@ -8,6 +8,7 @@ import FichaDesktop from '../FichaDesktop';
 import FichaMobile from '../FichaMobile';
 import {
   reativarPorEdicao,
+  reativarPacienteCompleto,
 } from '../../utils/lgpdExclusao';
 import ModalEditarSobra from './ModalEditarSobra';
 import ModalRegistrarReceita from '../financeiro/ModalRegistrarReceita';
@@ -29,6 +30,7 @@ import {
 
 import { secondaryAuth } from '../firebaseSecondary';
 import { registrarLinkPaciente, gerarUidDeterministico, limparUndefined } from '../../utils/validarUID';
+import { sanitizarFichaAnamnese, sanitizarTexto } from '../../utils/sanitizar';
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
 
 import {
@@ -1869,15 +1871,18 @@ const abrirFichaParaReativar = async (ag) => {
   const pac = pacientesPorId[ag.pacienteId];
   if (!pac) return;
 
+  // ✅ Fonte: agendamento (o paciente arquivado está sem contato)
+  //    Igual ao que o agendamento público coletou.
+  const emailReal = emailContatoDoAgendamento(ag.email);
+
   setFichaPreenchida({
-    ...pac.anamnese,
-    // Marca que está vindo da reativação
+    ...(pac.anamnese || {}),
     _reativandoPacienteId: ag.pacienteId,
-    // Pré-preenche com o que já existe (vai ficar vazio)
-    nome: pac.nome || '',
-    numeroDocumento: pac.documento || '',
-    telefone: pac.telefone || '',
-    emailContato: pac.emailContato || '',
+    // Pré-preenche com o que temos
+    nome: ag.nome || pac.nome || '',
+    numeroDocumento: ag.documento || pac.documento || '',
+    telefone: ag.telefone || pac.telefone || '',
+    emailContato: emailReal || pac.emailContato || '',
     endereco: pac.endereco || '',
   });
 };
@@ -1954,135 +1959,172 @@ const abrirFichaParaReativar = async (ag) => {
     });
   };
 
-  const handleSalvarFichaDoAgendamento = async (dadosAnamnese) => {
-    const user = getAuth().currentUser;
-    if (!user) return;
+const handleSalvarFichaDoAgendamento = async (dadosAnamnese) => {
+  const user = getAuth().currentUser;
+  if (!user) return;
 
-    const nomeOriginal = (dadosAnamnese.nome || '').trim();
-    const partes = nomeOriginal.split(/\s+/);
-    const pNome = (partes[0] || 'usuario')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const sNome = (partes[partes.length - 1] || 'paciente')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const emailFicticio = `${pNome}.${sNome}@sistema.local`;
-    const docLimpo = (dadosAnamnese.numeroDocumento || '').replace(/\D/g, '');
-    const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456').padEnd(6, '0');
+  // ============================================================
+  // ✅ SANITIZAÇÃO DEFENSIVA
+  // ------------------------------------------------------------
+  // A esteta está autenticada, mas reforçamos a sanitização aqui
+  // pra garantir que nada estranho (tags, handlers inline, chars
+  // de controle) chegue ao Firestore — mesmo se o form for
+  // manipulado via DevTools.
+  //
+  // ⚠️ Só sanitizamos TEXTO LIVRE (nome, observacoes, endereco).
+  //    Documento/telefone/email usam formatos específicos e NÃO
+  //    devem passar por sanitizarTexto (quebraria).
+  //    O `sanitizarFichaAnamnese` já trata esses campos com as
+  //    funções corretas (sanitizarDocumento, sanitizarTelefone,
+  //    sanitizarEmail).
+  // ============================================================
+  const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
+  dadosAnamnese = {
+    ...dadosLimpos,
+    nome: sanitizarTexto(dadosLimpos.nome, { maxLength: 100 }),
+    observacoes: sanitizarTexto(dadosLimpos.observacoes, {
+      maxLength: 5000,
+      permitirQuebraLinha: true,
+    }),
+    endereco: sanitizarTexto(dadosLimpos.endereco, { maxLength: 200 }),
+  };
 
-    const nomeNorm = normalizarNome(nomeOriginal);
-    const docNorm = normalizarDoc(dadosAnamnese.numeroDocumento);
-    const existente = Object.values(pacientesPorId).find((p) =>
-      normalizarNome(p.nome || p.anamnese?.nome) === nomeNorm &&
-      normalizarDoc(p.documento || p.anamnese?.numeroDocumento) === docNorm
-    );
+  const nomeOriginal = (dadosAnamnese.nome || '').trim();
+  const partes = nomeOriginal.split(/\s+/);
+  const pNome = (partes[0] || 'usuario')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const sNome = (partes[partes.length - 1] || 'paciente')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const emailFicticio = `${pNome}.${sNome}@sistema.local`;
+  const docLimpo = (dadosAnamnese.numeroDocumento || '').replace(/\D/g, '');
+  const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456').padEnd(6, '0');
 
-    let pacienteUid = existente?.id || '';
+  const nomeNorm = normalizarNome(nomeOriginal);
+  const docNorm = normalizarDoc(dadosAnamnese.numeroDocumento);
+  const existente = Object.values(pacientesPorId).find((p) =>
+    normalizarNome(p.nome || p.anamnese?.nome) === nomeNorm &&
+    normalizarDoc(p.documento || p.anamnese?.numeroDocumento) === docNorm
+  );
 
-    if (!pacienteUid) {
+  let pacienteUid = existente?.id || '';
+
+  if (!pacienteUid) {
+    try {
       try {
-        try {
-          const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
-          pacienteUid = cred.user.uid;
-          await signOut(secondaryAuth);
-        } catch (e) {
-          if (e.code === 'auth/email-already-in-use') {
-            try {
-              const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
-              pacienteUid = cred.user.uid;
-              await signOut(secondaryAuth);
-            } catch {
-              // cai no fallback
-            }
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+        pacienteUid = cred.user.uid;
+        await signOut(secondaryAuth);
+      } catch (e) {
+        if (e.code === 'auth/email-already-in-use') {
+          try {
+            const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+            pacienteUid = cred.user.uid;
+            await signOut(secondaryAuth);
+          } catch {
+            // cai no fallback
           }
         }
-      } catch { /* cai no fallback */ }
-
-      if (!pacienteUid) {
-        pacienteUid = gerarUidDeterministico(`${emailFicticio}|${docLimpo}`);
       }
+    } catch { /* cai no fallback */ }
+
+    if (!pacienteUid) {
+      pacienteUid = gerarUidDeterministico(`${emailFicticio}|${docLimpo}`);
+    }
+  }
+
+  const agora = new Date();
+  const dataHora =
+    agora.toLocaleDateString('pt-BR') + ' às ' +
+    agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  const novoPaciente = {
+    ...(existente || {}),
+    id: pacienteUid,
+    nome: dadosAnamnese.nome,
+    documento: dadosAnamnese.numeroDocumento || '',
+    telefone: dadosAnamnese.telefone || '',
+    email: emailFicticio,
+    emailAcesso: emailFicticio,
+    emailContato: dadosAnamnese.emailContato || '',
+    criadoPorUid: user.uid,
+    dataCriacao: existente?.dataCriacao || dataHora,
+    dataUltimaEdicao: dataHora,
+    anamnese: dadosAnamnese,
+    evolucoes: existente?.evolucoes || [],
+    agendamentoOrigemId: fichaPreenchida?._agendamentoOrigemId || existente?.agendamentoOrigemId || null,
+  };
+
+  await setDoc(
+    doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid),
+    limparUndefined(novoPaciente),
+    { merge: true }
+  );
+  await registrarLinkPaciente(pacienteUid, user.uid);
+
+  await setDoc(
+    doc(db, 'mapeamento_emails', emailFicticio),
+    {
+      profissionalUid: user.uid,
+      pacienteId: pacienteUid,
+      atualizadoEm: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+
+  // ============================================================
+  // ⚖️ LGPD — Se está REATIVANDO um paciente arquivado
+  // ------------------------------------------------------------
+  // Usa o helper COMPLETO: recria Auth + mapeamento + links.
+  // Fonte dos dados: o que a esteta preencheu/editou na ficha
+  // (dadosAnamnese), que já veio pré-preenchido com ag.nome,
+  // ag.documento, ag.telefone, ag.email pelo abrirFichaParaReativar.
+  // ============================================================
+  if (fichaPreenchida?._reativandoPacienteId) {
+    // ✅ Usa o email que está no FORM (dadosAnamnese),
+    //    não o pré-preenchido (fichaPreenchida) — assim se a
+    //    esteta editar, o novo valor prevalece.
+    let emailReal = '';
+    if (dadosAnamnese?.emailContato) {
+      emailReal = String(dadosAnamnese.emailContato).toLowerCase().trim();
+      if (emailReal.endsWith('@sistema.local')) emailReal = '';
     }
 
-    const agora = new Date();
-    const dataHora =
-      agora.toLocaleDateString('pt-BR') + ' às ' +
-      agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-    const novoPaciente = {
-      ...(existente || {}),
-      id: pacienteUid,
+    await reativarPacienteCompleto({
+      pacienteId: fichaPreenchida._reativandoPacienteId,
+      uidEsteticista: user.uid,
       nome: dadosAnamnese.nome,
-      documento: dadosAnamnese.numeroDocumento || '',
-      telefone: dadosAnamnese.telefone || '',
-      email: emailFicticio,
-      emailAcesso: emailFicticio,
-      emailContato: dadosAnamnese.emailContato || '',
-      criadoPorUid: user.uid,
-      dataCriacao: existente?.dataCriacao || dataHora,
-      dataUltimaEdicao: dataHora,
-      anamnese: dadosAnamnese,
-      evolucoes: existente?.evolucoes || [],
-      agendamentoOrigemId: fichaPreenchida?._agendamentoOrigemId || existente?.agendamentoOrigemId || null,
+      documento: dadosAnamnese.numeroDocumento,
+      telefone: dadosAnamnese.telefone || null,
+      emailContato: emailReal || null,
+      endereco: dadosAnamnese.endereco || null,
+    });
+
+    setFichaPreenchida(null);
+    return;
+  }
+
+  if (fichaPreenchida?._agendamentoOrigemId) {
+    // ⚠️ Só vincula o pacienteId ao agendamento.
+    //    NÃO muda o status — concluir é ação manual (botão "Concluir").
+    const patch = {
+      pacienteId: pacienteUid,
+      atualizadoEm: new Date().toISOString(),
     };
 
-    await setDoc(
-      doc(db, `usuarios/${user.uid}/pacientes`, pacienteUid),
-      limparUndefined(novoPaciente),
-      { merge: true }
-    );
-    await registrarLinkPaciente(pacienteUid, user.uid);
+    await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
 
-    await setDoc(
-      doc(db, 'mapeamento_emails', emailFicticio),
-      {
-        profissionalUid: user.uid,
-        pacienteId: pacienteUid,
-        atualizadoEm: new Date().toISOString(),
-      },
-      { merge: true }
-    );
-// ============================================================
-// ⚖️ LGPD — Se está REATIVANDO um paciente arquivado
-// ============================================================
-if (fichaPreenchida?._reativandoPacienteId) {
-  await reativarPorEdicao({
-    pacienteId: fichaPreenchida._reativandoPacienteId,
-    uidEsteticista: user.uid,
-    nome: dadosAnamnese.nome,
-    documento: dadosAnamnese.numeroDocumento,
-    telefone: dadosAnamnese.telefone,
-    emailContato: dadosAnamnese.emailContato,
-    endereco: dadosAnamnese.endereco,
-  });
-
-  // Invalida o cache
-  cacheBuscaRef.current = null;
-
-  // Fecha a ficha
-  setFichaPreenchida(null);
-
-  return; // não continua o fluxo normal
-}
- if (fichaPreenchida?._agendamentoOrigemId) {
-  // ⚠️ Só vincula o pacienteId ao agendamento.
-  //    NÃO muda o status — concluir é ação manual (botão "Concluir").
-  const patch = {
-    pacienteId: pacienteUid,
-    atualizadoEm: new Date().toISOString(),
-  };
-
-  await updateDoc(doc(db, 'agendamentos', fichaPreenchida._agendamentoOrigemId), patch);
-
-  try {
-    await fetch('/.netlify/functions/sincronizar-slot-publico', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agendamentoId: fichaPreenchida._agendamentoOrigemId }),
-    });
-  } catch (e) {
-    console.warn('Falha ao sincronizar slot público:', e);
+    try {
+      await fetch('/.netlify/functions/sincronizar-slot-publico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamentoId: fichaPreenchida._agendamentoOrigemId }),
+      });
+    } catch (e) {
+      console.warn('Falha ao sincronizar slot público:', e);
+    }
   }
-}
-    setFichaPreenchida(null);
-  };
+  setFichaPreenchida(null);
+};
 
   if (fichaPreenchida) {
     const isMobileView = window.innerWidth <= 768;
@@ -2693,7 +2735,7 @@ if (fichaPreenchida?._reativandoPacienteId) {
 {pacienteEstaArquivado(ag) ? (
   <button
     type="button"
-    onClick={() => abrirFichaParaReativar(ag)}
+  onClick={() => abrirFichaParaReativar(ag)}
     style={{
       ...btnFicha,
       flex: '1 1 140px',

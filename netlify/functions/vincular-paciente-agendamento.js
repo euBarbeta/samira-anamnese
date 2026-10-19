@@ -1,10 +1,11 @@
 // netlify/functions/vincular-paciente-agendamento.js
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { sanitizarTexto } = require('./_utils/sanitizar');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
@@ -43,16 +44,25 @@ exports.handler = async (event) => {
     }
     const db = getFirestore();
 
-    const { uidEsteticista, agendamentoId, nome, documento } =
-      JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
+    const {
+      uidEsteticista,
+      agendamentoId,
+      nome: nomeBruto,
+      documento: docBruto,
+    } = body;
 
-    if (!uidEsteticista || !agendamentoId || !nome || !documento) {
+    if (!uidEsteticista || !agendamentoId || !nomeBruto || !docBruto) {
       return {
         statusCode: 400,
         headers: CORS,
         body: JSON.stringify({ error: 'dados incompletos' }),
       };
     }
+
+    // ✅ Sanitiza as entradas (defesa em profundidade)
+    const nome = sanitizarTexto(nomeBruto, { maxLength: 100 });
+    const documento = sanitizarTexto(docBruto, { maxLength: 30 });
 
     const nomeNorm = normalizarNome(nome);
     const docNorm = normalizarDoc(documento);
@@ -71,7 +81,6 @@ exports.handler = async (event) => {
 
     // ============================================================
     // 1) Busca paciente cadastrado com nome + documento iguais
-    //    (a lista de pacientes de UMA esteticista cabe em memória)
     // ============================================================
     const snap = await db
       .collection(`usuarios/${uidEsteticista}/pacientes`)
@@ -81,9 +90,8 @@ exports.handler = async (event) => {
 
     for (const d of snap.docs) {
       const p = d.data();
-
       const pNome = p.nome || p.anamnese?.nome || '';
-      const pDoc  = p.documento || p.anamnese?.numeroDocumento || '';
+      const pDoc = p.documento || p.anamnese?.numeroDocumento || '';
 
       if (
         normalizarNome(pNome) === nomeNorm &&
@@ -107,7 +115,7 @@ exports.handler = async (event) => {
     }
 
     // ============================================================
-    // 2) Confirma que o agendamento existe e pega os dados dele
+    // 2) Confirma que o agendamento existe
     // ============================================================
     const agRef = db.collection('agendamentos').doc(String(agendamentoId));
     const agSnap = await agRef.get();
@@ -144,8 +152,7 @@ exports.handler = async (event) => {
     await agRef.update(patch);
 
     // ============================================================
-    // 4) Notifica o paciente que o agendamento apareceu no app dele
-    //    (usa o mesmo notificar-paciente-agendamento já existente)
+    // 4) Notifica o paciente
     // ============================================================
     try {
       const baseUrl =

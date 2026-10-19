@@ -13,7 +13,8 @@
 //   - Prontuário (anamnese/evoluções/fotos) NUNCA é apagado
 
 import {
-  doc, getDoc, getDocs, collection, query, where, updateDoc, writeBatch,
+  doc, getDoc, getDocs, collection, query, where, updateDoc, writeBatch, setDoc,
+
 } from 'firebase/firestore';
 import { db } from '../components/firebase';
 
@@ -329,15 +330,71 @@ export function estaAnonimizado(paciente) {
   return Boolean(paciente?.anonimizadoEm);
 }
 // ============================================================
+// HELPER INTERNO — recria a conta do Firebase Auth do paciente
+// ------------------------------------------------------------
+// Chamado quando o paciente foi anonimizado (conta Auth pode ter
+// sido deletada) e precisamos recriar o acesso dele.
+//
+// Usa secondaryAuth pra não deslogar a esteticista.
+// Retorna { ok, uid, email, senha } ou { ok: false, motivo }.
+// ============================================================
+async function garantirContaAuth({ emailFicticio, senha }) {
+  if (!emailFicticio || !senha) {
+    return { ok: false, motivo: 'sem email/senha' };
+  }
+
+  // Import dinâmico pra evitar ciclo com firebaseSecondary
+  const { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } =
+    await import('firebase/auth');
+  const { secondaryAuth } = await import('../components/firebaseSecondary');
+
+  // 1) Tenta criar
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+    const uid = cred.user.uid;
+    await signOut(secondaryAuth).catch(() => {});
+    return { ok: true, uid };
+  } catch (e) {
+    if (e.code !== 'auth/email-already-in-use') {
+      // Erro real (senha fraca? email inválido?)
+      return { ok: false, motivo: e.code || e.message };
+    }
+  }
+
+  // 2) Conta já existe → tenta logar pra confirmar que a senha bate
+  try {
+    const cred = await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senha);
+    const uid = cred.user.uid;
+    await signOut(secondaryAuth).catch(() => {});
+    return { ok: true, uid };
+  } catch (e) {
+    // Conta existe mas senha não bate.
+    // Não é erro fatal — o paciente só não vai poder logar até
+    // redefinir a senha. Retornamos ok pra não travar a reativação.
+    return { ok: true, uid: null, avisoSenha: true };
+  }
+}
+
+// ============================================================
 // REATIVAR POR EDIÇÃO DE FICHA
 // ------------------------------------------------------------
 // Chamado quando a esteta edita a ficha de um paciente arquivado
-// (via botão "Reativar" nos painéis).
+// (via botão "Reativar" nos painéis ou pelo painel de agendamentos).
 //
-// - Remove marcadores de anonimização
-// - Atualiza nome, documento e contato
-// - Reativa o link
-// - Marca `reativadoEm` pra auditoria
+// Passos:
+//   1) (Opcional) Recria a conta Auth do paciente, se receber email+senha
+//   2) (Opcional) Recria o mapeamento_emails
+//   3) Reativa o doc do paciente (remove anonimizadoEm)
+//   4) Restaura/garante o links_pacientes ativo
+//
+// ⚖️ LGPD: telefone, emailContato e endereço NÃO são restaurados
+//    automaticamente — ficam null pra esteta preencher de novo
+//    e salvar. ConsentimentoLGPD também precisa ser re-aceito.
+//
+// Parâmetros novos (opcionais — retrocompatível):
+//   - emailFicticio: "nome.sobrenome@sistema.local"
+//   - senha: senha fictícia derivada do documento
+//   - recriarAuth: boolean — se true, tenta recriar o Auth
 // ============================================================
 export async function reativarPorEdicao({
   pacienteId,
@@ -347,6 +404,10 @@ export async function reativarPorEdicao({
   telefone,
   emailContato,
   endereco,
+  // ⬇️ NOVOS (opcionais)
+  emailFicticio = null,
+  senha = null,
+  recriarAuth = false,
 }) {
   if (!pacienteId || !uidEsteticista) {
     throw new Error('pacienteId e uidEsteticista são obrigatórios.');
@@ -363,7 +424,7 @@ export async function reativarPorEdicao({
   );
 
   const snap = await getDoc(pacienteRef);
-  if (!snap.exists()) {
+  if (!snap.exists) {
     throw new Error('Paciente não encontrado.');
   }
 
@@ -374,17 +435,57 @@ export async function reativarPorEdicao({
     return { ok: true, jaAtivo: true };
   }
 
+  // ------------------------------------------------------------
+  // 1) Recria a conta Auth (se pedido e se tiver email+senha)
+  // ------------------------------------------------------------
+  let resultadoAuth = null;
+  if (recriarAuth && emailFicticio && senha) {
+    resultadoAuth = await garantirContaAuth({ emailFicticio, senha });
+  }
+
+  // ------------------------------------------------------------
+  // 2) Recria o mapeamento_emails (se tiver emailFicticio)
+  // ------------------------------------------------------------
+  if (emailFicticio) {
+    try {
+      await setDoc(
+        doc(db, 'mapeamento_emails', emailFicticio.toLowerCase()),
+        {
+          profissionalUid: uidEsteticista,
+          pacienteId: String(pacienteId),
+          atualizadoEm: agora,
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Falha ao recriar mapeamento de email:', e);
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 3) Reativa o doc do paciente
+  // ------------------------------------------------------------
   await updateDoc(pacienteRef, {
-    // ✅ Restaura dados
-    nome: nome || dados.nome,
-    documento: documento || dados.documento,
+    // ✅ Restaura dados de prontuário
+    nome: nome || dados.nome || null,
+    documento: documento || dados.documento || null,
+
+    // ⚠️ LGPD: contato NÃO é restaurado automaticamente
+    //    (só preenche se a esteta passar explicitamente)
     telefone: telefone || null,
     emailContato: emailContato || null,
     endereco: endereco || null,
 
+    // ✅ Se temos email fictício, restaura no doc
+    ...(emailFicticio ? {
+      emailAcesso: emailFicticio,
+      email: emailFicticio,
+    } : {}),
+
     // ⚖️ Limpa marcadores de anonimização
     anonimizadoEm: null,
     anonimizadoPor: null,
+    nomeOriginal: null,
     reativadoEm: agora,
     reativadoPor: uidEsteticista,
 
@@ -394,19 +495,97 @@ export async function reativarPorEdicao({
       }),
   });
 
-  // Reativa o link de acesso
+  // ------------------------------------------------------------
+  // 4) Garante links_pacientes ativo (recria se faltar)
+  // ------------------------------------------------------------
   try {
     const linkRef = doc(db, 'links_pacientes', String(pacienteId));
-    const linkSnap = await getDoc(linkRef);
-    if (linkSnap.exists()) {
-      await updateDoc(linkRef, {
+    await setDoc(
+      linkRef,
+      {
+        pacienteId: String(pacienteId),
+        uidEsteticista: String(uidEsteticista),
         ativo: true,
         reativadoEm: agora,
-      });
-    }
+      },
+      { merge: true }
+    );
   } catch (e) {
     console.warn('Falha ao reativar link:', e);
   }
 
-  return { ok: true, pacienteId, reativadoEm: agora };
+  return {
+    ok: true,
+    pacienteId,
+    reativadoEm: agora,
+    auth: resultadoAuth,
+  };
+}
+
+// ============================================================
+// REATIVAR PACIENTE — COMPLETO (helper de alto nível)
+// ------------------------------------------------------------
+// Faz TODOS os passos de uma vez:
+//   1) Deriva email fictício e senha a partir de nome+documento
+//   2) Recria Auth
+//   3) Recria mapeamento_emails
+//   4) Reativa o doc do paciente
+//   5) Reativa/cria links_pacientes
+//
+// Use este helper em qualquer botão "Reativar paciente" para
+// garantir que o paciente consiga logar de novo depois.
+// ============================================================
+export async function reativarPacienteCompleto({
+  pacienteId,
+  uidEsteticista,
+  nome,
+  documento,
+  // Opcionais — se não vierem, tentamos puxar do agendamento
+  telefone = null,
+  emailContato = null,
+  endereco = null,
+}) {
+  if (!pacienteId || !uidEsteticista) {
+    throw new Error('pacienteId e uidEsteticista são obrigatórios.');
+  }
+
+  const nomeFinal = (nome || '').trim();
+  if (!nomeFinal) {
+    throw new Error('Nome é obrigatório para reativar o paciente.');
+  }
+
+  // ============================================================
+  // 1) Deriva email fictício + senha (mesma lógica do handleSalvarAnamnese)
+  // ============================================================
+  const partes = nomeFinal.split(/\s+/);
+  const primeiroNome = (partes[0] || 'usuario')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const sobrenome = (partes[partes.length - 1] || 'paciente')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const emailFicticio = `${primeiroNome}.${sobrenome}@sistema.local`;
+
+  const docLimpo = String(documento || '').replace(/\D/g, '');
+  const senha = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456')
+    .padEnd(6, '0');
+
+  // ============================================================
+  // 2) Recria Auth + mapeamento + reativa doc (tudo junto)
+  // ============================================================
+  const resultado = await reativarPorEdicao({
+    pacienteId,
+    uidEsteticista,
+    nome: nomeFinal,
+    documento: documento || null,
+    telefone,
+    emailContato,
+    endereco,
+    emailFicticio,
+    senha,
+    recriarAuth: true,
+  });
+
+  return {
+    ...resultado,
+    emailFicticio,
+  };
 }

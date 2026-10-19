@@ -78,19 +78,40 @@ const handleExcluir = async () => {
       throw new Error(err.error || 'Falha ao anonimizar conta.');
     }
 
-    // 3) Re-autentica e deleta do Auth (garantia de sessão fresca)
-    try {
-      await signInWithEmailAndPassword(auth, emailPaciente, senha);
-      await auth.currentUser.delete();
-    } catch (e) {
-      console.warn('Erro ao deletar do Auth:', e);
-      try {
-        const { signOut } = await import('firebase/auth');
-        await signOut(auth);
-      } catch {}
+// 3) Re-autentica e deleta do Auth (garantia de sessão fresca)
+// ------------------------------------------------------------
+// Se falhar aqui, o paciente NÃO consegue mais logar (foi
+// anonimizado e o mapeamento_emails foi apagado), mas a conta
+// do Auth continua "viva" no Firebase. Tentamos 2 vezes antes
+// de desistir e seguimos com signOut de qualquer forma.
+// ------------------------------------------------------------
+let authDeletado = false;
+for (let tentativa = 1; tentativa <= 2; tentativa++) {
+  try {
+    await signInWithEmailAndPassword(auth, emailPaciente, senha);
+    await auth.currentUser.delete();
+    authDeletado = true;
+    break;
+  } catch (e) {
+    if (e?.code === 'auth/requires-recent-login' && tentativa < 2) {
+      // Retry — a sessão expirou entre o signIn e o delete
+      continue;
     }
+    // Última tentativa falhou → só segue
+    if (tentativa === 2) {
+      console.warn('Não foi possível deletar do Auth (última tentativa):', e?.code || e?.message);
+    }
+  }
+}
 
-    onExcluido?.();
+if (!authDeletado) {
+  try {
+    const { signOut } = await import('firebase/auth');
+    await signOut(auth);
+  } catch {}
+}
+   
+ onExcluido?.();
   } catch (err) {
     console.error('Erro ao excluir conta:', err);
     const code = err?.code || '';

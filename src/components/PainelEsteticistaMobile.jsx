@@ -5,7 +5,7 @@ import {
   MdAssignment, MdSecurity, MdAttachMoney, MdFolder, MdFolderOpen,
 } from 'react-icons/md';
 import PainelSeguranca from './PainelSeguranca';
-import { sanitizarFichaAnamnese } from '../utils/sanitizar';
+import { sanitizarFichaAnamnese, sanitizarTexto } from '../utils/sanitizar';
 
 // 🔧 CORRIGIDO: import único do helper (antes tinha 2)
 import {
@@ -320,18 +320,18 @@ export default function PainelEsteticistaMobile({ onLogout }) {
     const foiAnonimizadoAgora =
       estaAnonimizado(atual) && !estaAnonimizado(pacienteSelecionado);
 
-    if (foiAnonimizadoAgora) {
-      setPacienteSelecionado(null);
-      setEvolucaoSelecionada(null);
-      setTelaAtual('lista');
-      // 🔧 CORRIGIDO: window.history (antes estava window.location)
-      window.history.replaceState(
-        { painelEsteticista: 'lista' },
-        '',
-        window.location.pathname
-      );
-      return;
-    }
+ if (foiAnonimizadoAgora) {
+  setPacienteSelecionado(null);
+  setEvolucaoSelecionada(null);
+  setTelaAtual('lista');
+  setAbaPacientes('ativos');  // ← força voltar pra aba Ativos
+  window.history.replaceState(
+    { painelEsteticista: 'lista' },
+    '',
+    window.location.pathname
+  );
+  return;
+}
 
     if (atual !== pacienteSelecionado) {
       setPacienteSelecionado(atual);
@@ -718,157 +718,120 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   // ============================================================
   // handleSalvarAnamnese com detecção de reativação
   // ============================================================
-  const handleSalvarAnamnese = async (dadosAnamnese) => {
-    const userEsteticista = auth.currentUser;
-    if (!userEsteticista) {
-      alert("Erro: Sessão da esteticista não encontrada. Faça login novamente.");
-      return;
+const handleSalvarAnamnese = async (dadosAnamnese) => {
+  const userEsteticista = auth.currentUser;
+  if (!userEsteticista) {
+    alert("Erro: Sessão da esteticista não encontrada. Faça login novamente.");
+    return;
+  }
+
+  // ✅ Sanitização defensiva (front já sanitiza, mas reforçamos aqui)
+  const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
+  dadosAnamnese = {
+    ...dadosLimpos,
+    nome: sanitizarTexto(dadosLimpos.nome, { maxLength: 100 }),
+    observacoes: sanitizarTexto(dadosLimpos.observacoes, {
+      maxLength: 5000,
+      permitirQuebraLinha: true,
+    }),
+    endereco: sanitizarTexto(dadosLimpos.endereco, { maxLength: 200 }),
+  };
+
+  try {
+    const nomeOriginal = dadosAnamnese.nome ? dadosAnamnese.nome.trim() : '';
+    let partes = nomeOriginal.split(/\s+/);
+
+    let primeiroNome = 'usuario';
+    let sobrenome = 'paciente';
+
+    if (partes.length >= 2) {
+      primeiroNome = partes[0];
+      sobrenome = partes[partes.length - 1];
+    } else if (partes.length === 1 && partes[0].length > 0) {
+      primeiroNome = partes[0];
     }
 
-    const dadosLimpos = sanitizarFichaAnamnese(dadosAnamnese);
+    const pNomeLimpo = primeiroNome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const sSobrenomeLimpo = sobrenome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+    const emailFicticio = `${pNomeLimpo}.${sSobrenomeLimpo}@sistema.local`;
+
+    const docFormatado = extrairDocumento(dadosAnamnese);
+    const documentoLimpo = docFormatado.replace(/\D/g, '');
+    const senhaFicticia = (documentoLimpo.length >= 6
+      ? documentoLimpo.slice(-6)
+      : '123456'
+    ).padEnd(6, '0');
+
+    let pacienteUid = '';
 
     try {
-      const nomeOriginal = dadosAnamnese.nome ? dadosAnamnese.nome.trim() : '';
-      let partes = nomeOriginal.split(/\s+/);
-
-      let primeiroNome = 'usuario';
-      let sobrenome = 'paciente';
-
-      if (partes.length >= 2) {
-        primeiroNome = partes[0];
-        sobrenome = partes[partes.length - 1];
-      } else if (partes.length === 1 && partes[0].length > 0) {
-        primeiroNome = partes[0];
-      }
-
-      const pNomeLimpo = primeiroNome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      const sSobrenomeLimpo = sobrenome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-      const emailFicticio = `${pNomeLimpo}.${sSobrenomeLimpo}@sistema.local`;
-
-      const docFormatado = extrairDocumento(dadosAnamnese);
-      const documentoLimpo = docFormatado.replace(/\D/g, '');
-      const senhaFicticia = (documentoLimpo.length >= 6
-        ? documentoLimpo.slice(-6)
-        : '123456'
-      ).padEnd(6, '0');
-
-      let pacienteUid = '';
-
-      try {
-        const userCredential = await createUserWithEmailAndPassword(
-          secondaryAuth, emailFicticio, senhaFicticia
-        );
-        pacienteUid = userCredential.user.uid;
-        await signOut(secondaryAuth);
-      } catch (authError) {
-        if (authError.code === 'auth/email-already-in-use') {
-          logWarn("E-mail já existe no Auth. Reutilizando...");
-          try {
-            const tempCredential = await signInWithEmailAndPassword(
-              secondaryAuth, emailFicticio, senhaFicticia
-            );
-            pacienteUid = tempCredential.user.uid;
-            await signOut(secondaryAuth);
-          } catch (signInErr) {
-            pacienteUid = gerarUidDeterministico(`${emailFicticio}|${documentoLimpo}`);
-          }
-        } else {
-          console.error("Erro detalhado do Auth Secundário:", authError);
-          alert(`Erro ao criar o acesso do paciente: ${authError.message}`);
-          return;
+      const userCredential = await createUserWithEmailAndPassword(
+        secondaryAuth, emailFicticio, senhaFicticia
+      );
+      pacienteUid = userCredential.user.uid;
+      await signOut(secondaryAuth);
+    } catch (authError) {
+      if (authError.code === 'auth/email-already-in-use') {
+        try {
+          const tempCredential = await signInWithEmailAndPassword(
+            secondaryAuth, emailFicticio, senhaFicticia
+          );
+          pacienteUid = tempCredential.user.uid;
+          await signOut(secondaryAuth);
+        } catch (signInErr) {
+          pacienteUid = gerarUidDeterministico(`${emailFicticio}|${documentoLimpo}`);
         }
-      }
-
-      if (!pacienteUid) {
-        pacienteUid = String(Date.now());
-      }
-
-      let pastaExistente = null;
-      try {
-        const pacRef = doc(db, `usuarios/${userEsteticista.uid}/pacientes`, String(pacienteUid));
-        const pacSnap = await getDoc(pacRef);
-        if (pacSnap.exists()) {
-          pastaExistente = { id: pacSnap.id, ...pacSnap.data() };
-        }
-      } catch (e) {
-        logWarn('Falha ao checar pasta existente:', e);
-      }
-
-      if (pastaExistente && estaAnonimizado(pastaExistente)) {
-        // ⚖️ REATIVA
-        await reativarPaciente({
-          pacienteId: pacienteUid,
-          uidEsteticista: userEsteticista.uid,
-          nome: dadosAnamnese.nome,
-          documento: docFormatado,
-        });
-
-        const dadosReativados = {
-          ...pastaExistente,
-          id: pacienteUid,
-          nome: dadosAnamnese.nome,
-          documento: docFormatado,
-          telefone: dadosAnamnese.telefone || '',
-          emailContato: dadosAnamnese.emailContato || '',
-          emailAcesso: pastaExistente.emailAcesso || emailFicticio,
-          email: pastaExistente.emailAcesso || emailFicticio,
-          criadoPorUid: userEsteticista.uid,
-          dataCriacao: pastaExistente.dataCriacaoOriginal || pastaExistente.dataCriacao,
-          dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
-            ' às ' + new Date().toLocaleTimeString('pt-BR', {
-              hour: '2-digit', minute: '2-digit'
-            }),
-          anamnese: dadosAnamnese,
-          evolucoes: pastaExistente.evolucoes || [],
-        };
-
-        await salvarPacienteNaNuvem(dadosReativados);
-
-        if (dadosAnamnese.lembretes) {
-          await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
-        }
-
-        await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
-
-        await setDoc(
-          doc(db, 'mapeamento_emails', emailFicticio),
-          {
-            profissionalUid: userEsteticista.uid,
-            pacienteId: pacienteUid,
-            atualizadoEm: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-
+      } else {
+        alert(`Erro ao criar o acesso do paciente: ${authError.message}`);
         return;
       }
+    }
 
-      // Paciente NOVO
-      const agora = new Date();
-      const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
-        agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (!pacienteUid) {
+      pacienteUid = String(Date.now());
+    }
 
-      const novoPaciente = {
-        id: pacienteUid,
-        nome: dadosAnamnese.nome || 'Paciente sem nome',
+    let pastaExistente = null;
+    try {
+      const pacRef = doc(db, `usuarios/${userEsteticista.uid}/pacientes`, String(pacienteUid));
+      const pacSnap = await getDoc(pacRef);
+      if (pacSnap.exists()) {
+        pastaExistente = { id: pacSnap.id, ...pacSnap.data() };
+      }
+    } catch (e) {
+      logWarn('Falha ao checar pasta existente:', e);
+    }
+
+    if (pastaExistente && estaAnonimizado(pastaExistente)) {
+      // ⚖️ REATIVA
+      await reativarPaciente({
+        pacienteId: pacienteUid,
+        uidEsteticista: userEsteticista.uid,
+        nome: dadosAnamnese.nome,
         documento: docFormatado,
-        emailAcesso: emailFicticio,
+      });
+
+      const dadosReativados = {
+        ...pastaExistente,
+        id: pacienteUid,
+        nome: dadosAnamnese.nome,
+        documento: docFormatado,
         telefone: dadosAnamnese.telefone || '',
         emailContato: dadosAnamnese.emailContato || '',
+        emailAcesso: pastaExistente.emailAcesso || emailFicticio,
+        email: pastaExistente.emailAcesso || emailFicticio,
         criadoPorUid: userEsteticista.uid,
-        dataCriacao: pastaExistente?.dataCriacao || dataHoraFormatada,
-        dataUltimaEdicao: dataHoraFormatada,
+        dataCriacao: pastaExistente.dataCriacaoOriginal || pastaExistente.dataCriacao,
+        dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
+          ' às ' + new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit', minute: '2-digit'
+          }),
         anamnese: dadosAnamnese,
-        evolucoes: pastaExistente?.evolucoes || [],
+        evolucoes: pastaExistente.evolucoes || [],
       };
 
-      const novaLista = [novoPaciente, ...pacientes].sort((a, b) =>
-        (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
-      );
-
-      setPacientes(novaLista);
-      await salvarPacienteNaNuvem(novoPaciente);
+      await salvarPacienteNaNuvem(dadosReativados);
 
       if (dadosAnamnese.lembretes) {
         await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
@@ -885,129 +848,186 @@ export default function PainelEsteticistaMobile({ onLogout }) {
         },
         { merge: true }
       );
-    } catch (error) {
-      console.error("Erro geral ao salvar ficha:", error);
-      alert("Erro ao salvar ficha na nuvem.");
-    }
-  };
 
-  const handleAtualizarAnamnese = async (dadosAtualizados) => {
-    // ⚖️ LGPD — Verifica se o paciente estava ARQUIVADO
-    const estavaArquivado = Boolean(pacienteSelecionado?.anonimizadoEm);
-
-    if (estavaArquivado) {
-      const userEst = auth.currentUser;
-      if (userEst) {
-        // ============================================================
-        // 1) Recria a conta do Firebase Auth do paciente
-        //    (a conta original pode ter sido DELETADA quando ele excluiu a conta)
-        // ============================================================
-        const nomeOriginal = dadosAtualizados.nome ? dadosAtualizados.nome.trim() : '';
-        const partes = nomeOriginal.split(/\s+/);
-        const pNome = (partes[0] || 'usuario')
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const sNome = (partes[partes.length - 1] || 'paciente')
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const emailFicticio = `${pNome}.${sNome}@sistema.local`;
-
-        const docLimpo = extrairDocumento(dadosAtualizados).replace(/\D/g, '');
-        const senhaFicticia = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456')
-          .padEnd(6, '0');
-
-        try {
-          // Tenta criar de novo
-          await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
-          await signOut(secondaryAuth);
-        } catch (authErr) {
-          // Se já existe, tenta logar em silêncio (só pra validar que ainda funciona)
-          if (authErr.code === 'auth/email-already-in-use') {
-            try {
-              await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
-              await signOut(secondaryAuth);
-            } catch (e) {
-              console.warn('Conta Auth existe, mas senha mudou:', e);
-            }
-          } else {
-            console.warn('Erro ao recriar conta Auth:', authErr);
-          }
-        }
-
-        // ============================================================
-        // 2) Reconstrói o mapeamento de email → (uid, pacienteId)
-        // ============================================================
-        try {
-          await setDoc(
-            doc(db, 'mapeamento_emails', emailFicticio),
-            {
-              profissionalUid: userEst.uid,
-              pacienteId: pacienteSelecionado.id,
-              atualizadoEm: new Date().toISOString(),
-            },
-            { merge: true }
-          );
-        } catch (e) {
-          console.warn('Falha ao recriar mapeamento de email:', e);
-        }
-
-        // ============================================================
-        // 3) Reativa no Firestore (remove anonimizadoEm, atualiza dados)
-        // ============================================================
-        await reativarPorEdicao({
-          pacienteId: pacienteSelecionado.id,
-          uidEsteticista: userEst.uid,
-          nome: dadosAtualizados.nome,
-          documento: extrairDocumento(dadosAtualizados),
-          telefone: dadosAtualizados.telefone,
-          emailContato: dadosAtualizados.emailContato,
-          endereco: dadosAtualizados.endereco,
-        });
-
-        cacheBuscaRef.current = null;
-      }
+      return;
     }
 
+    // Paciente NOVO
     const agora = new Date();
     const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
       agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const novoDoc = extrairDocumento(dadosAtualizados);
 
-    if (dadosAtualizados.lembretes) {
-      await agendarLembretesNoOneSignal(pacienteSelecionado.id, dadosAtualizados.lembretes);
+    const novoPaciente = {
+      id: pacienteUid,
+      nome: dadosAnamnese.nome || 'Paciente sem nome',
+      documento: docFormatado,
+      email: emailFicticio,
+      emailAcesso: emailFicticio,
+      telefone: dadosAnamnese.telefone || '',
+      emailContato: dadosAnamnese.emailContato || '',
+      criadoPorUid: userEsteticista.uid,
+      dataCriacao: pastaExistente?.dataCriacao || dataHoraFormatada,
+      dataUltimaEdicao: dataHoraFormatada,
+      anamnese: dadosAnamnese,
+      evolucoes: pastaExistente?.evolucoes || [],
+    };
+
+    const novaLista = [novoPaciente, ...pacientes].sort((a, b) =>
+      (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+    );
+
+    setPacientes(novaLista);
+    await salvarPacienteNaNuvem(novoPaciente);
+
+    if (dadosAnamnese.lembretes) {
+      await agendarLembretesNoOneSignal(pacienteUid, dadosAnamnese.lembretes);
     }
 
-    let pacienteAtualizadoSalvar = null;
+    await registrarLinkPaciente(pacienteUid, userEsteticista.uid);
 
-    const atualizados = pacientes.map(p => {
-      if (p.id === pacienteSelecionado.id) {
-        pacienteAtualizadoSalvar = {
-          ...p,
-          nome: dadosAtualizados.nome || p.nome,
-          documento: novoDoc !== 'Não informado' ? novoDoc : p.documento,
-          telefone: dadosAtualizados.telefone || p.telefone || '',
-          emailContato: dadosAtualizados.emailContato || p.emailContato || '',
-          dataUltimaEdicao: dataHoraFormatada,
-          anamnese: dadosAtualizados,
-          // 🔧 Remove marcadores de anonimização (o state local reflete isso NA HORA)
-          ...(estavaArquivado ? {
-            anonimizadoEm: null,
-            anonimizadoPor: null,
-            reativadoEm: new Date().toISOString(),
-          } : {}),
-        };
+    await setDoc(
+      doc(db, 'mapeamento_emails', emailFicticio),
+      {
+        profissionalUid: userEsteticista.uid,
+        pacienteId: pacienteUid,
+        atualizadoEm: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.error("Erro geral ao salvar ficha:", error);
+    alert("Erro ao salvar ficha na nuvem.");
+  }
+};
+const handleAtualizarAnamnese = async (dadosAtualizados) => {
+  // ✅ Sanitização defensiva (antes de qualquer coisa)
+  const dadosLimpos = sanitizarFichaAnamnese(dadosAtualizados);
+  dadosAtualizados = {
+    ...dadosLimpos,
+    nome: sanitizarTexto(dadosLimpos.nome, { maxLength: 100 }),
+    observacoes: sanitizarTexto(dadosLimpos.observacoes, {
+      maxLength: 5000,
+      permitirQuebraLinha: true,
+    }),
+    endereco: sanitizarTexto(dadosLimpos.endereco, { maxLength: 200 }),
+  };
 
-        return pacienteAtualizadoSalvar;
+  // ⚖️ LGPD — Verifica se o paciente estava ARQUIVADO
+  const estavaArquivado = Boolean(pacienteSelecionado?.anonimizadoEm);
+
+  if (estavaArquivado) {
+    const userEst = auth.currentUser;
+    if (userEst) {
+      // ============================================================
+      // 1) Recria a conta do Firebase Auth do paciente
+      //    (a conta original pode ter sido DELETADA quando ele excluiu a conta)
+      // ============================================================
+      const nomeOriginal = dadosAtualizados.nome ? dadosAtualizados.nome.trim() : '';
+      const partes = nomeOriginal.split(/\s+/);
+      const pNome = (partes[0] || 'usuario')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const sNome = (partes[partes.length - 1] || 'paciente')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const emailFicticio = `${pNome}.${sNome}@sistema.local`;
+
+      const docLimpo = extrairDocumento(dadosAtualizados).replace(/\D/g, '');
+      const senhaFicticia = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456')
+        .padEnd(6, '0');
+
+      try {
+        // Tenta criar de novo
+        await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
+        await signOut(secondaryAuth);
+      } catch (authErr) {
+        // Se já existe, tenta logar em silêncio (só pra validar que ainda funciona)
+        if (authErr.code === 'auth/email-already-in-use') {
+          try {
+            await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
+            await signOut(secondaryAuth);
+          } catch (e) {
+            console.warn('Conta Auth existe, mas senha mudou:', e);
+          }
+        } else {
+          console.warn('Erro ao recriar conta Auth:', authErr);
+        }
       }
 
-      return p;
-    }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+      // ============================================================
+      // 2) Reconstrói o mapeamento de email → (uid, pacienteId)
+      // ============================================================
+      try {
+        await setDoc(
+          doc(db, 'mapeamento_emails', emailFicticio),
+          {
+            profissionalUid: userEst.uid,
+            pacienteId: pacienteSelecionado.id,
+            atualizadoEm: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('Falha ao recriar mapeamento de email:', e);
+      }
 
-    setPacientes(atualizados);
-    if (pacienteAtualizadoSalvar) {
-      await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
+      // ============================================================
+      // 3) Reativa no Firestore (remove anonimizadoEm, atualiza dados)
+      // ============================================================
+      await reativarPorEdicao({
+        pacienteId: pacienteSelecionado.id,
+        uidEsteticista: userEst.uid,
+        nome: dadosAtualizados.nome,
+        documento: extrairDocumento(dadosAtualizados),
+        telefone: dadosAtualizados.telefone,
+        emailContato: dadosAtualizados.emailContato,
+        endereco: dadosAtualizados.endereco,
+      });
+
+      cacheBuscaRef.current = null;
     }
-    const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
-    setPacienteSelecionado(pacAtualizado);
-  };
+  }
+
+  const agora = new Date();
+  const dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' +
+    agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const novoDoc = extrairDocumento(dadosAtualizados);
+
+  if (dadosAtualizados.lembretes) {
+    await agendarLembretesNoOneSignal(pacienteSelecionado.id, dadosAtualizados.lembretes);
+  }
+
+  let pacienteAtualizadoSalvar = null;
+
+  const atualizados = pacientes.map(p => {
+    if (p.id === pacienteSelecionado.id) {
+      pacienteAtualizadoSalvar = {
+        ...p,
+        nome: dadosAtualizados.nome || p.nome,
+        documento: novoDoc !== 'Não informado' ? novoDoc : p.documento,
+        telefone: dadosAtualizados.telefone || p.telefone || '',
+        emailContato: dadosAtualizados.emailContato || p.emailContato || '',
+        dataUltimaEdicao: dataHoraFormatada,
+        anamnese: dadosAtualizados,
+        // 🔧 Remove marcadores de anonimização (o state local reflete isso NA HORA)
+        ...(estavaArquivado ? {
+          anonimizadoEm: null,
+          anonimizadoPor: null,
+          reativadoEm: new Date().toISOString(),
+        } : {}),
+      };
+
+      return pacienteAtualizadoSalvar;
+    }
+
+    return p;
+  }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+
+  setPacientes(atualizados);
+  if (pacienteAtualizadoSalvar) {
+    await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
+  }
+  const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
+  setPacienteSelecionado(pacAtualizado);
+};
 
   const handleCampoSubstituido = (pacId, campo, valor) => {
     const atualizados = pacientes.map((p) => {
