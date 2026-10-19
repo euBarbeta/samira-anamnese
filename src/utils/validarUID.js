@@ -1,15 +1,21 @@
+// src/utils/validarUID.js
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../components/firebase';
 
 export async function validarUIDPaciente(uid) {
   if (!uid || typeof uid !== 'string') return false;
   if (uid.length < 6 || uid.length > 128) return false;
+  
   try {
     const snap = await getDoc(doc(db, 'links_pacientes', uid));
     if (!snap.exists()) return false;
     return snap.data().ativo !== false;
   } catch (e) {
-    console.warn('Erro ao validar UID:', e);
+    // ✅ Silencia o erro de permissão (acontece se o usuário não estiver logado 
+    // e as regras do Firestore bloquearem a leitura do link)
+    if (e.code !== 'permission-denied') {
+      console.warn('Erro ao validar UID:', e);
+    }
     return false;
   }
 }
@@ -26,6 +32,7 @@ export async function registrarLinkPaciente(pacienteId, uidEsteticista) {
     { merge: true }
   );
 }
+
 export function gerarUidDeterministico(chave) {
   const base = String(chave || '');
   let hash = 0;
@@ -34,7 +41,9 @@ export function gerarUidDeterministico(chave) {
     hash |= 0; // mantém como int32
   }
   return `u${Math.abs(hash).toString(36)}`;
-}/**
+}
+
+/**
  * ✅ Remove recursivamente qualquer campo `undefined` de um objeto.
  * O Firestore rejeita `undefined` — `null` é permitido, `undefined` não.
  *
