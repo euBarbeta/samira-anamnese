@@ -51,13 +51,34 @@ exports.handler = async (event) => {
     // ============================================================
     // ✅ CAPTURA DE IP E GEOLOCALIZAÇÃO (fornecidos pelo Netlify)
     // ============================================================
-    const clientIp = 
-      event.headers['x-nf-client-connection-ip'] || 
-      event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-      'desconhecido';
-    
-    const country = event.headers['x-country'] || 'desconhecido';
-    const city = event.headers['x-city'] || 'desconhecido';
+const clientIp = 
+  event.headers['x-nf-client-connection-ip'] || 
+  event.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+  'desconhecido';
+
+// Netlify manda o país, mas não manda a cidade.
+let country = event.headers['x-country'] || '';
+let city = event.headers['x-city'] || '';
+
+// Se não tiver cidade (ou o país), busca na API gratuita ip-api.com
+if (clientIp !== 'desconhecido' && clientIp !== '::1' && (!city || !country)) {
+  try {
+    const geoRes = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,countryCode,city`);
+    if (geoRes.ok) {
+      const geoData = await geoRes.json();
+      if (geoData.status === 'success') {
+        if (!country) country = geoData.countryCode;
+        if (!city) city = geoData.city;
+      }
+    }
+  } catch (e) {
+    console.warn('Falha ao buscar cidade pelo IP:', e);
+  }
+}
+
+// Fallback final se não achar nada
+country = country || 'desconhecido';
+city = city || 'desconhecido';
 
     const snap = await docRef.get();
     const dados = snap.exists ? snap.data() : null;
