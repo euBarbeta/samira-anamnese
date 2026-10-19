@@ -667,6 +667,15 @@ export default function AnamneseFicha() {
 
       setBuscandoPaciente(true);
 
+      // ✅ SEGREDO: Aguarda o Firebase Auth "entregar" o token para o Firestore
+      // Isso evita o erro "Missing or insufficient permissions" na primeira leitura
+      try {
+        await user.getIdToken(true);
+        await new Promise(r => setTimeout(r, 500)); // Delay de 500ms para sincronização
+      } catch (e) {
+        console.warn('Erro ao forçar token:', e);
+      }
+
       let pacienteEncontrado = null;
       let mapSnap2Data = null;
 
