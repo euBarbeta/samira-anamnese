@@ -1102,7 +1102,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       erroSenha: ''
     });
   };
-
   const confirmarExclusao = async () => {
     const user = auth.currentUser;
 
@@ -1115,8 +1114,10 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     }
 
     try {
+      // ✅ 1. Valida a senha primeiro. Se falhar, o catch lá embaixo pega o erro e não exclui.
       await signInWithEmailAndPassword(auth, user.email, modalExclusao.senhaInput);
 
+      // ✅ 2. Se a senha estiver correta, prossegue com a exclusão da pasta
       if (modalExclusao.tipo === 'pasta') {
         await excluirPacienteDaNuvem(modalExclusao.idAlvo);
 
@@ -1124,8 +1125,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         setPacientes(filtrados);
         setPacienteSelecionado(null);
         setEvolucaoSelecionada(null);
-
-        cacheBuscaRef.current = null;
 
         window.history.replaceState(
           { painelEsteticista: 'lista' },
@@ -1137,26 +1136,23 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         return;
       }
 
+      // ✅ 3. Se for exclusão de evolução, faz o processo normal
       if (modalExclusao.tipo === 'evolucao') {
+        let pacienteAtualizadoSalvar = null;
         const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
-        const idDocStr = String(pacienteSelecionado.id);
-        const pacienteAtualizadoObj = { ...pacienteSelecionado, evolucoes: novasEvolucoes };
-
-        await setDoc(
-          doc(db, `usuarios/${user.uid}/pacientes`, idDocStr),
-          pacienteAtualizadoObj,
-          { merge: true }
-        );
-
         const atualizados = pacientes.map(p => {
           if (p.id === pacienteSelecionado.id) {
-            return pacienteAtualizadoObj;
+            pacienteAtualizadoSalvar = { ...p, evolucoes: novasEvolucoes };
+            return pacienteAtualizadoSalvar;
           }
           return p;
         });
 
         setPacientes(atualizados);
-        setPacienteSelecionado(pacienteAtualizadoObj);
+        if (pacienteAtualizadoSalvar) {
+          await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
+        }
+        setPacienteSelecionado({ ...pacienteSelecionado, evolucoes: novasEvolucoes });
 
         window.history.replaceState(
           { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
@@ -1168,10 +1164,11 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       }
 
     } catch (error) {
-      console.error("Erro ao validar senha ou excluir:", error);
+      console.error("Erro ao validar senha:", error);
+      // Se a senha falhar, mostra o erro na tela do modal e NÃO exclui nada
       setModalExclusao(prev => ({
         ...prev,
-        erroSenha: 'Senha incorreta ou erro na exclusão. Tente novamente.'
+        erroSenha: 'Senha incorreta. Tente novamente.'
       }));
     }
   };

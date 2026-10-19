@@ -1088,8 +1088,10 @@ if (foiAnonimizadoAgora) {
     }
 
     try {
+      // ✅ 1. Valida a senha primeiro. Se falhar, o catch lá embaixo pega o erro e não exclui.
       await signInWithEmailAndPassword(auth, user.email, modalExclusao.senhaInput);
 
+      // ✅ 2. Se a senha estiver correta, prossegue com a exclusão da pasta
       if (modalExclusao.tipo === 'pasta') {
         await excluirPacienteDaNuvem(modalExclusao.idAlvo);
 
@@ -1108,6 +1110,7 @@ if (foiAnonimizadoAgora) {
         return;
       }
 
+      // ✅ 3. Se for exclusão de evolução, faz o processo normal
       if (modalExclusao.tipo === 'evolucao') {
         let pacienteAtualizadoSalvar = null;
         const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
@@ -1136,6 +1139,7 @@ if (foiAnonimizadoAgora) {
 
     } catch (error) {
       console.error("Erro ao validar senha:", error);
+      // Se a senha falhar, mostra o erro na tela do modal e NÃO exclui nada
       setModalExclusao(prev => ({
         ...prev,
         erroSenha: 'Senha incorreta. Tente novamente.'

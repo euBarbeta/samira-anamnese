@@ -13,19 +13,25 @@ export default function CardSegurancaPaciente({ pacienteId }) {
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    if (!pacienteId) return;
-    const unsub = onSnapshot(
-      doc(db, 'seguranca_estado', String(pacienteId)),
-      (snap) => {
-        setEstado(snap.exists() ? snap.data() : null);
-        setCarregando(false);
-      },
-      (e) => {
-        setEstado(null);
-        setCarregando(false);
-      }
-    );
-    return () => unsub();
+    if (!pacienteId) return; 
+    
+    // ✅ Adicione este delay para esperar o Auth sincronizar
+    const timer = setTimeout(() => {
+      const unsub = onSnapshot(
+        doc(db, 'seguranca_estado', String(pacienteId)),
+        (snap) => {
+          setEstado(snap.exists() ? snap.data() : null);
+          setCarregando(false);
+        },
+        (e) => {
+          setEstado(null);
+          setCarregando(false);
+        }
+      );
+      return () => unsub();
+    }, 1000); // 1 segundo de espera
+
+    return () => clearTimeout(timer);
   }, [pacienteId]);
 
   if (carregando) return null;
