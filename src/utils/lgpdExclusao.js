@@ -461,7 +461,26 @@ export async function reativarPacienteCompleto({
   // ✅ PASSO 1: Recria a conta Auth via Function (Admin SDK)
   //             (Essa é a correção que faltava!)
   // ============================================================
-  let authRecriado = true;
+    let authRecriado = false;
+  try {
+    const response = await fetch('/.netlify/functions/reativar-auth-paciente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: String(pacienteId),
+        email: emailFicticio,
+        password: senha
+      }),
+    });
+
+    if (response.ok) {
+      authRecriado = true;
+    } else {
+      console.warn('Falha ao reativar Auth, mas seguindo com Firestore:', await response.text());
+    }
+  } catch (e) {
+    console.error('Erro de rede ao reativar Auth:', e);
+  }
  
 
   // ============================================================
