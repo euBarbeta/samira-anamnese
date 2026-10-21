@@ -559,7 +559,13 @@ const converterBRParaISO = (valorBR) => {
 
  const salvarFicha = async () => {
     if (mode === 'view' || salvando || salvoSucesso) return;
-   
+     const nomeOk = nome && nome.trim().length > 0;
+  const docOk = numeroDocumento && numeroDocumento.trim().length > 0;
+
+  if (!nomeOk || !docOk) {
+    alert('Preencha o Nome e o Nº do Documento antes de salvar.');
+    return;
+  }
 
     const agora = new Date();
     const dataModificacao = agora.toLocaleString('pt-BR', {
@@ -998,7 +1004,6 @@ useEffect(() => {
             ) : (
 <button
   type="submit"
-  onClick={salvarFicha}
   disabled={salvando || salvoSucesso}
   form="ficha-form-mobile"
   style={{
