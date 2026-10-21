@@ -30,7 +30,7 @@ import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import {
   getFirestore, query, where, updateDoc, collection, doc,
   getDoc, setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit,
-  collectionGroup,
+  collectionGroup,deleteField 
 } from 'firebase/firestore';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 import { db } from './firebase';
@@ -956,10 +956,10 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
             await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
             await signOut(secondaryAuth);
           } catch (e) {
-            console.warn('Conta Auth existe, mas senha mudou:', e);
+           // console.warn('Conta Auth existe, mas senha mudou:', e);
           }
         } else {
-          console.warn('Erro ao recriar conta Auth:', authErr);
+         // console.warn('Erro ao recriar conta Auth:', authErr);
         }
       }
 
@@ -1017,12 +1017,17 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         telefone: dadosAtualizados.telefone || p.telefone || '',
         emailContato: dadosAtualizados.emailContato || p.emailContato || '',
         dataUltimaEdicao: dataHoraFormatada,
-        anamnese: dadosAtualizados,
+        anamnese: {
+          ...dadosAtualizados,
+          // ✅ Garante que a anamnese não devolva o LGPD antigo
+          consentimentoLGPD: deleteField(), 
+        },
         // 🔧 Remove marcadores de anonimização (o state local reflete isso NA HORA)
         ...(estavaArquivado ? {
           anonimizadoEm: null,
           anonimizadoPor: null,
           reativadoEm: new Date().toISOString(),
+          consentimentoLGPD: deleteField(), // <--- FORÇA O RESET NA RAIZ
         } : {}),
       };
 

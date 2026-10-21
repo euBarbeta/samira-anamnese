@@ -14,6 +14,7 @@
 
 import {
   doc, getDoc, getDocs, collection, query, where, updateDoc, writeBatch, setDoc,
+  deleteField // <--- ADICIONADO AQUI
 } from 'firebase/firestore';
 import { db } from '../components/firebase';
 
@@ -374,9 +375,9 @@ export async function reativarPorEdicao({
     reativadoEm: agora,
     reativadoPor: uidEsteticista,
 
-    // ✅ FORÇA O RESET DO LGPD (Raiz e Anamnese)
-    consentimentoLGPD: null,
-    'anamnese.consentimentoLGPD': null,
+    // ✅ FORÇA O RESET DO LGPD (Raiz e Anamnese) usando deleteField
+    consentimentoLGPD: deleteField(),
+    'anamnese.consentimentoLGPD': deleteField(),
 
     dataUltimaEdicao: new Date().toLocaleDateString('pt-BR') +
       ' às ' + new Date().toLocaleTimeString('pt-BR', {
@@ -480,9 +481,7 @@ export async function reativarPacienteCompleto({
       );
     } else {
       authRecriado = true;
-      console.log(
-        `✅ [reativarPacienteCompleto] Auth do paciente ${pacienteId} reativado.`
-      );
+      // ✅ LOG VERDE REMOVIDO DAQUI
     }
   } catch (e) {
     console.warn(

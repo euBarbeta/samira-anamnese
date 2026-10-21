@@ -21,7 +21,7 @@ import {
 import {
   getFirestore, query, where, updateDoc, collection, doc,
   getDoc, setDoc, getDocs, deleteDoc, onSnapshot, orderBy, limit,
-  collectionGroup,
+  collectionGroup, deleteField 
 } from 'firebase/firestore';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
@@ -929,10 +929,10 @@ if (foiAnonimizadoAgora) {
             await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
             await signOut(secondaryAuth);
           } catch (e) {
-            console.warn('Conta Auth existe, mas senha mudou:', e);
+           // console.warn('Conta Auth existe, mas senha mudou:', e);
           }
         } else {
-          console.warn('Erro ao recriar conta Auth:', authErr);
+          //console.warn('Erro ao recriar conta Auth:', authErr);
         }
       }
 
@@ -990,12 +990,17 @@ if (foiAnonimizadoAgora) {
         telefone: dadosAtualizados.telefone || p.telefone || '',
         emailContato: dadosAtualizados.emailContato || p.emailContato || '',
         dataUltimaEdicao: dataHoraFormatada,
-        anamnese: dadosAtualizados,
+        anamnese: {
+          ...dadosAtualizados,
+          // ✅ Garante que a anamnese não devolva o LGPD antigo
+          consentimentoLGPD: deleteField(), 
+        },
         // 🔧 Remove marcadores de anonimização (o state local reflete isso NA HORA)
         ...(estavaArquivado ? {
           anonimizadoEm: null,
           anonimizadoPor: null,
           reativadoEm: new Date().toISOString(),
+          consentimentoLGPD: deleteField(), // <--- FORÇA O RESET NA RAIZ
         } : {}),
       };
 
@@ -1004,7 +1009,6 @@ if (foiAnonimizadoAgora) {
 
     return p;
   }).sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
-
   setPacientes(atualizados);
   if (pacienteAtualizadoSalvar) {
     await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
