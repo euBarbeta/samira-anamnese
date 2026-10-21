@@ -559,10 +559,7 @@ const converterBRParaISO = (valorBR) => {
 
  const salvarFicha = async () => {
     if (mode === 'view' || salvando || salvoSucesso) return;
-    if (!nome.trim()) {
-      alert('Por favor, preencha o nome do paciente.');
-      return;
-    }
+   
 
     const agora = new Date();
     const dataModificacao = agora.toLocaleString('pt-BR', {
@@ -849,11 +846,11 @@ useEffect(() => {
   -webkit-text-fill-color: #1A1A1A;
 }
       `}</style>
-  <form 
-        id="ficha-form-mobile" 
-        onSubmit={(e) => e.preventDefault()} 
-        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-      >
+<form 
+  id="ficha-form-mobile" 
+  onSubmit={(e) => { e.preventDefault(); salvarFicha(); }} 
+  style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+>
       <div 
         id="ficha-container-pdf"
         style={{
@@ -1000,7 +997,7 @@ useEffect(() => {
               </>
             ) : (
 <button
-  type="button"
+  type="submit"
   onClick={salvarFicha}
   disabled={salvando || salvoSucesso}
   form="ficha-form-mobile"

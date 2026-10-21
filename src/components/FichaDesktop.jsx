@@ -524,10 +524,7 @@ const converterBRParaISO = (valorBR) => {
 
  const salvarFicha = async () => {
     if (mode === 'view' || salvando || salvoSucesso) return;
-    if (!nome.trim()) {
-      alert('Por favor, preencha o nome do paciente.');
-      return;
-    }
+   
 
     const agora = new Date();
     const dataModificacao = agora.toLocaleString('pt-BR', {
@@ -865,7 +862,14 @@ useEffect(() => {
 }
       `}</style>
     {/* ✅ FORM INICIA AQUI */}
-      <form id="ficha-form" onSubmit={(e) => e.preventDefault()} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+     <form 
+  id="ficha-form" 
+  onSubmit={(e) => { 
+    e.preventDefault(); 
+    salvarFicha(); // ✅ Chama a função só se a validação HTML passar
+  }} 
+  style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+>
       <div 
         id="ficha-container"
         style={{
@@ -2098,7 +2102,7 @@ useEffect(() => {
   type="button"
   className="btn-salvar-ficha"
   form="ficha-form" 
-  onClick={salvarFicha}
+ 
   disabled={salvando || salvoSucesso}
   style={{
     background: salvoSucesso
