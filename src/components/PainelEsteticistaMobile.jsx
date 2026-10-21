@@ -672,35 +672,21 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   // ============================================================
   // Anonimiza paciente
   // ============================================================
-    const excluirPacienteDaNuvem = async (idPaciente) => {
+   const excluirPacienteDaNuvem = async (idPaciente) => {
     const user = auth.currentUser;
     if (!user) return;
 
     try {
-      const res = await fetch('/.netlify/functions/excluir-paciente-completo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pacienteId: idPaciente,
-          uidEsteticista: user.uid,
-          motivo: 'esteta-excluiu',
-        }),
-      });
-
+      const res = await fetch('/.netlify/functions/excluir-paciente-completo', { /* ... */ });
       if (!res.ok) throw new Error('Falha ao excluir na nuvem');
 
       cacheBuscaRef.current = null;
 
-      // ✅ A MÁGICA ACONTECE AQUI:
-      // Atualiza o paciente no state local com a data de anonimização.
-      // O React vai mover ele para a aba "Arquivados" NA HORA, sem recarregar.
-      setPacientes(prev => prev.map(p => 
-        String(p.id) === String(idPaciente) 
-          ? { ...p, anonimizadoEm: new Date().toISOString() } 
-          : p
-      ));
+      // ✅ CORREÇÃO: Não mexemos no array de pacientes aqui!
+      // O onSnapshot vai detectar a mudança no Firestore e mover o paciente
+      // para a aba "Arquivados" automaticamente, em tempo real.
 
-      // Se o paciente excluído era o que estava aberto na tela, fecha a pasta
+      // ✅ Apenas fechamos a pasta se for o paciente que está aberto na tela
       if (String(pacienteSelecionado?.id) === String(idPaciente)) {
         setPacienteSelecionado(null);
         setEvolucaoSelecionada(null);
@@ -1148,12 +1134,14 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
   }
 
   // ✅ 2. Se a senha estiver correta, prossegue com a exclusão
-  try {
+   try {
     if (modalExclusao.tipo === 'pasta') {
       await excluirPacienteDaNuvem(modalExclusao.idAlvo);
+      
+      // ✅ CORREÇÃO: Removemos o setPacientes daqui.
+      // O onSnapshot vai notar a mudança no Firestore e mover o paciente 
+      // para a aba "Arquivados" automaticamente, em tempo real.
 
-      const filtrados = pacientes.filter(p => p.id !== modalExclusao.idAlvo);
-      setPacientes(filtrados);
       setPacienteSelecionado(null);
       setEvolucaoSelecionada(null);
 
@@ -1170,6 +1158,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     if (modalExclusao.tipo === 'evolucao') {
       let pacienteAtualizadoSalvar = null;
       const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
+      
       const atualizados = pacientes.map(p => {
         if (p.id === pacienteSelecionado.id) {
           pacienteAtualizadoSalvar = { ...p, evolucoes: novasEvolucoes };
@@ -1178,10 +1167,13 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         return p;
       });
 
-      setPacientes(atualizados);
+      // ✅ CORREÇÃO: Removemos o setPacientes(atualizados) daqui.
+      // Deixamos apenas o salvamento na nuvem. O onSnapshot vai atualizar a tela.
+      
       if (pacienteAtualizadoSalvar) {
         await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
       }
+      
       setPacienteSelecionado({ ...pacienteSelecionado, evolucoes: novasEvolucoes });
 
       window.history.replaceState(
@@ -1198,16 +1190,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
   } finally {
     setExcluindo(false);   // ⬅️ garante que sempre libera o spinner
   }
-};
-
-  const fecharModalExclusao = () => {
-    if (window.history.state?.modalAberto) {
-      window.history.back();
-    } else {
-      setModalExclusao(MODAL_FECHADO);
-    }
   };
-
   const handleSalvarEvolucao = async (dadosEvolucao) => {
     try {
       const user = auth.currentUser;
