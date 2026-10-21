@@ -1005,7 +1005,7 @@ useEffect(() => {
   const unsub = onSnapshot(
     doc(db, 'dispositivos_autorizados', chave),
     (snap) => {
-      if (!snap.exists) return;
+     if (!snap.exists()) return;
 
       const data = snap.data();
 
