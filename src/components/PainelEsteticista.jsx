@@ -761,34 +761,37 @@ if (foiAnonimizadoAgora) {
       : '123456'
     ).padEnd(6, '0');
 
-    let pacienteUid = '';
+    // ✅ COMO DEVE FICAR
+let pacienteUid = '';
 
+try {
+  // 1. Tenta criar a conta (se for um paciente novo)
+  const userCredential = await createUserWithEmailAndPassword(
+    secondaryAuth, emailFicticio, senhaFicticia
+  );
+  pacienteUid = userCredential.user.uid;
+  await signOut(secondaryAuth);
+} catch (authError) {
+  if (authError.code === 'auth/email-already-in-use') {
+    // 2. Se a conta já existe, FAZ LOGIN para pegar o UID verdadeiro
     try {
-      const userCredential = await createUserWithEmailAndPassword(
+      const tempCredential = await signInWithEmailAndPassword(
         secondaryAuth, emailFicticio, senhaFicticia
       );
-      pacienteUid = userCredential.user.uid;
+      pacienteUid = tempCredential.user.uid;
       await signOut(secondaryAuth);
-    } catch (authError) {
-      if (authError.code === 'auth/email-already-in-use') {
-        try {
-          const tempCredential = await signInWithEmailAndPassword(
-            secondaryAuth, emailFicticio, senhaFicticia
-          );
-          pacienteUid = tempCredential.user.uid;
-          await signOut(secondaryAuth);
-        } catch (signInErr) {
-          pacienteUid = gerarUidDeterministico(`${emailFicticio}|${documentoLimpo}`);
-        }
-      } else {
-        alert(`Erro ao criar o acesso do paciente: ${authError.message}`);
-        return;
-      }
+    } catch (signInErr) {
+      // ❌ Se o login falhar, NÃO invente um ID. Mostre o erro.
+      alert('Não foi possível recuperar o ID de acesso do paciente. Verifique se o documento está correto.');
+      return; 
     }
+  } else {
+    alert(`Erro ao criar o acesso do paciente: ${authError.message}`);
+    return;
+  }
+}
 
-    if (!pacienteUid) {
-      pacienteUid = String(Date.now());
-    }
+// (Remova completamente o "if (!pacienteUid) { pacienteUid = String(Date.now()); }")
 
     let pastaExistente = null;
     try {
