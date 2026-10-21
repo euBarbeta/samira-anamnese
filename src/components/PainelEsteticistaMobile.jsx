@@ -1191,6 +1191,13 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     setExcluindo(false);   // ⬅️ garante que sempre libera o spinner
   }
   };
+    const fecharModalExclusao = () => {
+    if (window.history.state?.modalAberto) {
+      window.history.back();
+    } else {
+      setModalExclusao(MODAL_FECHADO);
+    }
+  };
   const handleSalvarEvolucao = async (dadosEvolucao) => {
     try {
       const user = auth.currentUser;

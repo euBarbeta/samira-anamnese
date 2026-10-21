@@ -1162,7 +1162,13 @@ try {
     setExcluindo(false);   // ⬅️ garante que sempre libera o spinner
   }
 };
-
+  const fecharModalExclusao = () => {
+    if (window.history.state?.modalAberto) {
+      window.history.back();
+    } else {
+      setModalExclusao(MODAL_FECHADO);
+    }
+  };
   const handleSalvarEvolucao = async (dadosEvolucao) => {
     const agora = new Date();
     const dataEvo = agora.toLocaleDateString('pt-BR') + ' às ' +
