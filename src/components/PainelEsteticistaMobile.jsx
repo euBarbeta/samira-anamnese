@@ -221,6 +221,7 @@ export default function PainelEsteticistaMobile({ onLogout }) {
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
   const [modalExclusao, setModalExclusao] = useState(MODAL_FECHADO);
+  const [excluindo, setExcluindo] = useState(false); 
 
   const auth = getAuth();
 
@@ -1112,79 +1113,85 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     });
   };
   const confirmarExclusao = async () => {
-    const user = auth.currentUser;
+  if (excluindo) return;   // ⬅️ guard contra duplo clique
+  const user = auth.currentUser;
 
-    if (!user || !user.email) {
-      setModalExclusao(prev => ({
-        ...prev,
-        erroSenha: 'Sessão expirada. Faça login novamente.'
-      }));
+  if (!user || !user.email) {
+    setModalExclusao(prev => ({
+      ...prev,
+      erroSenha: 'Sessão expirada. Faça login novamente.'
+    }));
+    return;
+  }
+
+  setExcluindo(true);   // ⬅️ começa o spinner
+
+  // ✅ 1. Valida a senha SEM deslogar a esteta
+  try {
+    const credential = EmailAuthProvider.credential(user.email, modalExclusao.senhaInput);
+    await reauthenticateWithCredential(user, credential);
+  } catch (error) {
+    console.error("Erro ao validar senha:", error);
+    setModalExclusao(prev => ({
+      ...prev,
+      erroSenha: 'Senha incorreta. Tente novamente.'
+    }));
+    setExcluindo(false);   // ⬅️ para o spinner em caso de erro
+    return;
+  }
+
+  // ✅ 2. Se a senha estiver correta, prossegue com a exclusão
+  try {
+    if (modalExclusao.tipo === 'pasta') {
+      await excluirPacienteDaNuvem(modalExclusao.idAlvo);
+
+      const filtrados = pacientes.filter(p => p.id !== modalExclusao.idAlvo);
+      setPacientes(filtrados);
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+
+      window.history.replaceState(
+        { painelEsteticista: 'lista' },
+        '',
+        window.location.pathname
+      );
+      setTelaAtual('lista');
+      setModalExclusao(MODAL_FECHADO);
       return;
     }
 
-    // ✅ 1. Valida a senha SEM deslogar a esteta
-    try {
-      const credential = EmailAuthProvider.credential(user.email, modalExclusao.senhaInput);
-      await reauthenticateWithCredential(user, credential);
-    } catch (error) {
-      console.error("Erro ao validar senha:", error);
-      setModalExclusao(prev => ({
-        ...prev,
-        erroSenha: 'Senha incorreta. Tente novamente.'
-      }));
-      return; // Para o código aqui se a senha estiver errada
-    }
-
-    // ✅ 2. Se a senha estiver correta, prossegue com a exclusão
-    try {
-      if (modalExclusao.tipo === 'pasta') {
-        await excluirPacienteDaNuvem(modalExclusao.idAlvo);
-
-        const filtrados = pacientes.filter(p => p.id !== modalExclusao.idAlvo);
-        setPacientes(filtrados);
-        setPacienteSelecionado(null);
-        setEvolucaoSelecionada(null);
-
-        window.history.replaceState(
-          { painelEsteticista: 'lista' },
-          '',
-          window.location.pathname
-        );
-        setTelaAtual('lista');
-        setModalExclusao(MODAL_FECHADO);
-        return;
-      }
-
-      if (modalExclusao.tipo === 'evolucao') {
-        let pacienteAtualizadoSalvar = null;
-        const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
-        const atualizados = pacientes.map(p => {
-          if (p.id === pacienteSelecionado.id) {
-            pacienteAtualizadoSalvar = { ...p, evolucoes: novasEvolucoes };
-            return pacienteAtualizadoSalvar;
-          }
-          return p;
-        });
-
-        setPacientes(atualizados);
-        if (pacienteAtualizadoSalvar) {
-          await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
+    if (modalExclusao.tipo === 'evolucao') {
+      let pacienteAtualizadoSalvar = null;
+      const novasEvolucoes = pacienteSelecionado.evolucoes.filter(evo => evo.id !== modalExclusao.idAlvo);
+      const atualizados = pacientes.map(p => {
+        if (p.id === pacienteSelecionado.id) {
+          pacienteAtualizadoSalvar = { ...p, evolucoes: novasEvolucoes };
+          return pacienteAtualizadoSalvar;
         }
-        setPacienteSelecionado({ ...pacienteSelecionado, evolucoes: novasEvolucoes });
+        return p;
+      });
 
-        window.history.replaceState(
-          { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
-          '',
-          window.location.pathname
-        );
-        setTelaAtual('detalhe_pasta');
-        setModalExclusao(MODAL_FECHADO);
+      setPacientes(atualizados);
+      if (pacienteAtualizadoSalvar) {
+        await salvarPacienteNaNuvem(pacienteAtualizadoSalvar);
       }
-    } catch (error) {
-      console.error("Erro ao excluir paciente:", error);
-      alert("Erro ao excluir da nuvem. Tente novamente.");
+      setPacienteSelecionado({ ...pacienteSelecionado, evolucoes: novasEvolucoes });
+
+      window.history.replaceState(
+        { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
+        '',
+        window.location.pathname
+      );
+      setTelaAtual('detalhe_pasta');
+      setModalExclusao(MODAL_FECHADO);
     }
-  };
+  } catch (error) {
+    console.error("Erro ao excluir paciente:", error);
+    alert("Erro ao excluir da nuvem. Tente novamente.");
+  } finally {
+    setExcluindo(false);   // ⬅️ garante que sempre libera o spinner
+  }
+};
 
   const fecharModalExclusao = () => {
     if (window.history.state?.modalAberto) {
@@ -1857,7 +1864,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               )}
 
               {/* TABS: ATIVOS / ARQUIVADOS */}
-              {!termoBusca.trim() && pacientes.length > 0 && (
+              {!termoBusca.trim() && (
                 <div style={{
                   display: 'flex',
                   gap: 8,
@@ -2764,10 +2771,10 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   erroSenha: ''
                 }))}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    confirmarExclusao();
-                  }
-                }}
+  if (e.key === 'Enter' && !excluindo) {
+    confirmarExclusao();
+  }
+}}
                 style={{
                   width: '100%',
                   padding: '10px 0',
@@ -2818,6 +2825,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               <button
                 type="button"
                 onClick={fecharModalExclusao}
+                disabled={excluindo} 
                 style={{
                   background: '#f0f0f0',
                   color: '#333',
@@ -2833,23 +2841,36 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 Cancelar
               </button>
 
-              <button
-                type="button"
-                onClick={confirmarExclusao}
-                style={{
-                  background: '#c62828',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: "'Cinzel', serif"
-                }}
-              >
-                Confirmar
-              </button>
+           <button
+  type="button"
+  onClick={confirmarExclusao}
+  disabled={excluindo}
+  style={{
+    background: excluindo ? '#e5a5a5' : '#c62828',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: excluindo ? 'wait' : 'pointer',
+    fontFamily: "'Cinzel', serif",
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    minWidth: 110,
+  }}
+>
+  {excluindo ? (
+    <>
+      <span className="spinner-salvar" />
+      EXCLUINDO...
+    </>
+  ) : (
+    'Confirmar'
+  )}
+</button>
             </div>
           </div>
         </div>

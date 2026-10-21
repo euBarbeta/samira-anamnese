@@ -589,12 +589,41 @@ export default function AnamneseFicha() {
     const unsubscribe = onSnapshot(
       pacienteDocPath,
       async (docSnap) => {
-        if (docSnap.exists()) {
-          const dadosAtualizados = { id: docSnap.id, ...docSnap.data() };
-          setDadosPaciente(dadosAtualizados);
-        } else {
-          logWarn('Paciente foi excluído. Encerrando sessão...');
-          await signOutSafe();
+       if (docSnap.exists()) {
+  const dadosAtualizados = { id: docSnap.id, ...docSnap.data() };
+
+  // ⚖️ NOVO — paciente foi anonimizado em tempo real → desloga AGORA
+  if (dadosAtualizados.anonimizadoEm) {
+    logWarn('Paciente foi anonimizado. Encerrando sessão...');
+    await signOutSafe();
+    if (isNativo()) {
+      try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
+    }
+    setAutenticado(false);
+    setUsuarioLogado(null);
+    setDadosPaciente(null);
+    setPacienteDocPath(null);
+    setUidDaURL(null);
+    setErroLoginExterno(
+      'Sua conta foi excluída. Entre em contato com a profissional.'
+    );
+    setRota('login-uid');
+    try {
+      ['af_autenticado', 'af_abaAtiva', 'af_dadosPaciente',
+        'af_pacienteDocPath', 'af_uidDaURL']
+        .forEach((k) => {
+          sessionStorage.removeItem(k);
+          localStorage.removeItem(k);
+        });
+    } catch {}
+    return;
+  }
+
+  setDadosPaciente(dadosAtualizados);
+} else {
+  logWarn('Paciente foi excluído. Encerrando sessão...');
+  await signOutSafe();
+
           if (isNativo()) {
             try { await Preferences.remove({ key: 'pacienteId' }); } catch {}
           }
