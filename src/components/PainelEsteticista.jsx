@@ -643,34 +643,45 @@ if (foiAnonimizadoAgora) {
   const listaParaRender = useMemo(() => {
     return abaPacientes === 'arquivados' ? pacientesArquivados : pacientesAtivos;
   }, [abaPacientes, pacientesAtivos, pacientesArquivados]);
+const excluirPacienteDaNuvem = async (idPaciente) => {
+  const user = auth.currentUser;
+  if (!user) return;
 
-  const excluirPacienteDaNuvem = async (idPaciente) => {
-    const user = auth.currentUser;
-    if (!user) return;
+  try {
+    const token = await user.getIdToken();
 
-    try {
-      const res = await fetch('/.netlify/functions/excluir-paciente-completo', { /* ... */ });
-      if (!res.ok) throw new Error('Falha ao excluir na nuvem');
+    const res = await fetch('/.netlify/functions/excluir-paciente-completo', {
+      method: 'POST', // ✅ ESSENCIAL
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        pacienteId: String(idPaciente),
+        uidEsteticista: user.uid,
+        motivo: 'esteta-excluiu',
+      }),
+    });
 
-      cacheBuscaRef.current = null;
-
-      // ✅ CORREÇÃO: Não mexemos no array de pacientes aqui!
-      // O onSnapshot vai detectar a mudança no Firestore e mover o paciente
-      // para a aba "Arquivados" automaticamente, em tempo real.
-
-      // ✅ Apenas fechamos a pasta se for o paciente que está aberto na tela
-      if (String(pacienteSelecionado?.id) === String(idPaciente)) {
-        setPacienteSelecionado(null);
-        setEvolucaoSelecionada(null);
-        setTelaAtual('lista');
-        window.history.replaceState({ painelEsteticista: 'lista' }, '', window.location.pathname);
-      }
-
-    } catch (e) {
-      console.error('Erro ao excluir paciente:', e);
-      throw e;
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Falha ao excluir na nuvem');
     }
-  };
+
+    cacheBuscaRef.current = null;
+
+    if (String(pacienteSelecionado?.id) === String(idPaciente)) {
+      setPacienteSelecionado(null);
+      setEvolucaoSelecionada(null);
+      setTelaAtual('lista');
+      window.history.replaceState({ painelEsteticista: 'lista' }, '', window.location.pathname);
+    }
+
+  } catch (e) {
+    console.error('Erro ao excluir paciente:', e);
+    throw e;
+  }
+};
 
   const extrairDocumento = (dados) => {
     if (!dados) return 'Não informado';
