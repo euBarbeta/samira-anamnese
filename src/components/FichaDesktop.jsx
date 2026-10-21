@@ -2099,7 +2099,7 @@ useEffect(() => {
               </>
             ) : (
              <button
-  type="button"
+  type="submit"  
   className="btn-salvar-ficha"
   form="ficha-form" 
  
