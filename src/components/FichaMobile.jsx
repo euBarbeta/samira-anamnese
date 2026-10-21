@@ -1145,7 +1145,7 @@ useEffect(() => {
     readOnly={mode === 'view'} 
     onChange={(e) => setEmailContato(e.target.value)} 
     autoComplete="email" 
-    placeholder="(opcional)"
+  
   />
 </div>
 
