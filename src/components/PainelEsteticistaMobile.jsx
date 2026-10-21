@@ -13,6 +13,7 @@ import {
   reativarPaciente,
   estaAnonimizado,
   reativarPorEdicao,
+  reativarPacienteCompleto, // <--- ADICIONE ESTA LINHA
 } from '../utils/lgpdExclusao';
 
 import CardSegurancaPaciente from './CardSegurancaPaciente';

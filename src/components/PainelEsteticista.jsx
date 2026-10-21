@@ -6,6 +6,7 @@ import {
   reativarPaciente,
   estaAnonimizado,
   reativarPorEdicao,
+  reativarPacienteCompleto, // <--- ADICIONE ESTA LINHA
 } from '../utils/lgpdExclusao';
 import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdAssignment,
