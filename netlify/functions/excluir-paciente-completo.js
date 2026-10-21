@@ -1,3 +1,4 @@
+// netlify/functions/excluir-paciente-completo.js
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
@@ -60,9 +61,13 @@ exports.handler = async (event) => {
       motivoDesativacao: motivo,
     }).catch(() => {});
 
-    // 4. Deleta a Conta no Firebase Auth (Aqui o paciente perde o acesso!)
-    await auth.deleteUser(String(pacienteId)).catch((e) => {
-      console.warn('Aviso: Não foi possível deletar Auth (pode já ter sido excluído):', e.message);
+    // ============================================================
+    // ✅ CORREÇÃO CRÍTICA AQUI:
+    // NÃO DELETA a conta do Auth. Apenas DESABILITA.
+    // Assim o UID continua existindo e o prontuário fica seguro.
+    // ============================================================
+    await auth.updateUser(String(pacienteId), { disabled: true }).catch((e) => {
+      console.warn('Aviso: Não foi possível desabilitar o Auth (pode já estar desabilitado):', e.message);
     });
 
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true }) };

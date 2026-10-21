@@ -3,10 +3,11 @@
 // ⚖️ Recria (ou reabilita) a conta do Firebase Auth de um paciente
 //    que foi reativado após ser arquivado.
 //
-// Por que precisa disso?
-//   - O `excluir-paciente-completo` faz `auth.deleteUser(pacienteId)`
-//   - Isso DESTRÓI a conta de login no Firebase Auth
-//   - Sem essa Function, o paciente reativado NÃO consegue logar
+// Como funciona agora?
+//   - O `excluir-paciente-completo` agora apenas DESABILITA a conta.
+//   - Esta function garante que a conta volte a ficar ativa (disabled: false).
+//   - Se a conta tiver sido deletada por algum motivo extremo (ex: exclusão
+//     pelo próprio paciente), a function recria com o mesmo UID.
 
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
