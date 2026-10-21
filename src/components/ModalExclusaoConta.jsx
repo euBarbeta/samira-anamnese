@@ -9,7 +9,6 @@ import {
   query, where, updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { anonimizarPaciente } from '../utils/lgpdExclusao';
 
 /**
  * Modal de exclusão da conta do paciente.
@@ -19,8 +18,6 @@ import { anonimizarPaciente } from '../utils/lgpdExclusao';
  *  - Dados de SAÚDE (anamnese, evoluções, fotos) → MANTIDOS por 20 anos
  *  - Agendamentos → anonimizados (mantidos para histórico da esteta)
  *  - Conta de acesso (Auth) → deletada
- *
- * ✅ Refatorado: usa o helper `anonimizarPaciente()` (fonte única de verdade)
  */
 export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido }) {
   const [senha, setSenha] = useState('');
@@ -29,108 +26,114 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
   const [excluindo, setExcluindo] = useState(false);
   const [confirmacaoTexto, setConfirmacaoTexto] = useState('');
 
-const handleExcluir = async () => {
-  setErro('');
+  // ✅ FUNÇÃO AUXILIAR PARA EVITAR O ERRO "Database is closing/hidden"
+  const tentarComRetry = async (fn, tentativas = 3) => {
+    for (let i = 0; i < tentativas; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        const msg = error?.message || '';
+        if (msg.includes('Database is closing/hidden') && i < tentativas - 1) {
+          console.warn(`[Firebase] Tentativa ${i + 1} falhou (Database fechando). Retentando...`);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Espera 500ms
+          continue;
+        }
+        throw error;
+      }
+    }
+  };
 
-  if (!senha) {
-    setErro('Digite sua senha para confirmar.');
-    return;
-  }
+  const handleExcluir = async () => {
+    setErro('');
 
-  if (confirmacaoTexto.trim().toUpperCase() !== 'EXCLUIR') {
-    setErro('Digite EXCLUIR no campo de confirmação.');
-    return;
-  }
-
-  setExcluindo(true);
-
-  try {
-    const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;
-    if (!emailPaciente) {
-      throw new Error('E-mail do paciente não encontrado.');
+    if (!senha) {
+      setErro('Digite sua senha para confirmar.');
+      return;
     }
 
-    // 1) Valida a senha fazendo re-login
-    await signInWithEmailAndPassword(auth, emailPaciente, senha);
-
-    const pacienteId = pacienteData.id;
-    const uidEsteticista = pacienteData.criadoPorUid;
-
-    if (!uidEsteticista || !pacienteId) {
-      throw new Error('Dados do paciente incompletos.');
+    if (confirmacaoTexto.trim().toUpperCase() !== 'EXCLUIR') {
+      setErro('Digite EXCLUIR no campo de confirmação.');
+      return;
     }
 
-    // 2) Chama a Function que faz a anonimização (bypassa as rules)
-    const user = auth.currentUser;
-    const token = await user.getIdToken();
+    setExcluindo(true);
 
-    const res = await fetch('/.netlify/functions/anonimizar-conta-paciente', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ uidEsteticista }),
-    });
+    try {
+      const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;
+      if (!emailPaciente) {
+        throw new Error('E-mail do paciente não encontrado.');
+      }
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Falha ao anonimizar conta.');
-    }
+      // 1) Valida a senha fazendo re-login (COM RETRY)
+      await tentarComRetry(async () => {
+        await signInWithEmailAndPassword(auth, emailPaciente, senha);
+      });
 
-// 3) Re-autentica e deleta do Auth (garantia de sessão fresca)
-// ------------------------------------------------------------
-// Se falhar aqui, o paciente NÃO consegue mais logar (foi
-// anonimizado e o mapeamento_emails foi apagado), mas a conta
-// do Auth continua "viva" no Firebase. Tentamos 2 vezes antes
-// de desistir e seguimos com signOut de qualquer forma.
-// ------------------------------------------------------------
-let authDeletado = false;
-for (let tentativa = 1; tentativa <= 2; tentativa++) {
-  try {
-    await signInWithEmailAndPassword(auth, emailPaciente, senha);
-    await auth.currentUser.delete();
-    authDeletado = true;
-    break;
-  } catch (e) {
-    if (e?.code === 'auth/requires-recent-login' && tentativa < 2) {
-      // Retry — a sessão expirou entre o signIn e o delete
-      continue;
-    }
-    // Última tentativa falhou → só segue
-    if (tentativa === 2) {
-      console.warn('Não foi possível deletar do Auth (última tentativa):', e?.code || e?.message);
-    }
-  }
-}
+      const pacienteId = pacienteData.id;
+      const uidEsteticista = pacienteData.criadoPorUid;
 
-if (!authDeletado) {
-  try {
-    const { signOut } = await import('firebase/auth');
-    await signOut(auth);
-  } catch {}
-}
-   
- onExcluido?.();
-  } catch (err) {
-    console.error('Erro ao excluir conta:', err);
-    const code = err?.code || '';
-    if (
-      code === 'auth/wrong-password' ||
-      code === 'auth/invalid-credential' ||
-      code === 'auth/invalid-login-credentials'
-    ) {
-      setErro('Senha incorreta. Tente novamente.');
-    } else if (code === 'auth/too-many-requests') {
-      setErro('Muitas tentativas. Aguarde alguns minutos.');
-    } else {
-      setErro(err?.message || 'Não foi possível excluir a conta. Tente novamente.');
+      if (!uidEsteticista || !pacienteId) {
+        throw new Error('Dados do paciente incompletos.');
+      }
+
+      // 2) Chama a Function que faz a anonimização (bypassa as rules)
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+
+      const res = await fetch('/.netlify/functions/anonimizar-conta-paciente', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ uidEsteticista }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha ao anonimizar conta.');
+      }
+
+      // 3) Re-autentica e deleta do Auth (COM RETRY)
+      let authDeletado = false;
+      
+      try {
+        await tentarComRetry(async () => {
+          await signInWithEmailAndPassword(auth, emailPaciente, senha);
+          await auth.currentUser.delete();
+        });
+        authDeletado = true;
+      } catch (e) {
+        console.warn('Não foi possível deletar do Auth após retries:', e?.code || e?.message);
+      }
+
+      if (!authDeletado) {
+        try {
+          const { signOut } = await import('firebase/auth');
+          await signOut(auth);
+        } catch {}
+      }
+      
+      onExcluido?.();
+    } catch (err) {
+      console.error('Erro ao excluir conta:', err);
+      const code = err?.code || '';
+      if (
+        code === 'auth/wrong-password' ||
+        code === 'auth/invalid-credential' ||
+        code === 'auth/invalid-login-credentials'
+      ) {
+        setErro('Senha incorreta. Tente novamente.');
+      } else if (code === 'auth/too-many-requests') {
+        setErro('Muitas tentativas. Aguarde alguns minutos.');
+      } else {
+        setErro(err?.message || 'Não foi possível excluir a conta. Tente novamente.');
+      }
+      setExcluindo(false);
     }
-    setExcluindo(false);
-  }
-};
+  };
+
   return (
-    // ... (todo o JSX permanece IGUAL — nenhuma mudança visual)
     <div
       onClick={excluindo ? undefined : onFechar}
       style={{
@@ -357,55 +360,4 @@ if (!authDeletado) {
       </div>
     </div>
   );
-}
-
-/* ============================================================
-   HELPER — anonimiza dados de segurança (seguranca_estado + dispositivos)
-   ------------------------------------------------------------
-   ⚠️ As rules bloqueiam DELETE em dispositivos_autorizados.
-   Por isso só podemos ANONIMIZAR (updateDoc), não deletar.
-   ============================================================ */
-async function anonimizarDadosSeguranca(pacienteId) {
-  const pid = String(pacienteId);
-  const agora = new Date().toISOString();
-
-  // 1) seguranca_estado — apaga localização e marca como anonimizado
-  try {
-    const segRef = doc(db, 'seguranca_estado', pid);
-    const segSnap = await getDoc(segRef);
-    if (segSnap.exists()) {
-      await updateDoc(segRef, {
-        localizacaoStatus: 'anonimizada',
-        lat: null,
-        lng: null,
-        cidade: null,
-        pais: null,
-        anonimizadoEm: agora,
-      });
-    }
-  } catch (e) {
-    console.warn('Falha ao anonimizar seguranca_estado:', e);
-  }
-
-  // 2) dispositivos_autorizados — marca como anonimizado (NÃO deleta)
-  try {
-    const devSnap = await getDocs(
-      query(
-        collection(db, 'dispositivos_autorizados'),
-        where('pacienteId', '==', pid)
-      )
-    );
-    for (const d of devSnap.docs) {
-      try {
-        await updateDoc(d.ref, {
-          autorizado: false,
-          anonimizadoEm: agora,
-        });
-      } catch (e) {
-        console.warn('Falha ao anonimizar dispositivo:', d.id, e);
-      }
-    }
-  } catch (e) {
-    console.warn('Falha ao anonimizar dispositivos:', e);
-  }
 }
