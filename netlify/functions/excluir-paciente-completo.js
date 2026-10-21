@@ -36,8 +36,6 @@ exports.handler = async (event) => {
       telefone: null,
       emailContato: null,
       endereco: null,
-      emailAcesso: null,
-      email: null,
       consentimentoLGPD: null, // Reseta o LGPD
       'anamnese.telefone': null,
       'anamnese.emailContato': null,

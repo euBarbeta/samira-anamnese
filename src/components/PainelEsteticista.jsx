@@ -954,15 +954,15 @@ if (foiAnonimizadoAgora) {
       // ============================================================
       // 3) Reativa no Firestore (remove anonimizadoEm, atualiza dados)
       // ============================================================
-      await reativarPorEdicao({
-        pacienteId: pacienteSelecionado.id,
-        uidEsteticista: userEst.uid,
-        nome: dadosAtualizados.nome,
-        documento: extrairDocumento(dadosAtualizados),
-        telefone: dadosAtualizados.telefone,
-        emailContato: dadosAtualizados.emailContato,
-        endereco: dadosAtualizados.endereco,
-      });
+     await reativarPacienteCompleto({
+  pacienteId: pacienteSelecionado.id,
+  uidEsteticista: userEst.uid,
+  nome: dadosAtualizados.nome,
+  documento: extrairDocumento(dadosAtualizados),
+  telefone: dadosAtualizados.telefone,
+  emailContato: dadosAtualizados.emailContato,
+  endereco: dadosAtualizados.endereco,
+});
 
       cacheBuscaRef.current = null;
     }

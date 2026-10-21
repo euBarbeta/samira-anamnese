@@ -56,8 +56,6 @@ export async function anonimizarPaciente({
     telefone: null,
     emailContato: null,
     endereco: null,
-    emailAcesso: null,
-    email: null,
     consentimentoLGPD: null,
     'anamnese.telefone': null,
     'anamnese.emailContato': null,
