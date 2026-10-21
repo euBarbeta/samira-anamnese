@@ -649,7 +649,6 @@ if (foiAnonimizadoAgora) {
     if (!user) return;
 
     try {
-      // ✅ Chama a Function Mestra (ela ignora as regras e nunca dará Permission Denied)
       const res = await fetch('/.netlify/functions/excluir-paciente-completo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -660,11 +659,27 @@ if (foiAnonimizadoAgora) {
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Falha ao excluir na nuvem');
-      }
+      if (!res.ok) throw new Error('Falha ao excluir na nuvem');
 
       cacheBuscaRef.current = null;
+
+      // ✅ A MÁGICA ACONTECE AQUI:
+      // Atualiza o paciente no state local com a data de anonimização.
+      // O React vai mover ele para a aba "Arquivados" NA HORA, sem recarregar.
+      setPacientes(prev => prev.map(p => 
+        String(p.id) === String(idPaciente) 
+          ? { ...p, anonimizadoEm: new Date().toISOString() } 
+          : p
+      ));
+
+      // Se o paciente excluído era o que estava aberto na tela, fecha a pasta
+      if (String(pacienteSelecionado?.id) === String(idPaciente)) {
+        setPacienteSelecionado(null);
+        setEvolucaoSelecionada(null);
+        setTelaAtual('lista');
+        window.history.replaceState({ painelEsteticista: 'lista' }, '', window.location.pathname);
+      }
+
     } catch (e) {
       console.error('Erro ao excluir paciente:', e);
       throw e;
@@ -918,23 +933,7 @@ if (foiAnonimizadoAgora) {
       const senhaFicticia = (docLimpo.length >= 6 ? docLimpo.slice(-6) : '123456')
         .padEnd(6, '0');
 
-      try {
-        // Tenta criar de novo
-        await createUserWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
-        await signOut(secondaryAuth);
-      } catch (authErr) {
-        // Se já existe, tenta logar em silêncio (só pra validar que ainda funciona)
-        if (authErr.code === 'auth/email-already-in-use') {
-          try {
-            await signInWithEmailAndPassword(secondaryAuth, emailFicticio, senhaFicticia);
-            await signOut(secondaryAuth);
-          } catch (e) {
-           // console.warn('Conta Auth existe, mas senha mudou:', e);
-          }
-        } else {
-          //console.warn('Erro ao recriar conta Auth:', authErr);
-        }
-      }
+ 
 
       // ============================================================
       // 2) Reconstrói o mapeamento de email → (uid, pacienteId)
