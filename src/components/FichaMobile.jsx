@@ -849,7 +849,11 @@ useEffect(() => {
   -webkit-text-fill-color: #1A1A1A;
 }
       `}</style>
-
+  <form 
+        id="ficha-form-mobile" 
+        onSubmit={(e) => e.preventDefault()} 
+        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+      >
       <div 
         id="ficha-container-pdf"
         style={{
@@ -999,6 +1003,7 @@ useEffect(() => {
   type="button"
   onClick={salvarFicha}
   disabled={salvando || salvoSucesso}
+  form="ficha-form-mobile"
   style={{
     backgroundColor: salvoSucesso ? '#16a34a' : '#D4AF37',
     color: '#FFFFFF',
@@ -1100,13 +1105,13 @@ useEffect(() => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
                 <label htmlFor="input-nome" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Nome:</label>
-                <input id="input-nome" name="nome" type="text" className="input-line" value={nome} readOnly={mode === 'view'} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+                <input id="input-nome" name="nome" type="text" className="input-line" value={nome} readOnly={mode === 'view'} onChange={(e) => setNome(e.target.value)} autoComplete="name"  required />
               </div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
                   <label htmlFor="input-documento" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Documento:</label>
-                  <input id="input-documento" name="numeroDocumento" type="text" className="input-line" value={numeroDocumento} readOnly={mode === 'view'} onChange={(e) => setNumeroDocumento(e.target.value)} autoComplete="off" />
+                  <input id="input-documento" name="numeroDocumento" type="text" className="input-line" value={numeroDocumento} readOnly={mode === 'view'} onChange={(e) => setNumeroDocumento(e.target.value)} autoComplete="off"  required />
                 </div>
                <div style={{ flex: 1 }}>
   <label style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Telefone:</label>
@@ -2086,6 +2091,7 @@ useEffect(() => {
     />
   </div>
 )}
+</form>
     </div>
   );
 }

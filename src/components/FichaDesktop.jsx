@@ -864,7 +864,8 @@ useEffect(() => {
   -webkit-text-fill-color: #1A1A1A;
 }
       `}</style>
-
+    {/* ✅ FORM INICIA AQUI */}
+      <form id="ficha-form" onSubmit={(e) => e.preventDefault()} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
       <div 
         id="ficha-container"
         style={{
@@ -911,6 +912,7 @@ useEffect(() => {
           value={nome}
           readOnly={mode === 'view'}
           onChange={(e) => setNome(e.target.value)}
+          required 
         />
       </div>
     </div>
@@ -1044,6 +1046,7 @@ useEffect(() => {
           value={numeroDocumento}
           readOnly={mode === 'view'}
           onChange={(e) => setNumeroDocumento(e.target.value)}
+            required
         />
       </div>
     </div>
@@ -2094,6 +2097,7 @@ useEffect(() => {
              <button
   type="button"
   className="btn-salvar-ficha"
+  form="ficha-form" 
   onClick={salvarFicha}
   disabled={salvando || salvoSucesso}
   style={{
@@ -2137,6 +2141,7 @@ useEffect(() => {
         </div>
 
       </div>
+      </form>
     </div>
   );
 }
