@@ -762,7 +762,12 @@ export default function AnamneseFicha() {
       let estetaUidParaPath = null;
 
       if (isNativo() && !uidDaURL) {
-        const { value } = await Preferences.get({ key: 'pacienteId' });
+        // ✅ TIMEOUT NO PREFERENCES: Se o Capacitor não responder em 2s, ignora e continua.
+        const prefPromise = Preferences.get({ key: 'pacienteId' });
+        const timeoutPref = new Promise((resolve) => setTimeout(() => resolve({ value: null }), 2000));
+        
+        const { value } = await Promise.race([prefPromise, timeoutPref]);
+
         if (value) {
           const esteticistasUids = [
             'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
@@ -1393,7 +1398,6 @@ export default function AnamneseFicha() {
       );
     }
 
-    // ✅ CORREÇÃO CRÍTICA: Se o auth foi verificado e não está autenticado, mostra o login, ignorando `buscandoPaciente`
     if (!autenticado) {
       if (rota === 'admin') {
         return isMobile
