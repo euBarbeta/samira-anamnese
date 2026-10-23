@@ -29,6 +29,7 @@ import {
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { MdWarning } from 'react-icons/md';
 
 const lerSessao = (k) => {
   try {
@@ -57,6 +58,10 @@ export default function AnamneseFicha() {
   const [mostrarModalSair, setMostrarModalSair] = useState(false);
   const [motivoSuspensao, setMotivoSuspensao] = useState('');
   const [avisoLocalizacao, setAvisoLocalizacao] = useState(null);
+  
+  // ✅ NOVOS ESTADOS DE SEGURANÇA
+  const [aguardandoAprovacao, setAguardandoAprovacao] = useState(false);
+  const [erroBloqueio, setErroBloqueio] = useState('');
 
   useBackButtonExit(() => {
     setMostrarModalSair(true);
@@ -225,9 +230,6 @@ export default function AnamneseFicha() {
       setUidDaURL(hash);
       uidDaURLRef.current = hash;
       
-      // ✅ Não valida no Firestore se ainda não estiver logado.
-      // Se não estiver logado, mostra a tela de login. 
-      // A validação do link será feita DEPOIS que ele logar (no handleLoginSucesso).
       if (autenticado && dadosPaciente && String(dadosPaciente.id) !== String(hash)) {
         setRota('nao-encontrado');
       } else {
@@ -668,6 +670,48 @@ export default function AnamneseFicha() {
   }, [autenticado, usuarioLogado]);
 
   // ============================================================
+  // MONITOR DE APROVAÇÃO DE DISPOSITIVO
+  // ============================================================
+  useEffect(() => {
+    if (!aguardandoAprovacao) return;
+
+    let unsub = null;
+
+    (async () => {
+      const { gerarFingerprintEstavel, chaveDispositivo } = await import('../utils/dispositivos');
+      const fingerprint = gerarFingerprintEstavel();
+      const pacienteId = uidDaURLRef.current;
+      
+      if (!pacienteId) return;
+
+      const chave = chaveDispositivo(pacienteId, fingerprint);
+      const ref = doc(db, 'dispositivos_autorizados', chave);
+
+      unsub = onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.autorizado === true) {
+            // ✅ Liberado! Entra no painel.
+            setAguardandoAprovacao(false);
+            window.location.reload(); // Recarrega para fazer o fluxo de login normal
+          } else if (data.autorizado === false && data.motivoBloqueio) {
+            // ❌ A esteticista bloqueou
+            unsub();
+            setAguardandoAprovacao(false);
+            setErroBloqueio(data.motivoBloqueio);
+            setRota('dispositivo_bloqueado');
+            signOutSafe();
+          }
+        }
+      });
+    })();
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [aguardandoAprovacao]);
+
+  // ============================================================
   // LOGIN
   // ============================================================
   const handleLoginSucesso = async (user, opcoes = {}) => {
@@ -696,11 +740,9 @@ export default function AnamneseFicha() {
 
       setBuscandoPaciente(true);
 
-      // ✅ SEGREDO: Aguarda o Firebase Auth "entregar" o token para o Firestore
-      // Isso evita o erro "Missing or insufficient permissions" na primeira leitura
       try {
         await user.getIdToken(true);
-        await new Promise(r => setTimeout(r, 500)); // Delay de 500ms para sincronização
+        await new Promise(r => setTimeout(r, 500));
       } catch (e) {
         console.warn('Erro ao forçar token:', e);
       }
@@ -708,7 +750,6 @@ export default function AnamneseFicha() {
       let pacienteEncontrado = null;
       let mapSnap2Data = null;
 
-      // Fallback Nativo
       if (isNativo() && !uidDaURL) {
         const { value } = await Preferences.get({ key: 'pacienteId' });
         if (value) {
@@ -735,7 +776,6 @@ export default function AnamneseFicha() {
 
       const mapRef = doc(db, 'mapeamento_emails', emailUsuario);
 
-      // 🚀 2. BUSCA DIRETA NO MAPEAMENTO (Rápido)
       if (!pacienteEncontrado) {
         const mapSnap = await getDoc(mapRef);
         if (mapSnap.exists()) {
@@ -749,7 +789,6 @@ export default function AnamneseFicha() {
         }
       }
 
-      // 🚀 FALLBACK 100% MANTIDO: BUSCA ANTIGA VARRENDO AS ESTETAS
       if (!pacienteEncontrado) {
         const esteticistasUids = [
           'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
@@ -786,7 +825,6 @@ export default function AnamneseFicha() {
 
       if (pacienteEncontrado) {
         
-        // 🚀 3. VERIFICA SE ESTÁ ARQUIVADO (Bloqueio de conta excluída)
         if (pacienteEncontrado.anonimizadoEm) {
           await signOutSafe();
           setAutenticado(false);
@@ -837,7 +875,6 @@ export default function AnamneseFicha() {
 
         setDadosPaciente(pacienteEncontrado);
 
-        // 🚀 SEGREDO: GPS e Verificação de Dispositivo em background!
         import('../utils/segurancaEstado')
           .then(({ atualizarEstadoSeguranca }) => {
             atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
@@ -878,12 +915,26 @@ export default function AnamneseFicha() {
             const data = await res.json();
 
             if (data.status === 'bloqueado') {
-              await signOutSafe();
-              setAutenticado(false);
-              setUsuarioLogado(null);
-              setDadosPaciente(null);
-              setErroLoginExterno(data.motivo || 'Acesso suspenso pela profissional. Entre em contato.');
-              setRota('login-uid');
+              if (data.motivo === 'Acesso bloqueado preventivamente. A profissional foi notificada e precisa liberar este dispositivo.') {
+                // ✅ Novo dispositivo pendente, bloqueia com loading
+                setBuscandoPaciente(false);
+                setAguardandoAprovacao(true);
+                
+                // Salva os dados do paciente encontrados para usar depois
+                window._pacientePendente = pacienteEncontrado;
+                window._pacienteDocPathPendente = estetaUidParaPath;
+                return;
+              } else {
+                // ✅ Já estava bloqueado pela esteticista
+                await signOutSafe();
+                setAutenticado(false);
+                setUsuarioLogado(null);
+                setDadosPaciente(null);
+                setErroBloqueio(data.motivo || 'Acesso suspenso pela profissional.');
+                setBuscandoPaciente(false);
+                setRota('dispositivo_bloqueado');
+                return;
+              }
             }
           } catch (e) {
             console.warn('Falha ao verificar dispositivo em background:', e);
@@ -1109,6 +1160,65 @@ export default function AnamneseFicha() {
     const hashAtual = window.location.hash.slice(1);
     const pathAtual = window.location.pathname;
     const ehAdminUrl = pathAtual === '/admin' || pathAtual.startsWith('/admin/');
+
+    if (aguardandoAprovacao) {
+      return (
+        <div style={{
+          minHeight: '100vh', backgroundColor: '#d7cee0',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Montserrat', sans-serif", padding: 20, boxSizing: 'border-box'
+        }}>
+          <LoadingElegante texto="Aguardando permissão da esteticista..." />
+          <p style={{ fontSize: 12, color: '#666', textAlign: 'center', marginTop: 10, maxWidth: 300, lineHeight: 1.5 }}>
+            Por segurança, este novo dispositivo precisa ser autorizado pela profissional. 
+            Assim que ela liberar, você entrará automaticamente.
+          </p>
+        </div>
+      );
+    }
+
+    if (rota === 'dispositivo_bloqueado') {
+      return (
+        <div style={{
+          minHeight: '100vh', backgroundColor: '#d7cee0',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          padding: 20, boxSizing: 'border-box', fontFamily: "'Montserrat', sans-serif"
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20, padding: '36px 28px', maxWidth: 400, width: '100%',
+            textAlign: 'center', boxShadow: '0 15px 40px rgba(44, 22, 58, 0.25)', border: '1.5px solid #fca5a5'
+          }}>
+            <div style={{
+              width: 72, height: 72, margin: '0 auto 16px', borderRadius: '50%',
+              background: '#fde8e8', border: '2px solid #ef9a9a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <MdWarning size={34} color="#c62828" />
+            </div>
+            <h2 style={{ fontFamily: "'Cinzel', serif", color: '#c62828', fontSize: 18, margin: '0 0 12px 0' }}>
+              Acesso bloqueado
+            </h2>
+            <p style={{ fontSize: 13, color: '#555', lineHeight: 1.6, margin: '0 0 24px 0' }}>
+              {erroBloqueio || 'Sua conta foi suspensa pela profissional. Entre em contato para mais informações.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setErroBloqueio('');
+                setRota('login-uid');
+              }}
+              style={{
+                fontFamily: "'Cinzel', serif", background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                color: '#fff', border: '1.5px solid #9c7826', padding: '12px 20px', borderRadius: '24px',
+                fontSize: '12px', fontWeight: 700, width: '100%', cursor: 'pointer'
+              }}
+            >
+              VOLTAR AO LOGIN
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     if (rota === 'acesso-suspenso') {
       return (
