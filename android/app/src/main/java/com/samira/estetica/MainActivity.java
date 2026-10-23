@@ -1,6 +1,7 @@
 package com.samira.estetica;
 
 import android.os.Bundle;
+import android.webkit.WebView; // ✅ IMPORT ADICIONADO
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationChannelCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -11,6 +12,9 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // ✅ Força modo CLARO sempre, ignorando o modo escuro do sistema
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+
+        // ✅ HABILITA A DEPURAÇÃO DA WEBVIEW (Para o Chrome inspect funcionar)
+        WebView.setWebContentsDebuggingEnabled(true);
 
         super.onCreate(savedInstanceState);
         criarCanalNotificacao();
