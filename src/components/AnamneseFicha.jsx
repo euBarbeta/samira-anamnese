@@ -1167,6 +1167,21 @@ export default function AnamneseFicha() {
             Por segurança, este novo dispositivo precisa ser autorizado pela profissional. 
             Assim que ela liberar, você entrará automaticamente.
           </p>
+          <button
+            onClick={handleLogout}
+            style={{
+              marginTop: 20,
+              padding: '8px 16px',
+              background: 'transparent',
+              border: '1px solid #999',
+              borderRadius: '20px',
+              color: '#666',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancelar e voltar
+          </button>
         </div>
       );
     }
@@ -1345,6 +1360,29 @@ export default function AnamneseFicha() {
           <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>
             Reconectando…
           </span>
+          {/* ✅ BOTÃO DE EMERGÊNCIA AQUI */}
+          <button
+            type="button"
+            onClick={() => {
+              setAuthVerificado(true);
+              setAutenticado(false);
+              setRota('login-uid');
+              setBuscandoPaciente(false);
+            }}
+            style={{
+              marginTop: 24,
+              padding: '8px 16px',
+              background: 'rgba(255,255,255,0.4)',
+              border: '1px solid rgba(44, 22, 58, 0.2)',
+              borderRadius: '20px',
+              color: '#55286f',
+              fontSize: '11px',
+              cursor: 'pointer',
+              backdropFilter: 'blur(4px)'
+            }}
+          >
+            Destravar / Ir para o Login
+          </button>
           <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
         </div>
       );
@@ -1377,12 +1415,35 @@ export default function AnamneseFicha() {
       return (
         <div style={{
           display: 'flex',
+          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '100vh',
           backgroundColor: '#d7cee0',
         }}>
           <LoadingElegante texto="Carregando painel do paciente..." />
+          {/* ✅ BOTÃO DE EMERGÊNCIA AQUI */}
+          <button
+            type="button"
+            onClick={() => {
+              setBuscandoPaciente(false);
+              setAutenticado(false);
+              setRota('login-uid');
+              signOutSafe();
+            }}
+            style={{
+              marginTop: 20,
+              padding: '8px 16px',
+              background: 'transparent',
+              border: '1px solid #999',
+              borderRadius: '20px',
+              color: '#666',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancelar e voltar ao login
+          </button>
         </div>
       );
     }
