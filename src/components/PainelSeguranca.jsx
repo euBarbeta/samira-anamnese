@@ -8,6 +8,7 @@ import { db } from './firebase';
 import {
   MdWarning, MdShield, MdCheckCircle, MdBlock, MdUndo,
   MdRefresh, MdAccessTime, MdDevices, MdEmail, MdLocationOff,
+  MdClose, // ✅ Importado o ícone de fechar
 } from 'react-icons/md';
 import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocalizacao';
 
@@ -198,10 +199,12 @@ export default function PainelSeguranca() {
   const relevantes = tentativas.filter((t) => {
     const temFalhas = (t.tentativas || []).length > 0;
     const bloqueado = estaBloqueado(t.id);
+    // ✅ Se o alerta foi dispensado, some da lista de suspeitos,
+    // mas continua na lista de bloqueados se a conta estiver bloqueada.
     return temFalhas || bloqueado || t.requerBloqueio;
   });
 
-  const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id));
+  const suspeitos = relevantes.filter((t) => !estaBloqueado(t.id) && t.requerBloqueio !== false);
   const bloqueadosLista = relevantes.filter((t) => estaBloqueado(t.id));
 
   const semLocalizacao = useMemo(() => {
@@ -389,15 +392,40 @@ export default function PainelSeguranca() {
                       Bloqueado em {b?.bloqueadoEm ? new Date(b.bloqueadoEm).toLocaleString('pt-BR') : '—'}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => executarAcao(t.id, 'desbloquear')}
-                      disabled={processando === t.id}
-                      style={btnPrimario}
-                    >
-                      <MdUndo size={14} />
-                      {processando === t.id ? 'PROCESSANDO…' : 'DESBLOQUEAR ACESSO'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => executarAcao(t.id, 'desbloquear')}
+                        disabled={processando === t.id}
+                        style={btnPrimario}
+                      >
+                        <MdUndo size={14} />
+                        {processando === t.id ? 'PROCESSANDO…' : 'DESBLOQUEAR ACESSO'}
+                      </button>
+
+                      {/* ✅ NOVO BOTÃO X (Dispensar Alerta) */}
+                      <button
+                        type="button"
+                        onClick={() => executarAcao(t.id, 'dispensar')}
+                        disabled={processando === t.id}
+                        title="Fechar alerta sem desbloquear"
+                        style={{
+                          background: 'transparent',
+                          border: '1.5px solid #ccc',
+                          color: '#666',
+                          width: 38,
+                          height: 38,
+                          borderRadius: 12,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <MdClose size={20} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -467,7 +495,7 @@ export default function PainelSeguranca() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button
                       type="button"
                       onClick={() => setMostrarModal(t.id)}
@@ -476,6 +504,29 @@ export default function PainelSeguranca() {
                     >
                       <MdBlock size={14} />
                       BLOQUEAR
+                    </button>
+
+                    {/* ✅ NOVO BOTÃO X (Dispensar Alerta) */}
+                    <button
+                      type="button"
+                      onClick={() => executarAcao(t.id, 'dispensar')}
+                      disabled={carregandoEste}
+                      title="Fechar alerta sem bloquear"
+                      style={{
+                        background: 'transparent',
+                        border: '1.5px solid #ccc',
+                        color: '#666',
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <MdClose size={20} />
                     </button>
                   </div>
                 </div>

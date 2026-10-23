@@ -52,7 +52,9 @@ exports.handler = async (event) => {
     }
 
     const { emailHash, acao, motivo = '' } = JSON.parse(event.body || '{}');
-    if (!emailHash || !['bloquear', 'desbloquear'].includes(acao)) {
+    
+    // ✅ Adicionado 'dispensar' na lista de ações permitidas
+    if (!emailHash || !['bloquear', 'desbloquear', 'dispensar'].includes(acao)) {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados inválidos' }) };
     }
 
@@ -71,8 +73,7 @@ exports.handler = async (event) => {
         { merge: true }
       );
 
-      // ✅ OPÇÃO B: zera o contador ao BLOQUEAR também
-      //    (o alerta = "ações pendentes"; a esteta já tomou ação)
+      // ✅ zera o contador ao BLOQUEAR também
       await db.collection('tentativas_login').doc(emailHash).set(
         {
           requerBloqueio: false,
@@ -80,7 +81,7 @@ exports.handler = async (event) => {
         },
         { merge: true }
       );
-    } else {
+    } else if (acao === 'desbloquear') {
       // 1) Desbloqueia
       await ref.set(
         {
@@ -97,7 +98,19 @@ exports.handler = async (event) => {
         {
           tentativas: [],
           totalTentativas: 0,
-          requerBloqueio: false,   // ← ESSENCIAL pro contador voltar a 0
+          requerBloqueio: false,
+          atualizadoEm: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } else if (acao === 'dispensar') {
+      // ✅ NOVO: Apenas limpa o alerta da tela (requerBloqueio = false).
+      // O bloqueio em si (bloqueios_login) permanece intacto, então a pessoa
+      // continua sem conseguir logar até a esteta clicar em DESBLOQUEAR.
+      await db.collection('tentativas_login').doc(emailHash).set(
+        {
+          requerBloqueio: false,
+          dispensadoEm: new Date().toISOString(),
           atualizadoEm: new Date().toISOString(),
         },
         { merge: true }
