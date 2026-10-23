@@ -240,7 +240,7 @@ export default function ModalConsentimentoPrimeiroAcesso({
                 >
                   Política de Privacidade
                 </button>
-                {' '}(v1.0).
+                {' '}(v2.0).
               </span>
             </label>
 

@@ -1,7 +1,7 @@
 // src/components/ModalExclusaoConta.jsx
 import React, { useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { MdWarning, MdDelete, MdInfoOutline } from 'react-icons/md';
+import { MdWarning, MdDelete } from 'react-icons/md';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 
@@ -58,23 +58,33 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
     setExcluindo(true);
 
     try {
-      const emailPaciente = pacienteData?.emailAcesso || pacienteData?.email;
-      if (!emailPaciente) {
-        throw new Error('E-mail do paciente não encontrado.');
+      // ✅ CORREÇÃO: Busca o e-mail em todas as camadas possíveis
+      // (Raiz, anamnese ou fallback para o usuário logado no Firebase)
+      const emailPaciente = 
+        pacienteData?.emailAcesso || 
+        pacienteData?.email || 
+        pacienteData?.anamnese?.emailAcesso || 
+        pacienteData?.anamnese?.email;
+
+      const userAtual = auth.currentUser;
+      const emailFinal = emailPaciente || userAtual?.email;
+
+      if (!emailFinal) {
+        throw new Error('Não foi possível identificar o seu e-mail de acesso. Tente sair e entrar novamente no app.');
       }
 
       const pacienteId = pacienteData.id;
       const uidEsteticista = pacienteData.criadoPorUid;
 
       if (!uidEsteticista || !pacienteId) {
-        throw new Error('Dados do paciente incompletos.');
+        throw new Error('Dados do paciente incompletos. Feche o app e abra novamente.');
       }
 
       // ============================================================
       // 1) Re-autentica (pra ter um token válido + validar a senha)
       // ============================================================
       await tentarComRetry(async () => {
-        await signInWithEmailAndPassword(auth, emailPaciente, senha);
+        await signInWithEmailAndPassword(auth, emailFinal, senha);
       });
 
       const user = auth.currentUser;

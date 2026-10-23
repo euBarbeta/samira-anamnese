@@ -18,8 +18,7 @@ const CORS = {
  * Retorna:
  *   { status: 'conhecido', autorizado: true }       → device já autorizado
  *   { status: 'novo',      autorizado: true }       → 1º device (auto-autoriza)
- *   { status: 'bloqueado', autorizado: false }      → esteta bloqueou este device
- *   { status: 'pendente',  autorizado: true }       → device novo, alerta criado
+ *   { status: 'bloqueado', autorizado: false }      → device novo (cria alerta e bloqueia) OU esteta bloqueou manualmente
  */
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
@@ -126,12 +125,12 @@ exports.handler = async (event) => {
       ultimaLng: lng ?? null,
       primeiroLoginEm: agora,
       ultimoLoginEm: agora,
-      // ✅ 1º device = automático. Outros = aguardando esteta.
+      // ✅ 1º device = automático. Outros = BLOQUEADOS e aguardando esteta.
       autorizado: ehPrimeiroDevice ? true : false,
       aguardandoAprovacao: !ehPrimeiroDevice,
       bloqueadoPor: null,
       bloqueadoEm: null,
-      motivoBloqueio: null,
+      motivoBloqueio: ehPrimeiroDevice ? null : 'Acesso bloqueado preventivamente. Aguardando liberação da profissional.',
     });
 
     // 3) Se NÃO é o primeiro device → cria alerta + notifica esteta
@@ -151,7 +150,7 @@ exports.handler = async (event) => {
         resolvidoEm: null,
       });
 
-      // Notifica a esteta (não bloqueia a resposta)
+      // Notifica a esteta imediatamente (não bloqueia a resposta)
       try {
         const baseUrl =
           process.env.URL ||
@@ -173,12 +172,14 @@ exports.handler = async (event) => {
       }
     }
 
+    // ✅ Retorno final: Bloqueia se for novo, libera se for o primeiro
     return {
       statusCode: 200,
       headers: CORS,
       body: JSON.stringify({
-        status: ehPrimeiroDevice ? 'novo' : 'pendente',
-        autorizado: ehPrimeiroDevice ? true : true, // pendente = permite entrar, mas alerta
+        status: ehPrimeiroDevice ? 'novo' : 'bloqueado',
+        autorizado: ehPrimeiroDevice ? true : false, 
+        motivo: ehPrimeiroDevice ? null : 'Acesso bloqueado preventivamente. A profissional foi notificada e precisa liberar este dispositivo.',
       }),
     };
   } catch (err) {

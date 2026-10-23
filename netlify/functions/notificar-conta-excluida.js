@@ -27,6 +27,7 @@ exports.handler = async (event) => {
       });
     }
     const db = getFirestore();
+    
     webpush.setVapidDetails(
       `mailto:${process.env.VAPID_EMAIL}`,
       process.env.VAPID_PUBLIC_KEY,
@@ -39,16 +40,18 @@ exports.handler = async (event) => {
     }
 
     const subDoc = await db.collection('push_subscriptions_esteticistas').doc(String(uidEsteticista)).get();
+    
     if (!subDoc.exists) {
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, enviado: false, motivo: 'sem inscrição' }) };
     }
 
     const subData = subDoc.data();
     const titulo = '🗑️ Paciente excluiu a conta';
-    const corpo = `${pacienteNome || 'Um paciente'} excluiu a conta do app. Os dados dele foram removidos.`;
+    const corpo = `${pacienteNome || 'Um paciente'} excluiu a conta. A pasta foi movida para "Arquivados" e os dados de contato foram anonimizados.`;
     const tagUnica = `exclusao-${pacienteId}-${Date.now()}`;
     const resultados = { fcm: false, webpush: false };
 
+    // 1) Envio via FCM (APP Android da esteticista)
     if (subData.fcmToken) {
       try {
         await getMessaging().send({
@@ -59,7 +62,7 @@ exports.handler = async (event) => {
         });
         resultados.fcm = true;
       } catch (e) {
-        console.error('❌ FCM falhou:', e.message);
+        console.error('❌ FCM falhou (notificar-conta-excluida):', e.message);
         if (
           e.message.includes('registration-token-not-registered') ||
           e.message.includes('invalid-registration-token') ||
@@ -70,6 +73,7 @@ exports.handler = async (event) => {
       }
     }
 
+    // 2) Envio via Web-Push (Navegador da esteticista)
     if (subData.subscription) {
       try {
         await webpush.sendNotification(
@@ -81,7 +85,7 @@ exports.handler = async (event) => {
         );
         resultados.webpush = true;
       } catch (e) {
-        console.error('❌ Web-push falhou:', e.message);
+        console.error('❌ Web-push falhou (notificar-conta-excluida):', e.message);
         if (e.statusCode === 410 || e.statusCode === 404) {
           await subDoc.ref.update({ subscription: null, atualizadoEm: new Date().toISOString() });
         }

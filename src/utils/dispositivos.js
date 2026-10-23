@@ -9,12 +9,13 @@ import { Capacitor } from '@capacitor/core';
  * NÃO mudam com facilidade:
  *  - User-Agent normalizado (versão removida)
  *  - Plataforma (Android / iOS / Windows / Mac / Linux)
- *  - Plataforma nativa (APK vs PWA vs Web)
  *  - Faixa de resolução (arredondada)
  *
- * ⚠️ Isso NÃO é 100% à prova de troca. Se o usuário atualizar o
- *    Chrome (muda versão do UA), o fingerprint muda. Por isso
- *    removemos a versão do UA.
+ * ✅ ALTERAÇÃO IMPORTANTE:
+ *    Removemos a variável `runtime` (web/apk/pwa) da equação.
+ *    Agora, se o paciente abrir o Chrome no celular X e depois instalar
+ *    o APK no MESMO celular X, o sistema entende que é o mesmo aparelho.
+ *    Se ele usar um celular Y ou um PC, aí sim será um dispositivo novo.
  */
 export function gerarFingerprintEstavel() {
   try {
@@ -38,14 +39,8 @@ export function gerarFingerprintEstavel() {
     const largura = Math.floor((screen.width || 0) / 100) * 100;
     const altura = Math.floor((screen.height || 0) / 100) * 100;
 
-    // Plataforma nativa
-    let runtime = 'web';
-    try {
-      if (Capacitor.isNativePlatform?.()) runtime = 'apk';
-      else if (window.matchMedia('(display-mode: standalone)').matches) runtime = 'pwa';
-    } catch {}
-
-    const base = `${uaNormalizado}|${plataforma}|${largura}x${altura}|${runtime}`;
+    // ✅ Removemos o cálculo do `runtime` daqui
+    const base = `${uaNormalizado}|${plataforma}|${largura}x${altura}`;
 
     // Hash determinístico (FNV-1a simplificado)
     let hash = 2166136261;
