@@ -1,3 +1,4 @@
+// src/components/AnamneseFicha.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import TelaInicial from './TelaInicial';
 import TelaInicialMobile from './TelaInicialMobile';
@@ -37,7 +38,6 @@ const lerSessao = (k) => {
   } catch { return null; }
 };
 
-// ✅ Helper: silencia erros de signOut quando a aba está sendo fechada
 const signOutSafe = async () => {
   try {
     await signOut(auth);
@@ -59,7 +59,6 @@ export default function AnamneseFicha() {
   const [motivoSuspensao, setMotivoSuspensao] = useState('');
   const [avisoLocalizacao, setAvisoLocalizacao] = useState(null);
   
-  // ✅ NOVOS ESTADOS DE SEGURANÇA
   const [aguardandoAprovacao, setAguardandoAprovacao] = useState(false);
   const [erroBloqueio, setErroBloqueio] = useState('');
 
@@ -103,9 +102,6 @@ export default function AnamneseFicha() {
 
   const processandoLoginRef = useRef(false);
 
-  // ============================================================
-  // NAVEGAÇÃO
-  // ============================================================
   const navegarPara = useCallback((novaAba, opcoes = {}) => {
     if (novaAba === abaAtiva && !opcoes.forcar) return;
     const hashAtual = window.location.hash || '';
@@ -325,9 +321,6 @@ export default function AnamneseFicha() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // ============================================================
-  // OBSERVER DE AUTH
-  // ============================================================
   const restaurandoRef = useRef(false);
 
   useEffect(() => {
@@ -483,12 +476,8 @@ export default function AnamneseFicha() {
       setAuthVerificado(true);
     });
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ============================================================
-  // 📍 MONITOR DE LOCALIZAÇÃO EM TEMPO REAL
-  // ============================================================
   useEffect(() => {
     if (!dadosPaciente?.id) return;
 
@@ -594,7 +583,6 @@ export default function AnamneseFicha() {
        if (docSnap.exists()) {
   const dadosAtualizados = { id: docSnap.id, ...docSnap.data() };
 
-  // ⚖️ NOVO — paciente foi anonimizado em tempo real → desloga AGORA
   if (dadosAtualizados.anonimizadoEm) {
     logWarn('Paciente foi anonimizado. Encerrando sessão...');
     await signOutSafe();
@@ -669,9 +657,6 @@ export default function AnamneseFicha() {
     }
   }, [autenticado, usuarioLogado]);
 
-  // ============================================================
-  // MONITOR DE APROVAÇÃO DE DISPOSITIVO
-  // ============================================================
   useEffect(() => {
     if (!aguardandoAprovacao) return;
 
@@ -691,11 +676,9 @@ export default function AnamneseFicha() {
         if (snap.exists()) {
           const data = snap.data();
           if (data.autorizado === true) {
-            // ✅ Liberado! Entra no painel.
             setAguardandoAprovacao(false);
-            window.location.reload(); // Recarrega para fazer o fluxo de login normal
+            window.location.reload();
           } else if (data.autorizado === false && data.motivoBloqueio) {
-            // ❌ A esteticista bloqueou
             unsub();
             setAguardandoAprovacao(false);
             setErroBloqueio(data.motivoBloqueio);
@@ -711,9 +694,6 @@ export default function AnamneseFicha() {
     };
   }, [aguardandoAprovacao]);
 
-  // ============================================================
-  // LOGIN
-  // ============================================================
   const handleLoginSucesso = async (user, opcoes = {}) => {
     const { veioDeRefresh = false } = opcoes;
     if (!user || !user.uid) return;
@@ -726,7 +706,6 @@ export default function AnamneseFicha() {
       setUsuarioLogado(user);
       const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
 
-      // 🚀 1. É ESTETA? ENTRA DIRETO, SEM ESPERAR NADA.
       if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
         setUidDaURL(null);
         setModoAdmin(true);
@@ -881,65 +860,62 @@ export default function AnamneseFicha() {
           })
           .catch(() => {});
 
-        import('../utils/dispositivos').then(async ({ gerarFingerprintEstavel, rotuloDispositivoCurto }) => {
+        // ✅ BLOCO DE VERIFICAÇÃO DE DISPOSITIVO (AGUARDANDO ANTES DE ENTRAR)
+        try {
+          const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import('../utils/dispositivos');
+          const fingerprint = gerarFingerprintEstavel();
+          const dispositivo = rotuloDispositivoCurto();
+
+          let geo = { cidade: null, pais: null, lat: null, lng: null };
           try {
-            const fingerprint = gerarFingerprintEstavel();
-            const dispositivo = rotuloDispositivoCurto();
-
-            let geo = { cidade: null, pais: null, lat: null, lng: null };
-            try {
-              const { obterLocalizacao } = await import('../utils/geolocalizacao');
-              const loc = await obterLocalizacao();
-              if (loc.status === 'ativa') {
-                geo = {
-                  cidade: loc.cidade || null,
-                  pais: loc.pais || null,
-                  lat: loc.lat ?? null,
-                  lng: loc.lng ?? null,
-                };
-              }
-            } catch {}
-
-            const res = await fetch('/.netlify/functions/verificar-dispositivo', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                pacienteId: String(pacienteEncontrado.id),
-                fingerprint,
-                dispositivo,
-                plataforma: isNativo() ? 'apk' : 'pwa',
-                ...geo,
-              }),
-            });
-
-            const data = await res.json();
-
-            if (data.status === 'bloqueado') {
-              if (data.motivo === 'Acesso bloqueado preventivamente. A profissional foi notificada e precisa liberar este dispositivo.') {
-                // ✅ Novo dispositivo pendente, bloqueia com loading
-                setBuscandoPaciente(false);
-                setAguardandoAprovacao(true);
-                
-                // Salva os dados do paciente encontrados para usar depois
-                window._pacientePendente = pacienteEncontrado;
-                window._pacienteDocPathPendente = estetaUidParaPath;
-                return;
-              } else {
-                // ✅ Já estava bloqueado pela esteticista
-                await signOutSafe();
-                setAutenticado(false);
-                setUsuarioLogado(null);
-                setDadosPaciente(null);
-                setErroBloqueio(data.motivo || 'Acesso suspenso pela profissional.');
-                setBuscandoPaciente(false);
-                setRota('dispositivo_bloqueado');
-                return;
-              }
+            const { obterLocalizacao } = await import('../utils/geolocalizacao');
+            const loc = await obterLocalizacao();
+            if (loc.status === 'ativa') {
+              geo = {
+                cidade: loc.cidade || null,
+                pais: loc.pais || null,
+                lat: loc.lat ?? null,
+                lng: loc.lng ?? null,
+              };
             }
-          } catch (e) {
-            console.warn('Falha ao verificar dispositivo em background:', e);
+          } catch {}
+
+          const res = await fetch('/.netlify/functions/verificar-dispositivo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pacienteId: String(pacienteEncontrado.id),
+              fingerprint,
+              dispositivo,
+              plataforma: isNativo() ? 'apk' : 'pwa',
+              ...geo,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (data.status === 'bloqueado') {
+            if (data.motivo === 'Acesso bloqueado preventivamente. A profissional foi notificada e precisa liberar este dispositivo.') {
+              setBuscandoPaciente(false);
+              setAguardandoAprovacao(true);
+              window._pacientePendente = pacienteEncontrado;
+              window._pacienteDocPathPendente = estetaUidParaPath;
+              return; // Para aqui e mostra a tela de aguardando
+            } else {
+              await signOutSafe();
+              setAutenticado(false);
+              setUsuarioLogado(null);
+              setDadosPaciente(null);
+              setErroBloqueio(data.motivo || 'Acesso suspenso pela profissional.');
+              setBuscandoPaciente(false);
+              setRota('dispositivo_bloqueado');
+              return; // Para aqui e mostra a tela de bloqueado
+            }
           }
-        });
+        } catch (e) {
+          console.warn('Falha ao verificar dispositivo (segue fluxo):', e);
+        }
+        // ✅ FIM DO BLOCO DE VERIFICAÇÃO
 
         const estetaUidParaPath =
           pacienteEncontrado.criadoPorUid ||
@@ -992,9 +968,6 @@ export default function AnamneseFicha() {
     }
   };
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
   const handleLogout = async () => {
     const eraEsteticista =
       usuarioLogado?.email &&
@@ -1080,9 +1053,6 @@ export default function AnamneseFicha() {
     setTimeout(() => { emLogoutRef.current = false; }, 800);
   };
 
-  // ============================================================
-  // Helpers de salvar/excluir ficha
-  // ============================================================
   const handleSalvarFicha = async (dadosNovaFicha) => {
     try {
       const nomeOriginal = dadosNovaFicha.nome ? dadosNovaFicha.nome.trim() : '';
@@ -1153,9 +1123,6 @@ export default function AnamneseFicha() {
     }
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   const renderizarConteudo = () => {
     const hashAtual = window.location.hash.slice(1);
     const pathAtual = window.location.pathname;
