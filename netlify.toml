@@ -11,15 +11,7 @@
     schedule = "*/15 * * * *"
 
 # ============================================================
-# 1º: REGRA ESPECÍFICA PARA AS FUNÇÕES (NÃO REDIRECIONA PARA O SPA)
-# ============================================================
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-# ============================================================
-# 2º: SPA FALLBACK
+# 1º: SPA FALLBACK
 # ============================================================
 [[redirects]]
   from = "/admin"
