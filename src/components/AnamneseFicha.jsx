@@ -830,6 +830,7 @@ export default function AnamneseFicha() {
           return;
         }
 
+        // ✅ VERIFICAÇÃO DE LGPD ANTES DE QUALQUER COISA (PARA NATIVO)
         if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
           await signOutSafe();
           setAutenticado(false);
@@ -880,6 +881,10 @@ export default function AnamneseFicha() {
             }
           } catch {}
 
+          // ✅ TIMEOUT DE SEGURANÇA PARA NÃO TRAVAR A TELA
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos de limite
+
           const res = await fetch('/.netlify/functions/verificar-dispositivo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -890,7 +895,8 @@ export default function AnamneseFicha() {
               plataforma: isNativo() ? 'apk' : 'pwa',
               ...geo,
             }),
-          });
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timeoutId));
 
           const data = await res.json();
 
@@ -913,7 +919,7 @@ export default function AnamneseFicha() {
             }
           }
         } catch (e) {
-          console.warn('Falha ao verificar dispositivo (segue fluxo):', e);
+          console.warn('Falha ao verificar dispositivo ou timeout (segue fluxo):', e);
         }
         // ✅ FIM DO BLOCO DE VERIFICAÇÃO
 
