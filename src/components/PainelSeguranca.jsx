@@ -75,6 +75,7 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
+  // ✅ FILTRA OS DISPOSITIVOS DISPENSADOS
   useEffect(() => {
     const unsub = onSnapshot(
       query(
@@ -82,9 +83,12 @@ export default function PainelSeguranca() {
         where('autorizado', '==', false)
       ),
       (snap) => {
-        setDispositivosBloqueados(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        );
+        // Pega todos que estão bloqueados, MAS ignora os que foram dispensados
+        const bloqueados = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((d) => d.dispensado !== true); 
+        
+        setDispositivosBloqueados(bloqueados);
       },
       (e) => console.warn('Erro listener dispositivos_autorizados:', e)
     );
@@ -181,13 +185,10 @@ export default function PainelSeguranca() {
     }
   };
 
-  // ✅ LÓGICA CORRIGIDA: Ignora cards que já foram dispensados
   const relevantes = tentativas.filter((t) => {
     const bloqueado = estaBloqueado(t.id);
     const temFalhas = (t.tentativas || []).length > 0;
     
-    // Se a conta está bloqueada E já foi dispensada (X clicado), 
-    // retorna false para o card sumir da tela.
     if (bloqueado && t.requerBloqueio === false) {
       return false;
     }
@@ -332,7 +333,6 @@ export default function PainelSeguranca() {
                       </div>
                     </div>
 
-                    {/* ✅ IP e Localização */}
                     {(d.ultimaCidade || d.ultimoPais) && (
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <MdLocationOff size={12} color="#666" />
@@ -363,7 +363,6 @@ export default function PainelSeguranca() {
                         {carregandoEste ? 'PROCESSANDO…' : 'DESBLOQUEAR DISPOSITIVO'}
                       </button>
 
-                      {/* ✅ NOVO BOTÃO X (Dispensar Dispositivo) */}
                       <button
                         type="button"
                         onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'dispensar')}

@@ -31,7 +31,6 @@ exports.handler = async (event) => {
     }
     const db = getFirestore();
 
-    // 🔒 Exige token de esteta
     const authHeader = event.headers.authorization || event.headers.Authorization || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
 
@@ -48,7 +47,6 @@ exports.handler = async (event) => {
 
     const { pacienteId, fingerprint, acao, motivo = '' } = JSON.parse(event.body || '{}');
 
-    // ✅ Adicionado 'dispensar' na lista de ações permitidas
     if (!pacienteId || !fingerprint || !['autorizar', 'bloquear', 'dispensar'].includes(acao)) {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados inválidos' }) };
     }
@@ -73,6 +71,7 @@ exports.handler = async (event) => {
           motivoBloqueio: null,
           autorizadoPor: decoded.uid,
           autorizadoEm: agora,
+          dispensado: false, // ✅ Resetar
         },
         { merge: true }
       );
@@ -84,21 +83,24 @@ exports.handler = async (event) => {
           bloqueadoPor: decoded.uid,
           bloqueadoEm: agora,
           motivoBloqueio: motivo.slice(0, 200) || 'Bloqueado pela profissional',
+          dispensado: false, // ✅ Resetar
         },
         { merge: true }
       );
     } else if (acao === 'dispensar') {
-      // ✅ Apenas remove o alerta da tela, mas NÃO muda a autorização
-      // do dispositivo (se estava bloqueado, continua bloqueado).
+      // ✅ NOVO: Marca como dispensado para sumir da tela, 
+      // mas mantém o bloqueio (autorizado: false)
       await ref.set(
         {
           aguardandoAprovacao: false,
+          dispensado: true,
+          dispensadoEm: agora,
         },
         { merge: true }
       );
     }
 
-    // Fecha o alerta (se existir) mudando o status
+    // Fecha o alerta na tabela de alertas
     try {
       const alertasSnap = await db
         .collection('alertas_dispositivo')
