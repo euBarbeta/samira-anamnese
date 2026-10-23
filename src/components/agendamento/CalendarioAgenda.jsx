@@ -32,6 +32,7 @@ export default function CalendarioAgenda({
   renderDia,
   diaSelecionado,
   compacto = false,
+  ocultarBloqueados = false, // ✅ NOVO: Se true, não mostra dias vermelhos
 }) {
   const cells = montarCells(mesRef);
 
@@ -42,7 +43,6 @@ export default function CalendarioAgenda({
       borderRadius: 14,
       padding: compacto ? 10 : 16,
     }}>
-      {/* Navegação */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -76,7 +76,6 @@ export default function CalendarioAgenda({
         </button>
       </div>
 
-      {/* Cabeçalho dias */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
@@ -97,7 +96,6 @@ export default function CalendarioAgenda({
         ))}
       </div>
 
-      {/* Grid de dias */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
@@ -119,19 +117,23 @@ export default function CalendarioAgenda({
           const info = renderDia(data);
           const dia = data.getDate();
 
+          // ✅ Lógica para esconder o vermelho para o paciente
+          const isBloqueado = info.status === 'bloqueado';
+          const exibirBloqueado = isBloqueado && !ocultarBloqueados;
+
           const bg = sel ? '#f3e8ff'
-            : info.status === 'bloqueado' ? '#ffebee'
+            : exibirBloqueado ? '#ffebee'
             : info.status === 'aberto' ? '#f0fdf4'
             : '#f5f5f5';
 
           const border = sel ? '#7e22ce'
-            : info.status === 'bloqueado' ? '#ef9a9a'
+            : exibirBloqueado ? '#ef9a9a'
             : info.status === 'aberto' ? '#86efac'
             : ehHoje ? '#7e22ce'
             : '#e0e0e0';
 
           const corTexto = sel ? '#7e22ce'
-            : info.status === 'bloqueado' ? '#c62828'
+            : exibirBloqueado ? '#c62828'
             : info.status === 'aberto' ? '#166534'
             : '#999';
 
@@ -146,8 +148,6 @@ export default function CalendarioAgenda({
               disabled={info.disabled}
               title={info.title}
               style={{
-                // ✅ Mobile: células um pouco mais altas (1/1.15) pra caber
-                //    "dia + qtd + horários" sem cortar. Desktop mantém 1/1.
                 aspectRatio: compacto ? '1 / 1.15' : '1 / 1',
                 background: bg,
                 border: `1.5px solid ${border}`,
@@ -165,7 +165,6 @@ export default function CalendarioAgenda({
                 boxSizing: 'border-box',
               }}
             >
-              {/* Número do dia */}
               <span style={{
                 fontSize: compacto ? 12 : 'clamp(14px, 1.4vw, 18px)',
                 fontWeight: ehHoje || sel ? 800 : 600,
@@ -176,7 +175,6 @@ export default function CalendarioAgenda({
                 {dia}
               </span>
 
-              {/* Bloco de horários */}
               {temHorarios && (
                 <div style={{
                   display: 'flex',
@@ -214,7 +212,8 @@ export default function CalendarioAgenda({
                 </div>
               )}
 
-              {info.status === 'bloqueado' && (
+              {/* ✅ Ícone de bloqueado some se for o paciente (ocultarBloqueados) */}
+              {exibirBloqueado && (
                 <MdEventBusy
                   size={compacto ? 10 : 14}
                   color="#c62828"
@@ -243,7 +242,7 @@ export function LegendaCalendario() {
       justifyContent: 'center',
     }}>
       <Legenda cor="#f0fdf4" borda="#86efac" texto="Com vagas" />
-      <Legenda cor="#ffebee" borda="#ef9a9a" texto="Bloqueado" />
+      {/* ✅ Removido o "Bloqueado" da legenda pública */}
       <Legenda cor="#f5f5f5" borda="#e0e0e0" texto="Sem agenda" />
       <Legenda cor="#f3e8ff" borda="#7e22ce" texto="Selecionado" />
     </div>

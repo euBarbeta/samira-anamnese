@@ -17,52 +17,50 @@ const MESES = [
 ];
 
 export default function ConfiguradorAgenda({ uidEsteticista }) {
-  const [blocos, setBlocos] = useState([]);         // padrão semanal
-  const [bloqueios, setBloqueios] = useState([]);   // folgas globais
-  const [datasEspecificas, setDatasEspecificas] = useState({}); // override
+  const [blocos, setBlocos] = useState([]);
+  const [bloqueios, setBloqueios] = useState([]);
+  const [datasEspecificas, setDatasEspecificas] = useState({});
   const [config, setConfig] = useState({
     diasFuturosMaximo: 60,
     antecedenciaMinimaHoras: 4,
   });
 
   const [mesRef, setMesRef] = useState(() => new Date());
-  const [diaSelecionado, setDiaSelecionado] = useState(null); // ISO
+  const [diaSelecionado, setDiaSelecionado] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [mostrarPadrao, setMostrarPadrao] = useState(false);
 
-  // Carrega config
-useEffect(() => {
-  if (!uidEsteticista) return;
-  let cancelado = false;
+  useEffect(() => {
+    if (!uidEsteticista) return;
+    let cancelado = false;
 
-  const unsub = onSnapshot(
-    doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
-    (snap) => {
-      if (cancelado) return;
-      if (snap.exists()) {
-        const d = snap.data();
-        setBlocos(d.blocosSemanais || []);
-        setBloqueios(d.bloqueios || []);
-        setDatasEspecificas(d.datasEspecificas || {});
-        setConfig({
-          diasFuturosMaximo: d.diasFuturosMaximo ?? 60,
-          antecedenciaMinimaHoras: d.antecedenciaMinimaHoras ?? 4,
-        });
+    const unsub = onSnapshot(
+      doc(db, `usuarios/${uidEsteticista}/agenda_config`, 'principal'),
+      (snap) => {
+        if (cancelado) return;
+        if (snap.exists()) {
+          const d = snap.data();
+          setBlocos(d.blocosSemanais || []);
+          setBloqueios(d.bloqueios || []);
+          setDatasEspecificas(d.datasEspecificas || {});
+          setConfig({
+            diasFuturosMaximo: d.diasFuturosMaximo ?? 60,
+            antecedenciaMinimaHoras: d.antecedenciaMinimaHoras ?? 4,
+          });
+        }
+        setCarregando(false);
+      },
+      (err) => {
+        console.error('Erro listener config:', err);
+        setCarregando(false);
       }
-      setCarregando(false);
-    },
-    (err) => {
-      console.error('Erro listener config:', err);
-      setCarregando(false);
-    }
-  );
+    );
 
-  return () => { cancelado = true; unsub(); };
-}, [uidEsteticista]);
+    return () => { cancelado = true; unsub(); };
+  }, [uidEsteticista]);
 
-  // Monta dias do mês visível
   const diasDoMes = useMemo(() => {
     const ano = mesRef.getFullYear();
     const mes = mesRef.getMonth();
@@ -74,24 +72,29 @@ useEffect(() => {
 
     const cells = [];
 
-    // Preenche com vazios antes do dia 1
     for (let i = 0; i < diaSemanaInicial; i++) cells.push(null);
 
     for (let dia = 1; dia <= totalDias; dia++) {
       cells.push(new Date(ano, mes, dia));
     }
 
-    // Preenche até completar 6 semanas (42 células) pra grid uniforme
     while (cells.length % 7 !== 0) cells.push(null);
 
     return cells;
   }, [mesRef]);
 
-  // Info visual de cada dia
+  // ✅ Info visual de cada dia para a ESTETICISTA
   const infoDia = (data) => {
     if (!data) return null;
     const iso = toISODateLocal(data);
     const dow = data.getDay();
+
+    // Bloqueia visualmente os dias que já passaram
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataZero = new Date(data);
+    dataZero.setHours(0, 0, 0, 0);
+    if (dataZero < hoje) return { status: 'vazio' };
 
     const bloqueio = bloqueios.find((b) => b.data === iso);
     const override = datasEspecificas[iso];
@@ -104,10 +107,23 @@ useEffect(() => {
     const temPadrao = blocos.some((b) => b.diaSemana === dow);
 
     if (temOverride || temPadrao) {
-      const qtd = temOverride
-        ? override.blocos.length
-        : blocos.filter((b) => b.diaSemana === dow).length;
-      return { status: 'aberto', blocos: qtd, custom: temOverride };
+      // ✅ CORREÇÃO: Calcula a quantidade exata de slots, não só de blocos
+      let totalHorarios = 0;
+      const blocosDoDia = temOverride ? override.blocos : blocos.filter((b) => b.diaSemana === dow);
+
+      blocosDoDia.forEach(b => {
+        const [hI, mI] = b.inicio.split(':').map(Number);
+        const [hF, mF] = b.fim.split(':').map(Number);
+        const duracao = parseInt(b.duracaoMin, 10) || 60;
+        const minutosInicio = hI * 60 + mI;
+        const minutosFim = hF * 60 + mF;
+        
+        if (minutosFim > minutosInicio) {
+          totalHorarios += Math.floor((minutosFim - minutosInicio) / duracao);
+        }
+      });
+
+      return { status: 'aberto', blocos: totalHorarios, custom: temOverride };
     }
 
     return { status: 'vazio' };
@@ -121,7 +137,6 @@ useEffect(() => {
 
   const irHoje = () => setMesRef(new Date());
 
-  // ============ Padrão semanal ============
   const adicionarBlocoPadrao = (diaSemana) => {
     setBlocos((prev) => [
       ...prev,
@@ -135,17 +150,12 @@ useEffect(() => {
     setBlocos((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // ============ Data específica (modal) ============
   const abrirDia = (data) => {
     if (!data) return;
     setDiaSelecionado(toISODateLocal(data));
   };
-
   const fecharModal = () => setDiaSelecionado(null);
-
-  const getInfoOverride = (iso) => {
-    return datasEspecificas[iso] || null;
-  };
+  const getInfoOverride = (iso) => datasEspecificas[iso] || null;
 
   const setOverride = (iso, valor) => {
     setDatasEspecificas((prev) => {
@@ -156,7 +166,6 @@ useEffect(() => {
     });
   };
 
-  // Salvar geral
   const salvar = async () => {
     setSalvando(true);
     setSalvo(false);
@@ -231,7 +240,7 @@ useEffect(() => {
         </button>
       </div>
 
-      {/* Padrão semanal (colapsável) */}
+      {/* Padrão semanal */}
       {mostrarPadrao && (
         <div style={{
           background: '#fff',
@@ -332,7 +341,6 @@ useEffect(() => {
         padding: 16,
         marginBottom: 16,
       }}>
-        {/* Navegação de mês */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -366,7 +374,6 @@ useEffect(() => {
           </button>
         </div>
 
-        {/* Cabeçalho dias da semana */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
@@ -387,7 +394,6 @@ useEffect(() => {
           ))}
         </div>
 
-        {/* Grid de dias */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
@@ -423,7 +429,7 @@ useEffect(() => {
                 onClick={() => abrirDia(data)}
                 title={
                   info.status === 'aberto'
-                    ? `${info.blocos} bloco(s)${info.custom ? ' (customizado)' : ''}`
+                    ? `${info.blocos} horário(s)${info.custom ? ' (customizado)' : ''}`
                     : info.status === 'bloqueado'
                       ? `Bloqueado${info.motivo ? ': ' + info.motivo : ''}`
                       : 'Sem agenda'
@@ -451,22 +457,22 @@ useEffect(() => {
                   {dia}
                 </span>
                 {info.status === 'aberto' && (
-  <span style={{
-    fontSize: 8,
-    color: corTexto,
-    marginTop: 2,
-    fontWeight: 700,
-    textAlign: 'center',
-    lineHeight: 1.1,
-    display: 'flex',
-    flexDirection: 'column'
-  }}>
-    <span>{info.blocos}</span>
-    <span style={{ fontSize: 6, textTransform: 'lowercase' }}>
-      {info.blocos === 1 ? 'horário' : 'horários'}
-    </span>
-  </span>
-)}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: 2,
+                    lineHeight: 1,
+                  }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: corTexto }}>
+                      {info.blocos}
+                    </span>
+                    <span style={{ fontSize: 7, fontWeight: 600, color: corTexto, textTransform: 'lowercase' }}>
+                      {info.blocos === 1 ? 'horário' : 'horários'}
+                    </span>
+                  </div>
+                )}
                 
                 {info.status === 'bloqueado' && (
                   <MdEventBusy size={10} color="#c62828" style={{ marginTop: 2 }} />
@@ -476,7 +482,6 @@ useEffect(() => {
           })}
         </div>
 
-        {/* Legenda */}
         <div style={{
           display: 'flex',
           gap: 14,
@@ -530,13 +535,12 @@ useEffect(() => {
             style={{ ...inputTempo, marginLeft: 8, width: 60 }}
           />
           horas
-
         </label>
         <p style={{ fontSize: 11, color: '#7e22ce', margin: '0 0 12px 0', fontStyle: 'italic' }}>
-  O campo <strong>min</strong> define de quanto em quanto tempo os horários
-  aparecem para o paciente (ex: 30 → 08:00, 08:30, 09:00…). A duração real do
-  atendimento é definida em <strong>Meus Serviços</strong>.
-</p>
+          O campo <strong>min</strong> define de quanto em quanto tempo os horários
+          aparecem para o paciente (ex: 30 → 08:00, 08:30, 09:00…). A duração real do
+          atendimento é definida em <strong>Meus Serviços</strong>.
+        </p>
       </div>
 
       {/* Botão salvar */}
@@ -617,7 +621,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
     if (bloqueado) {
       setOverride({ bloqueado: true, motivo: motivo.trim(), blocos: [] });
     } else if (usaPadrao) {
-      // Volta ao padrão → remove override
       setOverride(null);
     } else {
       setOverride({
@@ -667,7 +670,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
           border: '1.5px solid #C8A24A',
         }}
       >
-        {/* Header do modal */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -699,7 +701,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
           </button>
         </div>
 
-        {/* Toggle bloquear */}
         <label
           htmlFor="modal-bloquear"
           style={{
@@ -738,7 +739,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
           <MdEventBusy size={20} color={bloqueado ? '#c62828' : '#bbb'} />
         </label>
 
-        {/* Motivo se bloqueado */}
         {bloqueado && (
           <input
             id="modal-motivo"
@@ -751,7 +751,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
           />
         )}
 
-        {/* Blocos quando NÃO está bloqueado */}
         {!bloqueado && (
           <>
             <div style={{
@@ -879,7 +878,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
           </>
         )}
 
-        {/* Rodapé */}
         <div style={{
           display: 'flex',
           gap: 8,
@@ -949,7 +947,6 @@ function ModalDia({ iso, onFechar, getOverride, setOverride, padraoDoDia }) {
   );
 }
 
-/* ============ Auxiliares ============ */
 function Legenda({ cor, borda, texto }) {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

@@ -574,6 +574,7 @@ try {
                     }}
                     diaSelecionado={diaSelecionado}
                     compacto
+                     ocultarBloqueados={true}
                    renderDia={(data) => {
   const iso = toISODateLocal(data);
   const slotsDoDia = slotsPorDia[iso] || [];
