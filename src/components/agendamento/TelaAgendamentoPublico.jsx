@@ -167,45 +167,45 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
 const [configAgenda, setConfigAgenda] = useState(null);
 const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
 const uidParaUsar = uidEsteticista || UID_ESTETICISTA_PADRAO;
+
 // ============================================================
-// ✅ Listener 1 — CONFIG da agenda (via Function, imutável)
-//    Config não muda com frequência — buscamos uma vez via
-//    Function (regras fecharam leitura pública direta).
+// ✅ Listener 1 — CONFIG da agenda (DIRETO do Firestore)
+// ------------------------------------------------------------
+// Agora escutamos em TEMPO REAL o documento `principal`.
+// Se a esteta salvar uma mudança, a tela pública atualiza
+// INSTANTANEAMENTE.
+//
+// ⚠️ Requer regra pública de leitura para
+//    /usuarios/{uid}/agenda_config/principal
 // ============================================================
 useEffect(() => {
- if (!uidParaUsar) return;
+  if (!uidParaUsar) return;
 
-  let cancelado = false;
+  const configRef = doc(db, `usuarios/${uidParaUsar}/agenda_config/principal`);
 
-  (async () => {
-    try {
-         const res = await fetch('/.netlify/functions/buscar-agenda-publica', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uidEsteticista: uidParaUsar }), // ✅ Envia a variável protegida
-      });
-
-      if (cancelado) return;
-
-      if (!res.ok) {
-        console.error('Falha ao buscar config:', await res.text());
+  const unsub = onSnapshot(
+    configRef,
+    (snap) => {
+      if (snap.exists()) {
+        setConfigAgenda(snap.data());
+        setErro('');
+      } else {
         setConfigAgenda(null);
-        setCarregando(false);
-        return;
+        setErro('Agenda ainda não configurada. Tente novamente em alguns dias.');
       }
-
-      const data = await res.json();
-      setConfigAgenda(data.config || null);
-    } catch (err) {
-      if (cancelado) return;
-      console.error('Erro rede buscar config:', err);
+      setCarregando(false);
+    },
+    (err) => {
+      console.error('Erro ao carregar config da agenda:', err);
       setConfigAgenda(null);
+      // Só mostra erro se realmente falhou (não sobrescreve erro de form)
+      setErro((prev) => prev || 'Não foi possível carregar a agenda agora.');
       setCarregando(false);
     }
-  })();
+  );
 
-  return () => { cancelado = true; };
-}, [uidEsteticista]);
+  return () => unsub();
+}, [uidParaUsar]);
 
 // ============================================================
 // ✅ Listener 2 — SLOTS OCUPADOS EM TEMPO REAL (Firestore)
