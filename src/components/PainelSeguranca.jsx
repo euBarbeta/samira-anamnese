@@ -25,7 +25,6 @@ export default function PainelSeguranca() {
 
   const [indicePacientes, setIndicePacientes] = useState({});
 
-  // ✅ CORREÇÃO: Escuta apenas os pacientes da esteticista logada
   useEffect(() => {
     const user = getAuth().currentUser;
     if (!user) return;
@@ -182,9 +181,17 @@ export default function PainelSeguranca() {
     }
   };
 
+  // ✅ LÓGICA CORRIGIDA: Ignora cards que já foram dispensados
   const relevantes = tentativas.filter((t) => {
-    const temFalhas = (t.tentativas || []).length > 0;
     const bloqueado = estaBloqueado(t.id);
+    const temFalhas = (t.tentativas || []).length > 0;
+    
+    // Se a conta está bloqueada E já foi dispensada (X clicado), 
+    // retorna false para o card sumir da tela.
+    if (bloqueado && t.requerBloqueio === false) {
+      return false;
+    }
+    
     return temFalhas || bloqueado || t.requerBloqueio;
   });
 

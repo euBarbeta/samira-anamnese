@@ -47,7 +47,6 @@ exports.handler = async (event) => {
 
     const { emailHash, acao, motivo = '' } = JSON.parse(event.body || '{}');
     
-    // ✅ Adicionado 'dispensar' na validação
     if (!emailHash || !['bloquear', 'desbloquear', 'dispensar'].includes(acao)) {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados inválidos' }) };
     }
@@ -91,10 +90,12 @@ exports.handler = async (event) => {
         { merge: true }
       );
     } else if (acao === 'dispensar') {
-      // ✅ NOVO: Apenas fecha o alerta sem desbloquear a conta
+      // ✅ CORREÇÃO AQUI: Limpa as tentativas para o alerta sumir da tela.
+      // A conta CONTINUA bloqueada (não altera bloqueios_login), mas o aviso visual some.
       await db.collection('tentativas_login').doc(emailHash).set(
         {
           requerBloqueio: false,
+          tentativas: [], // Limpa as falhas recentes
           dispensadoEm: new Date().toISOString(),
           atualizadoEm: new Date().toISOString(),
         },
