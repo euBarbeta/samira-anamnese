@@ -326,11 +326,8 @@ export default function AnamneseFicha() {
   const restaurandoRef = useRef(false);
 
   useEffect(() => {
-    console.log('⚠️ [DEBUG] Iniciando onAuthStateChanged');
-    
     let timeoutId = setTimeout(() => {
       if (!authVerificado) {
-        console.warn('⚠️ [DEBUG] Timeout de 5s no Auth. Forçando tela de login.');
         setAuthVerificado(true);
         setAutenticado(false);
         setBuscandoPaciente(false);
@@ -340,7 +337,6 @@ export default function AnamneseFicha() {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       clearTimeout(timeoutId); 
-      console.log('⚠️ [DEBUG] Firebase respondeu. User:', user ? user.email : 'null');
 
       if (emLogoutRef.current) {
         setAuthVerificado(true);
@@ -1398,6 +1394,7 @@ export default function AnamneseFicha() {
       );
     }
 
+    // ✅ CORREÇÃO CRÍTICA: Se o auth foi verificado e não está autenticado, mostra o login, ignorando `buscandoPaciente`
     if (!autenticado) {
       if (rota === 'admin') {
         return isMobile
