@@ -128,8 +128,10 @@ function LoadingElegante({ texto = 'Carregando agenda' }) {
    ============================================================ */
 
 
-export default function TelaAgendamentoPublico({ uidEsteticista }) {
-  const [config, setConfig] = useState(null);
+export default function TelaAgendamentoPublico() {
+  // ✅ FORÇANDO O UID DA SAMIRA DIRETO (Garante que a tela pública ache a agenda correta)
+  const uidParaUsar = UID_ESTETICISTA_PADRAO || 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
+
   const [slots, setSlots] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [slotSelecionado, setSlotSelecionado] = useState(null);
@@ -149,6 +151,9 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
   const [sucesso, setSucesso] = useState(null);
   const [erro, setErro] = useState('');
 
+  const [configAgenda, setConfigAgenda] = useState(null);
+  const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
+
   const slotsPorDia = useMemo(() => {
     const map = {};
     for (const s of slots) {
@@ -161,92 +166,72 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
     return map;
   }, [slots]);
 
-// ============================================================
-// Estado separado: config da agenda + agendamentos ocupados
-// ============================================================
-const [configAgenda, setConfigAgenda] = useState(null);
-const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
-const uidParaUsar = uidEsteticista || UID_ESTETICISTA_PADRAO;
+  // ============================================================
+  // ✅ Listener 1 — CONFIG da agenda (DIRETO do Firestore)
+  // ============================================================
+  useEffect(() => {
+    if (!uidParaUsar) return;
 
-// ============================================================
-// ✅ Listener 1 — CONFIG da agenda (DIRETO do Firestore)
-// ------------------------------------------------------------
-// Agora escutamos em TEMPO REAL o documento `principal`.
-// Se a esteta salvar uma mudança, a tela pública atualiza
-// INSTANTANEAMENTE.
-//
-// ⚠️ Requer regra pública de leitura para
-//    /usuarios/{uid}/agenda_config/principal
-// ============================================================
-useEffect(() => {
-  if (!uidParaUsar) return;
+    const configRef = doc(db, `usuarios/${uidParaUsar}/agenda_config/principal`);
 
-  const configRef = doc(db, `usuarios/${uidParaUsar}/agenda_config/principal`);
-
-  const unsub = onSnapshot(
-    configRef,
-    (snap) => {
-      if (snap.exists()) {
-        setConfigAgenda(snap.data());
-        setErro('');
-      } else {
+    const unsub = onSnapshot(
+      configRef,
+      (snap) => {
+        if (snap.exists()) {
+          setConfigAgenda(snap.data());
+          setErro('');
+        } else {
+          setConfigAgenda(null);
+          setErro('Agenda ainda não configurada. Tente novamente em alguns dias.');
+        }
+        setCarregando(false);
+      },
+      (err) => {
+        console.error('Erro ao carregar config da agenda:', err);
         setConfigAgenda(null);
-        setErro('Agenda ainda não configurada. Tente novamente em alguns dias.');
+        setErro((prev) => prev || 'Não foi possível carregar a agenda agora.');
+        setCarregando(false);
       }
+    );
+
+    return () => unsub();
+  }, [uidParaUsar]);
+
+  // ============================================================
+  // ✅ Listener 2 — SLOTS OCUPADOS EM TEMPO REAL (Firestore)
+  // ============================================================
+  useEffect(() => {
+    if (!uidParaUsar) return;
+
+    const unsub = escutarSlotsPublicos(uidParaUsar, (slotsOcupados) => {
+      setAgendamentosOcupados(slotsOcupados);
       setCarregando(false);
-    },
-    (err) => {
-      console.error('Erro ao carregar config da agenda:', err);
-      setConfigAgenda(null);
-      // Só mostra erro se realmente falhou (não sobrescreve erro de form)
-      setErro((prev) => prev || 'Não foi possível carregar a agenda agora.');
-      setCarregando(false);
-    }
-  );
+    });
 
-  return () => unsub();
-}, [uidParaUsar]);
+    return () => unsub();
+  }, [uidParaUsar]);
 
-// ============================================================
-// ✅ Listener 2 — SLOTS OCUPADOS EM TEMPO REAL (Firestore)
-// ------------------------------------------------------------
-// Fonte ÚNICA de verdade para ocupação. Substitui o antigo
-// `buscar-slots-ocupados` (que sobrescrevia com dados velhos).
-// Latência típica: 100-300ms.
-// ============================================================
-useEffect(() => {
-  if (!uidParaUsar) return;
+  // ============================================================
+  // Recalcula slots SEMPRE que config ou agendamentos ocupados
+  // mudarem.
+  // ============================================================
+  useEffect(() => {
+    if (!configAgenda) return;
 
-  const unsub = escutarSlotsPublicos(uidParaUsar, (slotsOcupados) => {
-    setAgendamentosOcupados(slotsOcupados);
-    setCarregando(false);
-  });
+    const hoje = toISODateLocal(new Date());
+    const max = new Date();
+    max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
+    const dataFim = toISODateLocal(max);
 
-  return () => unsub();
-}, [uidParaUsar]);
+    const lista = gerarSlotsDisponiveis(
+      configAgenda,
+      agendamentosOcupados,
+      hoje,
+      dataFim
+    );
 
-// ============================================================
-// Recalcula slots SEMPRE que config ou agendamentos ocupados
-// mudarem (o listener em tempo real garante que isso aconteça
-// automaticamente quando a esteta libera/bloqueia um slot).
-// ============================================================
-useEffect(() => {
-  if (!configAgenda) return;
-
-  const hoje = toISODateLocal(new Date());
-  const max = new Date();
-  max.setDate(max.getDate() + (configAgenda.diasFuturosMaximo || 60));
-  const dataFim = toISODateLocal(max);
-
-  const lista = gerarSlotsDisponiveis(
-    configAgenda,
-    agendamentosOcupados,
-    hoje,
-    dataFim
-  );
-
-  setSlots(lista);
-}, [configAgenda, agendamentosOcupados]);
+    setSlots(lista);
+  }, [configAgenda, agendamentosOcupados]);
 
   const validarDocumento = (docStr) => {
     const trimmed = docStr.trim();
@@ -284,7 +269,7 @@ useEffect(() => {
       return;
     }
 
-      if (!lgpdAceito) {
+    if (!lgpdAceito) {
       setErro('Você precisa autorizar o tratamento dos seus dados (LGPD).');
       return;
     }
@@ -305,7 +290,6 @@ useEffect(() => {
     }
   } catch (err) {
     console.warn('Erro na sanitização, usando dados originais:', err);
-    // Plano B: limpa de forma simples para o agendamento não falhar
     nomeLimpo = nome.trim().substring(0, 100);
     documentoLimpo = documento.trim().substring(0, 30);
     emailLimpo = email.trim().toLowerCase();
@@ -356,23 +340,22 @@ try {
   body: JSON.stringify({
     uidEsteticista: uidParaUsar,
     agendamentoId: docRef.id,
-    nome: nomeLimpo,          // ← sanitizado
-    documento: documentoLimpo, // ← sanitizado
+    nome: nomeLimpo,
+    documento: documentoLimpo,
   }),
 });
 } catch (e) {
   console.warn('Falha ao vincular paciente automaticamente:', e);
-  // não quebra o fluxo do agendamento — ele já foi criado com sucesso
 }
      notificarAgendamento({
   tipoEvento: 'novo',
  uidEsteticista: uidParaUsar,
   agendamento: {
     id: docRef.id,
-    nome: nomeLimpo,          // ← sanitizado
+    nome: nomeLimpo,
     data: slotSelecionado.data,
     horaInicio: slotSelecionado.horaInicio,
-    documento: documentoLimpo, // ← sanitizado
+    documento: documentoLimpo,
     telefone: telefone,
   },
 });
@@ -380,12 +363,12 @@ try {
       setSucesso({
   data: slotSelecionado.data,
   hora: slotSelecionado.horaInicio,
-  nome: nomeLimpo,          // ← sanitizado
-  documento: documentoLimpo, // ← sanitizado
+  nome: nomeLimpo,
+  documento: documentoLimpo,
 });
     } catch (e) {
       console.error('Erro ao agendar:', e);
-      setErro('Erro ao confirmar agendamento. Tente novamente.');
+      setErro(e.message || 'Erro ao confirmar agendamento. Tente novamente.');
     } finally {
       setEnviando(false);
     }
@@ -400,7 +383,6 @@ try {
         <TelaSemInternet />
         <div className="tap-tela">
           <div className="tap-conteudo">
-          
             <AbasPublicas abaAtiva="agendar" />
             <div className="tap-card" style={{ padding: 0 }}>
               <LoadingElegante texto="Carregando agenda" />
@@ -415,15 +397,12 @@ try {
   }
 
   // 2) Config não encontrada
-  // ✅ Só mostra tela cheia se REALMENTE a config da agenda não carregou.
-  //    Erros de validação de form (nome/doc/tel/LGPD) ficam inline no form.
   if (erro && !configAgenda) {
     return (
       <>
         <TelaSemInternet />
         <div className="tap-tela">
           <div className="tap-conteudo">
-            
             <AbasPublicas abaAtiva="agendar" />
             <div className="tap-card" style={{ textAlign: 'center' }}>
               <MdWarning size={40} color="#e65100" />
@@ -445,7 +424,6 @@ try {
         <TelaSemInternet />
         <div className="tap-tela">
           <div className="tap-conteudo" style={{ maxWidth: 520 }}>
-            
             <AbasPublicas abaAtiva="agendar" />
             <div className="tap-card" style={{ textAlign: 'center' }}>
               <MdCheckCircle size={56} color="#16a34a" />
