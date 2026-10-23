@@ -207,7 +207,13 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
   }
 
   return (
-    <div style={{ padding: '10px 0 30px 0' }}>
+    <div style={{ 
+      padding: '10px 0 30px 0', 
+      width: '100%', 
+      maxWidth: '100%', 
+      boxSizing: 'border-box', 
+      overflowX: 'hidden' // ✅ Impede o vazamento horizontal
+    }}>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <h3 style={{
@@ -338,8 +344,11 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
         background: '#fff',
         border: '1.5px solid #e2d2f5',
         borderRadius: 14,
-        padding: 16,
+        padding: window.innerWidth <= 768 ? 8 : 16, // ✅ Padding menor no celular
         marginBottom: 16,
+        width: '100%',
+        boxSizing: 'border-box',
+        overflowX: 'hidden', // ✅ Impede o vazamento
       }}>
         <div style={{
           display: 'flex',
@@ -377,8 +386,9 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
-          gap: 4,
+          gap: window.innerWidth <= 768 ? 2 : 4, // ✅ Gap menor no mobile
           marginBottom: 6,
+          width: '100%',
         }}>
           {DIAS_CURTO.map((d) => (
             <div key={d} style={{
@@ -397,7 +407,8 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
-          gap: 4,
+          gap: window.innerWidth <= 768 ? 2 : 4, // ✅ Gap menor no mobile
+          width: '100%',
         }}>
           {diasDoMes.map((data, i) => {
             if (!data) {
@@ -444,9 +455,11 @@ export default function ConfiguradorAgenda({ uidEsteticista }) {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: 4,
+                  padding: window.innerWidth <= 768 ? '2px 0 4px 0' : 4, // ✅ Padding interno menor no mobile
                   position: 'relative',
                   transition: 'all 0.15s',
+                  boxSizing: 'border-box',
+                  width: '100%',
                 }}
               >
                 <span style={{

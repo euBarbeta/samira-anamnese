@@ -32,7 +32,7 @@ export default function CalendarioAgenda({
   renderDia,
   diaSelecionado,
   compacto = false,
-  ocultarBloqueados = false, // ✅ NOVO: Se true, não mostra dias vermelhos
+  ocultarBloqueados = false,
 }) {
   const cells = montarCells(mesRef);
 
@@ -41,7 +41,11 @@ export default function CalendarioAgenda({
       background: '#fff',
       border: '1.5px solid #e2d2f5',
       borderRadius: 14,
-      padding: compacto ? 10 : 16,
+      padding: compacto ? 8 : 16, // Menos padding no mobile
+      width: '100%',              // Ocupa todo o espaço disponível
+      maxWidth: '100%',           // Nunca passa do limite
+      boxSizing: 'border-box',    // A borda e o padding não somam na largura
+      overflow: 'hidden',         // Corta qualquer vazamento
     }}>
       <div style={{
         display: 'flex',
@@ -79,8 +83,9 @@ export default function CalendarioAgenda({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
-        gap: compacto ? 3 : 4,
+        gap: compacto ? 2 : 4, // Gap menor no mobile para caber tudo
         marginBottom: 6,
+        width: '100%',
       }}>
         {DIAS_CURTO.map((d) => (
           <div key={d} style={{
@@ -99,7 +104,8 @@ export default function CalendarioAgenda({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(7, 1fr)',
-        gap: compacto ? 3 : 4,
+        gap: compacto ? 2 : 4,
+        width: '100%',
       }}>
         {cells.map((data, i) => {
           if (!data) {
@@ -117,7 +123,6 @@ export default function CalendarioAgenda({
           const info = renderDia(data);
           const dia = data.getDate();
 
-          // ✅ Lógica para esconder o vermelho para o paciente
           const isBloqueado = info.status === 'bloqueado';
           const exibirBloqueado = isBloqueado && !ocultarBloqueados;
 
@@ -157,16 +162,17 @@ export default function CalendarioAgenda({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: compacto ? '4px 1px 6px 1px' : '10px 6px',
+                padding: compacto ? '2px 0 4px 0' : '10px 6px',
                 position: 'relative',
                 transition: 'all 0.15s',
                 fontFamily: 'inherit',
                 overflow: 'hidden',
                 boxSizing: 'border-box',
+                width: '100%',
               }}
             >
               <span style={{
-                fontSize: compacto ? 12 : 'clamp(14px, 1.4vw, 18px)',
+                fontSize: compacto ? 11 : 'clamp(14px, 1.4vw, 18px)',
                 fontWeight: ehHoje || sel ? 800 : 600,
                 color: corTexto,
                 lineHeight: 1,
@@ -189,7 +195,7 @@ export default function CalendarioAgenda({
                   paddingBottom: compacto ? 1 : 0,
                 }}>
                   <span style={{
-                    fontSize: compacto ? 10 : 'clamp(20px, 3.5vw, 28px)',
+                    fontSize: compacto ? 9 : 'clamp(20px, 3.5vw, 28px)',
                     fontWeight: 800,
                     color: '#7e22ce',
                     lineHeight: 1,
@@ -205,14 +211,13 @@ export default function CalendarioAgenda({
                     textTransform: 'lowercase',
                     lineHeight: 1,
                     whiteSpace: 'nowrap',
-                    letterSpacing: '0.1px',
+                    letterSpacing: '-0.2px',
                   }}>
                     {qtd === 1 ? 'horário' : 'horários'}
                   </span>
                 </div>
               )}
 
-              {/* ✅ Ícone de bloqueado some se for o paciente (ocultarBloqueados) */}
               {exibirBloqueado && (
                 <MdEventBusy
                   size={compacto ? 10 : 14}
@@ -232,17 +237,17 @@ export function LegendaCalendario() {
   return (
     <div style={{
       display: 'flex',
-      gap: 14,
+      flexWrap: 'wrap',
+      gap: '8px 14px',
       marginTop: 12,
       paddingTop: 10,
       borderTop: '1px dashed #e2d2f5',
       fontSize: 10,
       color: '#666',
-      flexWrap: 'wrap',
       justifyContent: 'center',
+      width: '100%',
     }}>
       <Legenda cor="#f0fdf4" borda="#86efac" texto="Com vagas" />
-      {/* ✅ Removido o "Bloqueado" da legenda pública */}
       <Legenda cor="#f5f5f5" borda="#e0e0e0" texto="Sem agenda" />
       <Legenda cor="#f3e8ff" borda="#7e22ce" texto="Selecionado" />
     </div>
@@ -251,7 +256,7 @@ export function LegendaCalendario() {
 
 function Legenda({ cor, borda, texto }) {
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
       <span style={{
         display: 'inline-block',
         width: 12,
@@ -259,6 +264,7 @@ function Legenda({ cor, borda, texto }) {
         background: cor,
         border: `1.5px solid ${borda}`,
         borderRadius: 3,
+        flexShrink: 0,
       }} />
       {texto}
     </span>
