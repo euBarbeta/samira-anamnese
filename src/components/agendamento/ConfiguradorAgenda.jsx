@@ -451,15 +451,23 @@ useEffect(() => {
                   {dia}
                 </span>
                 {info.status === 'aberto' && (
-                  <span style={{
-                    fontSize: 8,
-                    color: corTexto,
-                    marginTop: 2,
-                    fontWeight: 700,
-                  }}>
-                    {info.blocos}×
-                  </span>
-                )}
+  <span style={{
+    fontSize: 8,
+    color: corTexto,
+    marginTop: 2,
+    fontWeight: 700,
+    textAlign: 'center',
+    lineHeight: 1.1,
+    display: 'flex',
+    flexDirection: 'column'
+  }}>
+    <span>{info.blocos}</span>
+    <span style={{ fontSize: 6, textTransform: 'lowercase' }}>
+      {info.blocos === 1 ? 'horário' : 'horários'}
+    </span>
+  </span>
+)}
+                
                 {info.status === 'bloqueado' && (
                   <MdEventBusy size={10} color="#c62828" style={{ marginTop: 2 }} />
                 )}

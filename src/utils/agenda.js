@@ -58,31 +58,22 @@ export function gerarSlotsDisponiveis(
     (config.bloqueios || []).map((b) => b.data)
   );
 
-  // ============================================================
-  // ✅ Agrupa os agendamentos por data, guardando o INTERVALO ocupado
-  // ------------------------------------------------------------
-  // ⚠️ ACEITA 2 FORMATOS DE ENTRADA:
-  //   1) Docs da coleção pública `slots_ocupados_publicos` (sem `status`)
-  //   2) Docs de `agendamentos` (com `status`)
-  // ============================================================
+  // Agrupa os agendamentos por data
   const ocupadosPorData = {};
   agendamentosOcupados
     .filter((a) => {
-      if (a.status == null) return true; // veio da coleção pública
+      if (a.status == null) return true;
       return a.status === 'pendente' || a.status === 'confirmado';
     })
     .forEach((a) => {
       if (!a.data || !a.horaInicio) return;
-
       const inicioMin = toMin(a.horaInicio);
-
       let fimMin;
       if (a.horaFim) {
         fimMin = toMin(a.horaFim);
       } else {
         fimMin = inicioMin + (a.duracaoMin || 60);
       }
-
       if (!ocupadosPorData[a.data]) ocupadosPorData[a.data] = [];
       ocupadosPorData[a.data].push({ inicioMin, fimMin });
     });
@@ -92,8 +83,16 @@ export function gerarSlotsDisponiveis(
     agora.getTime() + (config.antecedenciaMinimaHoras || 4) * 3600 * 1000
   );
 
+  // ✅ CORREÇÃO AQUI: Pega a data de HOJE (zerada) para não gerar dias passados
+  const hojeZero = new Date();
+  hojeZero.setHours(0, 0, 0, 0);
+
   const slots = [];
-  const inicio = new Date(dataInicioISO + 'T00:00:00');
+  
+  // Começa a partir do maior valor entre a dataInicioISO e HOJE
+  const inicioOriginal = new Date(dataInicioISO + 'T00:00:00');
+  const inicio = inicioOriginal < hojeZero ? hojeZero : inicioOriginal;
+  
   const fim = new Date(dataFimISO + 'T23:59:59');
 
   for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
@@ -122,9 +121,6 @@ export function gerarSlotsDisponiveis(
       .filter((l) => l.data === iso)
       .map((l) => ({ inicio: l.inicio, fim: l.fim, duracaoMin: 60 }));
 
-    // ============================================================
-    // ✅ PERCORRE OS BLOCOS E GERA OS SLOTS DA GRADE
-    // ============================================================
     for (const bloco of [...blocos, ...avulsos]) {
       const [hI, mI] = bloco.inicio.split(':').map(Number);
       const [hF, mF] = bloco.fim.split(':').map(Number);
@@ -158,98 +154,42 @@ export function gerarSlotsDisponiveis(
       }
     }
 
-    // ============================================================
-    // ⚖️ LIBERAÇÕES EXTRAS (sobras) — versão 2.0
-    // ------------------------------------------------------------
-    // Regra:
-    //   - Se a sobra está LIMPA (ninguém dentro) → gera slot
-    //   - Se a sobra está POLUÍDA (qualquer agendamento dentro,
-    //     exceto o próprio) → DESCARTA a sobra inteira
-    //   - Sobra barrada (liberacoesExtras: []) → não faz nada
-    //
-    // Isso garante que:
-    //   ✅ LIBERAR → slot aparece (se estiver livre)
-    //   ✅ BARRAR  → slot desaparece (não aparece no agenda)
-    //   ✅ Reverter a qualquer momento (esteta clica de novo)
-    // ============================================================
+    // Liberações extras (sobras)
     const agsDoDia = agendamentosOcupados.filter((a) => a.data === iso);
-
     for (const a of agsDoDia) {
       if (!Array.isArray(a.liberacoesExtras)) continue;
-
       for (const lib of a.liberacoesExtras) {
         if (!lib.inicio || !lib.fim) continue;
-
         const libInicioMin = toMin(lib.inicio);
         const libFimMin = toMin(lib.fim);
-
-        // Já passou da antecedência mínima? Pula
         const cursorLib = new Date(d);
-        cursorLib.setHours(
-          Math.floor(libInicioMin / 60),
-          libInicioMin % 60,
-          0,
-          0
-        );
+        cursorLib.setHours(Math.floor(libInicioMin / 60), libInicioMin % 60, 0, 0);
         if (cursorLib < minAntecedencia) continue;
 
-        // ------------------------------------------------------------
-        // Identifica o próprio agendamento (pra ignorá-lo na checagem)
-        // ------------------------------------------------------------
         const proprioInicioMin = toMin(a.horaInicio);
-        const proprioFimMin = a.horaFim
-          ? toMin(a.horaFim)
-          : proprioInicioMin + (a.duracaoMin || 60);
+        const proprioFimMin = a.horaFim ? toMin(a.horaFim) : proprioInicioMin + (a.duracaoMin || 60);
 
-        // ------------------------------------------------------------
-        // ⚖️ Verifica se a sobra está POLUÍDA
-        // ------------------------------------------------------------
         const temAlguemDentro = (ocupadosPorData[iso] || []).some((o) => {
-          // Ignora o próprio agendamento
-          if (
-            o.inicioMin === proprioInicioMin &&
-            o.fimMin === proprioFimMin
-          ) {
-            return false;
-          }
-          // Colide com a sobra?
+          if (o.inicioMin === proprioInicioMin && o.fimMin === proprioFimMin) return false;
           return libInicioMin < o.fimMin && o.inicioMin < libFimMin;
         });
-
-        // ⚠️ Se tem alguém dentro → DESCARTA a sobra inteira
         if (temAlguemDentro) continue;
 
-        // ------------------------------------------------------------
-        // ✅ Sobra limpa → gera o slot completo
-        // ------------------------------------------------------------
         const horaInicio = `${pad(Math.floor(libInicioMin / 60))}:${pad(libInicioMin % 60)}`;
         const horaFim = `${pad(Math.floor(libFimMin / 60))}:${pad(libFimMin % 60)}`;
 
-        // Evita duplicata
         const jaExiste = slots.some(
-          (s) =>
-            s.data === iso &&
-            s.horaInicio === horaInicio &&
-            s.horaFim === horaFim
+          (s) => s.data === iso && s.horaInicio === horaInicio && s.horaFim === horaFim
         );
         if (jaExiste) continue;
-
-        slots.push({
-          data: iso,
-          horaInicio,
-          horaFim,
-          _liberado: true,
-        });
+        slots.push({ data: iso, horaInicio, horaFim, _liberado: true });
       }
     }
   }
 
-  // ============================================================
-  // ✅ Deduplicação final
-  // ============================================================
+  // Deduplicação
   const slotsUnicos = [];
   const chavesVistas = new Set();
-
   for (const s of slots) {
     const chave = `${s.data}|${s.horaInicio}`;
     if (chavesVistas.has(chave)) continue;
@@ -265,7 +205,6 @@ export function gerarSlotsDisponiveis(
 
   return slotsUnicos;
 }
-
 /**
  * Gera código de autenticidade para o paciente consultar/cancelar.
  */
