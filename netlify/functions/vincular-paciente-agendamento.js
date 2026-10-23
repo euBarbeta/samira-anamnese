@@ -1,7 +1,6 @@
 // netlify/functions/vincular-paciente-agendamento.js
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
-const { sanitizarTexto } = require('./_utils/sanitizar');
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +8,21 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
+
+// ✅ FUNÇÃO LOCAL (Para evitar o erro "is not a function" na Netlify)
+function sanitizarTexto(valor, { maxLength = 500, permitirQuebraLinha = false } = {}) {
+  if (valor == null) return '';
+  let texto = String(valor);
+  texto = texto.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+  texto = texto.replace(/<(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, '');
+  texto = texto.replace(/<[^>]+>/g, '');
+  texto = texto.replace(/javascript\s*:/gi, '');
+  texto = texto.replace(/\bon\w+\s*=/gi, '');
+  if (!permitirQuebraLinha) texto = texto.replace(/[\r\n]+/g, ' ');
+  texto = texto.trim();
+  if (texto.length > maxLength) texto = texto.slice(0, maxLength);
+  return texto;
+}
 
 function normalizarNome(str) {
   return (str || '')
@@ -60,7 +74,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Sanitiza as entradas (defesa em profundidade)
+    // ✅ Usa a função local de sanitização
     const nome = sanitizarTexto(nomeBruto, { maxLength: 100 });
     const documento = sanitizarTexto(docBruto, { maxLength: 30 });
 
