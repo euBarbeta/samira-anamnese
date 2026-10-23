@@ -25,39 +25,34 @@ export default function PainelSeguranca() {
 
   const [indicePacientes, setIndicePacientes] = useState({});
 
+  // ✅ CORREÇÃO: Escuta apenas os pacientes da esteticista logada
   useEffect(() => {
-    const uids = [
-      'MZ5j3NpjlxY67yLRiEfg13TbPE32', // Samira
-      'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2', // MbTech
-    ];
+    const user = getAuth().currentUser;
+    if (!user) return;
 
-    const unsubs = uids.map((uid) => {
-      const colRef = collection(db, `usuarios/${uid}/pacientes`);
-      return onSnapshot(
-        colRef,
-        (snap) => {
-          setIndicePacientes((prev) => {
-            const novo = { ...prev };
-            snap.docs.forEach((d) => {
-              const data = d.data();
-              novo[d.id] = {
-                id: d.id,
-                nome: data.nome || data.anamnese?.nome || 'Sem nome',
-                documento:
-                  data.documento ||
-                  data.anamnese?.numeroDocumento ||
-                  data.anamnese?.documento ||
-                  '—',
-              };
-            });
-            return novo;
-          });
-        },
-        (e) => console.warn('Erro listener pacientes (índice):', e)
-      );
-    });
+    const colRef = collection(db, `usuarios/${user.uid}/pacientes`);
+    const unsub = onSnapshot(
+      colRef,
+      (snap) => {
+        const novo = {};
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          novo[d.id] = {
+            id: d.id,
+            nome: data.nome || data.anamnese?.nome || 'Sem nome',
+            documento:
+              data.documento ||
+              data.anamnese?.numeroDocumento ||
+              data.anamnese?.documento ||
+              '—',
+          };
+        });
+        setIndicePacientes(novo);
+      },
+      (e) => console.warn('Erro listener pacientes:', e)
+    );
 
-    return () => unsubs.forEach((u) => u && u());
+    return () => unsub();
   }, []);
 
   const nomeDoPaciente = (pacienteId) =>
@@ -274,7 +269,6 @@ export default function PainelSeguranca() {
                         <MdBlock size={14} />
                         BLOQUEAR
                       </button>
-                      {/* ✅ Botão X para dispositivos pendentes (dispensa sem agir) */}
                       <button
                         type="button"
                         onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'dispensar')}
@@ -410,7 +404,6 @@ export default function PainelSeguranca() {
                         {processando === t.id ? 'PROCESSANDO…' : 'DESBLOQUEAR ACESSO'}
                       </button>
 
-                      {/* ✅ Botão X para contas bloqueadas (dispensa alerta sem desbloquear) */}
                       <button
                         type="button"
                         onClick={() => executarAcao(t.id, 'dispensar')}
