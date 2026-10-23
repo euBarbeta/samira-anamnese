@@ -50,6 +50,35 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados incompletos' }) };
     }
 
+    // ✅ NOVO: Verifica se o paciente está anonimizado antes de notificar
+    try {
+      const UIDS_ESTETICISTAS = [
+        'MZ5j3NpjlxY67yLRiEfg13TbPE32', // Samira
+        'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2', // MbTech
+      ];
+
+      let pacienteAnonimizado = false;
+      for (const uidEst of UIDS_ESTETICISTAS) {
+        const pacRef = db.doc(`usuarios/${uidEst}/pacientes/${pacienteId}`);
+        const pacSnap = await pacRef.get();
+        if (pacSnap.exists && pacSnap.data().anonimizadoEm) {
+          pacienteAnonimizado = true;
+          break;
+        }
+      }
+
+      if (pacienteAnonimizado) {
+        console.log(`⏭️ Notificação ignorada: paciente ${pacienteId} está anonimizado.`);
+        return { 
+          statusCode: 200, 
+          headers: CORS, 
+          body: JSON.stringify({ ok: true, enviado: false, motivo: 'anonimizado' }) 
+        };
+      }
+    } catch (e) {
+      console.warn('Falha ao verificar anonimização:', e);
+    }
+
     // ============================================================
     // ✅ Datas formatadas em DD/MM/YYYY (não ISO)
     // ============================================================

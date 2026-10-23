@@ -128,6 +128,19 @@ exports.handler = async (event) => {
       };
     }
 
+    // ✅ NOVO: Verifica se o paciente está anonimizado
+    if (pacienteEncontrado.anonimizadoEm) {
+      return {
+        statusCode: 200,
+        headers: CORS,
+        body: JSON.stringify({
+          ok: true,
+          vinculado: false,
+          motivo: 'Paciente anonimizado. Necessário reativar pelo painel.',
+        }),
+      };
+    }
+
     // ============================================================
     // 2) Confirma que o agendamento existe
     // ============================================================
