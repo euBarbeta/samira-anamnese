@@ -48,7 +48,8 @@ exports.handler = async (event) => {
 
     const { pacienteId, fingerprint, acao, motivo = '' } = JSON.parse(event.body || '{}');
 
-    if (!pacienteId || !fingerprint || !['autorizar', 'bloquear'].includes(acao)) {
+    // ✅ Adicionado 'dispensar' na lista de ações permitidas
+    if (!pacienteId || !fingerprint || !['autorizar', 'bloquear', 'dispensar'].includes(acao)) {
       return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'dados inválidos' }) };
     }
 
@@ -75,7 +76,7 @@ exports.handler = async (event) => {
         },
         { merge: true }
       );
-    } else {
+    } else if (acao === 'bloquear') {
       await ref.set(
         {
           autorizado: false,
@@ -86,9 +87,18 @@ exports.handler = async (event) => {
         },
         { merge: true }
       );
+    } else if (acao === 'dispensar') {
+      // ✅ Apenas remove o alerta da tela, mas NÃO muda a autorização
+      // do dispositivo (se estava bloqueado, continua bloqueado).
+      await ref.set(
+        {
+          aguardandoAprovacao: false,
+        },
+        { merge: true }
+      );
     }
 
-    // Fecha o alerta (se existir)
+    // Fecha o alerta (se existir) mudando o status
     try {
       const alertasSnap = await db
         .collection('alertas_dispositivo')
@@ -100,7 +110,7 @@ exports.handler = async (event) => {
       const batch = db.batch();
       alertasSnap.docs.forEach((d) => {
         batch.update(d.ref, {
-          status: acao === 'autorizar' ? 'autorizado' : 'bloqueado',
+          status: acao === 'autorizar' ? 'autorizado' : acao === 'bloquear' ? 'bloqueado' : 'dispensado',
           resolvidoPor: decoded.uid,
           resolvidoEm: agora,
         });

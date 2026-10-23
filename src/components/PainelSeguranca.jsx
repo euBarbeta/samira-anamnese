@@ -8,7 +8,7 @@ import { db } from './firebase';
 import {
   MdWarning, MdShield, MdCheckCircle, MdBlock, MdUndo,
   MdRefresh, MdAccessTime, MdDevices, MdEmail, MdLocationOff,
-  MdClose, // ✅ Importado o ícone de fechar
+  MdClose,
 } from 'react-icons/md';
 import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocalizacao';
 
@@ -23,9 +23,6 @@ export default function PainelSeguranca() {
   const [mostrarModal, setMostrarModal] = useState(null);
   const [motivo, setMotivo] = useState('');
 
-  // ============================================================
-  // 🧠 ÍNDICE DE PACIENTES
-  // ============================================================
   const [indicePacientes, setIndicePacientes] = useState({});
 
   useEffect(() => {
@@ -68,9 +65,6 @@ export default function PainelSeguranca() {
   const documentoDoPaciente = (pacienteId) =>
     indicePacientes[String(pacienteId)]?.documento || '—';
 
-  // ============================================================
-  // Listeners
-  // ============================================================
   useEffect(() => {
     const unsub = onSnapshot(
       query(
@@ -129,9 +123,6 @@ export default function PainelSeguranca() {
     return () => unsub();
   }, []);
 
-  // ============================================================
-  // Helpers
-  // ============================================================
   const estaBloqueado = (emailHash) => {
     const b = bloqueios.find((x) => x.id === emailHash);
     return b?.bloqueado === true;
@@ -199,8 +190,6 @@ export default function PainelSeguranca() {
   const relevantes = tentativas.filter((t) => {
     const temFalhas = (t.tentativas || []).length > 0;
     const bloqueado = estaBloqueado(t.id);
-    // ✅ Se o alerta foi dispensado, some da lista de suspeitos,
-    // mas continua na lista de bloqueados se a conta estiver bloqueada.
     return temFalhas || bloqueado || t.requerBloqueio;
   });
 
@@ -215,9 +204,6 @@ export default function PainelSeguranca() {
     });
   }, [estados]);
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   return (
     <div style={{ padding: '10px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
@@ -269,7 +255,7 @@ export default function PainelSeguranca() {
                       Detectado em {d.criadoEm ? new Date(d.criadoEm).toLocaleString('pt-BR') : '—'}
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <button
                         type="button"
                         onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
@@ -287,6 +273,28 @@ export default function PainelSeguranca() {
                       >
                         <MdBlock size={14} />
                         BLOQUEAR
+                      </button>
+                      {/* ✅ Botão X para dispositivos pendentes (dispensa sem agir) */}
+                      <button
+                        type="button"
+                        onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'dispensar')}
+                        disabled={carregandoEste}
+                        title="Fechar aviso (não altera autorização)"
+                        style={{
+                          background: 'transparent',
+                          border: '1.5px solid #ccc',
+                          color: '#666',
+                          width: 38,
+                          height: 38,
+                          borderRadius: 12,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <MdClose size={20} />
                       </button>
                     </div>
                   </div>
@@ -372,7 +380,6 @@ export default function PainelSeguranca() {
                       </div>
                     </div>
 
-                    {/* ✅ IP e Localização */}
                     {t.ultimoIp && t.ultimoIp !== 'desconhecido' && (
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <MdLocationOff size={12} color="#666" />
@@ -403,7 +410,7 @@ export default function PainelSeguranca() {
                         {processando === t.id ? 'PROCESSANDO…' : 'DESBLOQUEAR ACESSO'}
                       </button>
 
-                      {/* ✅ NOVO BOTÃO X (Dispensar Alerta) */}
+                      {/* ✅ Botão X para contas bloqueadas (dispensa alerta sem desbloquear) */}
                       <button
                         type="button"
                         onClick={() => executarAcao(t.id, 'dispensar')}
@@ -468,7 +475,6 @@ export default function PainelSeguranca() {
                     </div>
                   </div>
 
-                  {/* ✅ IP e Localização */}
                   {t.ultimoIp && t.ultimoIp !== 'desconhecido' && (
                     <div style={{ fontSize: 11, color: '#666', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <MdLocationOff size={12} color="#666" />
@@ -506,7 +512,6 @@ export default function PainelSeguranca() {
                       BLOQUEAR
                     </button>
 
-                    {/* ✅ NOVO BOTÃO X (Dispensar Alerta) */}
                     <button
                       type="button"
                       onClick={() => executarAcao(t.id, 'dispensar')}

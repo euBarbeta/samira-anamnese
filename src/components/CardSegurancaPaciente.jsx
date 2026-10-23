@@ -1,6 +1,6 @@
 // src/components/CardSegurancaPaciente.jsx
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 import {
   MdLocationOn, MdDevices, MdAccessTime, MdWarning,
@@ -11,11 +11,12 @@ import { rotuloStatusLocalizacao, corStatusLocalizacao } from '../utils/geolocal
 export default function CardSegurancaPaciente({ pacienteId }) {
   const [estado, setEstado] = useState(null);
   const [carregando, setCarregando] = useState(true);
+  const [temAlertaPendente, setTemAlertaPendente] = useState(false);
 
+  // ✅ Busca os dados de segurança do paciente
   useEffect(() => {
-    if (!pacienteId) return; 
-    
-    // ✅ Adicione este delay para esperar o Auth sincronizar
+    if (!pacienteId) return;
+
     const timer = setTimeout(() => {
       const unsub = onSnapshot(
         doc(db, 'seguranca_estado', String(pacienteId)),
@@ -29,17 +30,41 @@ export default function CardSegurancaPaciente({ pacienteId }) {
         }
       );
       return () => unsub();
-    }, 1000); // 1 segundo de espera
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [pacienteId]);
 
+  // ✅ Escuta em tempo real se ainda existe algum alerta pendente para este paciente
+  useEffect(() => {
+    if (!pacienteId) return;
+
+    const q = query(
+      collection(db, 'alertas_dispositivo'),
+      where('pacienteId', '==', String(pacienteId)),
+      where('status', '==', 'pendente')
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setTemAlertaPendente(!snap.empty);
+    });
+
+    return () => unsub();
+  }, [pacienteId]);
+
   if (carregando) return null;
-// ✅ Ignora estados "neutros" que não importam pro usuário
-const statusIgnorar = ['timeout', 'nao_suportado', 'indisponivel', 'prompt'];
-if (estado && statusIgnorar.includes(estado.localizacaoStatus)) {
-  return null;
-}
+
+  // ✅ Esconde o card se o paciente foi anonimizado
+  if (estado && estado.localizacaoStatus === 'anonimizada') {
+    return null;
+  }
+
+  // ✅ Ignora estados "neutros" que não importam pro usuário
+  const statusIgnorar = ['timeout', 'nao_suportado', 'indisponivel', 'prompt'];
+  if (estado && statusIgnorar.includes(estado.localizacaoStatus)) {
+    return null;
+  }
+
   if (!estado) {
     return (
       <div style={cardVazio}>
@@ -64,7 +89,6 @@ if (estado && statusIgnorar.includes(estado.localizacaoStatus)) {
           </span>
         </div>
 
-        {/* ✅ Badge em tempo real: GPS ligado/desligado */}
         <span
           style={{
             display: 'inline-flex',
@@ -132,14 +156,15 @@ if (estado && statusIgnorar.includes(estado.localizacaoStatus)) {
         </div>
       </div>
 
-      {estado.trocouDispositivo && (
+      {/* ✅ O aviso "Login de dispositivo novo" só aparece se ainda houver alerta PENDENTE */}
+      {temAlertaPendente && (
         <div style={avisoAmarelo}>
           <MdWarning size={14} color="#92400e" style={{ flexShrink: 0, marginTop: 2 }} />
           <div>
             <strong>⚠️ Login de dispositivo novo</strong>
             <br />
             <span style={{ fontSize: 10 }}>
-              Antes: {estado.dispositivoAnterior || '—'}
+              Aguardando aprovação da profissional.
             </span>
           </div>
         </div>
