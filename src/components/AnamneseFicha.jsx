@@ -677,7 +677,11 @@ export default function AnamneseFicha() {
           const data = snap.data();
           if (data.autorizado === true) {
             setAguardandoAprovacao(false);
-            window.location.reload();
+            // ✅ CORREÇÃO: Não recarrega a página (causa loop infinito). 
+            // Apenas re-executa a verificação de login para liberar o paciente.
+            setRota('verificando');
+            setBuscandoPaciente(true);
+            handleLoginSucesso(auth.currentUser, { veioDeRefresh: true });
           } else if (data.autorizado === false && data.motivoBloqueio) {
             unsub();
             setAguardandoAprovacao(false);
@@ -720,7 +724,11 @@ export default function AnamneseFicha() {
       setBuscandoPaciente(true);
 
       try {
-        await user.getIdToken(true);
+        // ✅ Timeout no getIdToken para não travar
+        await Promise.race([
+          user.getIdToken(true),
+          new Promise(r => setTimeout(r, 3000))
+        ]);
         await new Promise(r => setTimeout(r, 500));
       } catch (e) {
         console.warn('Erro ao forçar token:', e);
@@ -803,6 +811,7 @@ export default function AnamneseFicha() {
       if (pacienteEncontrado) {
         
         // ✅ 1. VERIFICAÇÃO DE LGPD (PRIORIDADE MÁXIMA NO APK)
+        // Correção: Garante que a tela de login apareça sem travar o loading
         if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
           await signOutSafe();
           setAutenticado(false);
