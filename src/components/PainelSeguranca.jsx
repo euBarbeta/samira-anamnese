@@ -181,14 +181,14 @@ export default function PainelSeguranca() {
     }
   };
 
-  // ✅ LÓGICA CORRIGIDA: Ignora cards que já foram dispensados
+  // ✅ LÓGICA FINAL: Esconde completamente os cards que a esteta já dispensou
   const relevantes = tentativas.filter((t) => {
     const bloqueado = estaBloqueado(t.id);
     const temFalhas = (t.tentativas || []).length > 0;
     
-    // Se a conta está bloqueada E já foi dispensada (X clicado), 
-    // retorna false para o card sumir da tela.
-    if (bloqueado && t.requerBloqueio === false) {
+    // Se não tem mais falhas (porque o X limpou) E o alerta não está pedindo bloqueio,
+    // nós simplesmente esquecemos esse registro na tela. Ele some!
+    if (!temFalhas && t.requerBloqueio === false) {
       return false;
     }
     
