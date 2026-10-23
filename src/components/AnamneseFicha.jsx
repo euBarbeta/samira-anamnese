@@ -83,12 +83,10 @@ export default function AnamneseFicha() {
 
   const [autenticado, setAutenticado] = useState(() => lerSessao('af_autenticado') === '1');
   const [abaAtiva, setAbaAtiva] = useState(() => lerSessao('af_abaAtiva') || 'telainicial');
-  
   const [authVerificado, setAuthVerificado] = useState(() => {
     if (isNativo()) return false;
     return lerSessao('af_authVerificado') === '1';
   });
-
   const [dadosPaciente, setDadosPaciente] = useState(() => {
     try {
       const s = lerSessao('af_dadosPaciente');
@@ -326,18 +324,7 @@ export default function AnamneseFicha() {
   const restaurandoRef = useRef(false);
 
   useEffect(() => {
-    let timeoutId = setTimeout(() => {
-      if (!authVerificado) {
-        setAuthVerificado(true);
-        setAutenticado(false);
-        setBuscandoPaciente(false);
-        setRota('login-uid');
-      }
-    }, 5000);
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      clearTimeout(timeoutId); 
-
       if (emLogoutRef.current) {
         setAuthVerificado(true);
         return;
@@ -409,7 +396,6 @@ export default function AnamneseFicha() {
             setPacienteDocPath(null);
             setAbaAtiva('telainicial');
             setRota('login-uid');
-            setBuscandoPaciente(false);
             setAuthVerificado(true);
             setTimeout(() => { emLogoutRef.current = false; }, 500);
             return;
@@ -474,11 +460,9 @@ export default function AnamneseFicha() {
               setDadosPaciente(null);
               setPacienteDocPath(null);
               setAbaAtiva('telainicial');
-              setRota('login-uid');
-              setBuscandoPaciente(false); // ✅ DESTRAVA O LOADING
               setAuthVerificado(true);
             }
-          }, 3000); 
+          }, 4000);
           return;
         }
 
@@ -488,16 +472,10 @@ export default function AnamneseFicha() {
         setDadosPaciente(null);
         setPacienteDocPath(null);
         setAbaAtiva('telainicial');
-        setRota('login-uid');
-        setBuscandoPaciente(false); // ✅ DESTRAVA O LOADING
       }
       setAuthVerificado(true);
     });
-
-    return () => {
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -699,6 +677,8 @@ export default function AnamneseFicha() {
           const data = snap.data();
           if (data.autorizado === true) {
             setAguardandoAprovacao(false);
+            // ✅ CORREÇÃO: Não recarrega a página (causa loop infinito). 
+            // Apenas re-executa a verificação de login para liberar o paciente.
             setRota('verificando');
             setBuscandoPaciente(true);
             handleLoginSucesso(auth.currentUser, { veioDeRefresh: true });
@@ -744,6 +724,7 @@ export default function AnamneseFicha() {
       setBuscandoPaciente(true);
 
       try {
+        // ✅ Timeout no getIdToken para não travar
         await Promise.race([
           user.getIdToken(true),
           new Promise(r => setTimeout(r, 3000))
@@ -758,12 +739,7 @@ export default function AnamneseFicha() {
       let estetaUidParaPath = null;
 
       if (isNativo() && !uidDaURL) {
-        // ✅ TIMEOUT NO PREFERENCES: Se o Capacitor não responder em 2s, ignora e continua.
-        const prefPromise = Preferences.get({ key: 'pacienteId' });
-        const timeoutPref = new Promise((resolve) => setTimeout(() => resolve({ value: null }), 2000));
-        
-        const { value } = await Promise.race([prefPromise, timeoutPref]);
-
+        const { value } = await Preferences.get({ key: 'pacienteId' });
         if (value) {
           const esteticistasUids = [
             'ZvzIxDhsh7WMZqvG5hcFSOy9I2',
@@ -835,12 +811,13 @@ export default function AnamneseFicha() {
       if (pacienteEncontrado) {
         
         // ✅ 1. VERIFICAÇÃO DE LGPD (PRIORIDADE MÁXIMA NO APK)
+        // Correção: Garante que a tela de login apareça sem travar o loading
         if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
           await signOutSafe();
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
-          setBuscandoPaciente(false); // ✅ DESTRAVA O LOADING
+          setBuscandoPaciente(false);
           setErroLoginExterno(
             'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.'
           );
@@ -1050,7 +1027,6 @@ export default function AnamneseFicha() {
     setFichaSelecionada(null);
     setErroLoginExterno('');
     setAvisoLocalizacao(null);
-    setBuscandoPaciente(false);
 
     window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
 
@@ -1173,21 +1149,6 @@ export default function AnamneseFicha() {
             Por segurança, este novo dispositivo precisa ser autorizado pela profissional. 
             Assim que ela liberar, você entrará automaticamente.
           </p>
-          <button
-            onClick={handleLogout}
-            style={{
-              marginTop: 20,
-              padding: '8px 16px',
-              background: 'transparent',
-              border: '1px solid #999',
-              borderRadius: '20px',
-              color: '#666',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
-            Cancelar e voltar
-          </button>
         </div>
       );
     }
@@ -1366,35 +1327,11 @@ export default function AnamneseFicha() {
           <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px' }}>
             Reconectando…
           </span>
-          {/* ✅ BOTÃO DE EMERGÊNCIA AQUI */}
-          <button
-            type="button"
-            onClick={() => {
-              setAuthVerificado(true);
-              setAutenticado(false);
-              setRota('login-uid');
-              setBuscandoPaciente(false);
-            }}
-            style={{
-              marginTop: 24,
-              padding: '8px 16px',
-              background: 'rgba(255,255,255,0.4)',
-              border: '1px solid rgba(44, 22, 58, 0.2)',
-              borderRadius: '20px',
-              color: '#55286f',
-              fontSize: '11px',
-              cursor: 'pointer',
-              backdropFilter: 'blur(4px)'
-            }}
-          >
-            Destravar / Ir para o Login
-          </button>
           <style>{`@keyframes spinAF { to { transform: rotate(360deg); } }`}</style>
         </div>
       );
     }
 
-    // ✅ CORREÇÃO CRÍTICA: Se o auth foi verificado e não está autenticado, mostra o login, ignorando `buscandoPaciente`
     if (!autenticado) {
       if (rota === 'admin') {
         return isMobile
@@ -1422,35 +1359,12 @@ export default function AnamneseFicha() {
       return (
         <div style={{
           display: 'flex',
-          flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '100vh',
           backgroundColor: '#d7cee0',
         }}>
           <LoadingElegante texto="Carregando painel do paciente..." />
-          {/* ✅ BOTÃO DE EMERGÊNCIA AQUI */}
-          <button
-            type="button"
-            onClick={() => {
-              setBuscandoPaciente(false);
-              setAutenticado(false);
-              setRota('login-uid');
-              signOutSafe();
-            }}
-            style={{
-              marginTop: 20,
-              padding: '8px 16px',
-              background: 'transparent',
-              border: '1px solid #999',
-              borderRadius: '20px',
-              color: '#666',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
-            Cancelar e voltar ao login
-          </button>
         </div>
       );
     }
