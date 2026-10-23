@@ -316,7 +316,7 @@ export async function reativarPorEdicao({
   );
 
   const snap = await getDoc(pacienteRef);
-  if (!snap.exists) {
+  if (!snap.exists()) {
     throw new Error('Paciente não encontrado.');
   }
 
@@ -354,7 +354,30 @@ export async function reativarPorEdicao({
   }
 
   // ------------------------------------------------------------
-  // ✅ 3) Reativa o doc do paciente
+  // ✅ 3) LIMPA DISPOSITIVOS ANTIGOS BLOQUEADOS
+  // ------------------------------------------------------------
+  try {
+    const devSnap = await getDocs(
+      query(
+        collection(db, 'dispositivos_autorizados'),
+        where('pacienteId', '==', String(pacienteId))
+      )
+    );
+
+    if (!devSnap.empty) {
+      const batch = writeBatch(db);
+      devSnap.docs.forEach((d) => {
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+      console.log(`🧹 ${devSnap.size} dispositivo(s) antigo(s) removido(s) na reativação`);
+    }
+  } catch (e) {
+    console.warn('Falha ao limpar dispositivos antigos:', e);
+  }
+
+  // ------------------------------------------------------------
+  // ✅ 4) Reativa o doc do paciente
   // ------------------------------------------------------------
   await updateDoc(pacienteRef, {
     nome: nome || dados.nome || null,
@@ -386,7 +409,7 @@ export async function reativarPorEdicao({
   });
 
   // ------------------------------------------------------------
-  // ✅ 4) Garante links_pacientes ativo
+  // ✅ 5) Garante links_pacientes ativo
   // ------------------------------------------------------------
   try {
     const linkRef = doc(db, 'links_pacientes', String(pacienteId));
