@@ -5,7 +5,6 @@ import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { EMAILS_ESTETICISTAS } from './constantes';
 import { isNativo } from './push-notifications-native';
-import LoadingElegante from './LoadingElegante';
 
 export default function TelaInicial({
   onLoginSucesso,
@@ -18,7 +17,6 @@ export default function TelaInicial({
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
-  const [verificando, setVerificando] = useState(false);
 
   useEffect(() => {
     if (erroExterno) setErro(erroExterno);
@@ -28,7 +26,6 @@ export default function TelaInicial({
     e.preventDefault();
     setErro('');
     setCarregando(true);
-    setVerificando(true);
 
     try {
       const nomeLimpo = nomeCompleto.trim().toLowerCase();
@@ -43,7 +40,6 @@ export default function TelaInicial({
         if (partes.length < 2) {
           setErro('Por favor, digite o nome completo corretamente.');
           setCarregando(false);
-          setVerificando(false);
           return;
         }
         const primeiroNome = partes[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -56,13 +52,14 @@ export default function TelaInicial({
       if (!ehNativo && modoEsteticista && !EMAILS_ESTETICISTAS.includes(emailFicticio)) {
         setErro('Acesso não autorizado.');
         setCarregando(false);
-        setVerificando(false);
         return;
       }
 
+      // 🚀 1. TENTA O LOGIN NO FIREBASE PRIMEIRO
       try {
         await signInWithEmailAndPassword(auth, emailFicticio, senha);
 
+        // ✅ 2. VERIFICA BLOQUEIO (Atrasa o mínimo possível)
         try {
           const check = await fetch('/.netlify/functions/verificar-bloqueio-login', {
             method: 'POST',
@@ -75,7 +72,6 @@ export default function TelaInicial({
             await signOut(auth);
             setErro(`🚫 Acesso suspenso. ${checkData.motivo ? `Motivo: ${checkData.motivo}` : 'Entre em contato com a profissional.'}`);
             setCarregando(false);
-            setVerificando(false);
             
             fetch('/.netlify/functions/registrar-tentativa-login', {
               method: 'POST',
@@ -90,7 +86,6 @@ export default function TelaInicial({
         }
 
         setCarregando(false);
-        // ✅ Não seta verificando false aqui, o AnamneseFicha vai cuidar disso
 
         fetch('/.netlify/functions/registrar-tentativa-login', {
           method: 'POST',
@@ -108,7 +103,6 @@ export default function TelaInicial({
         }).catch(() => {});
 
         setCarregando(false);
-        setVerificando(false);
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
           setErro('Nome ou senha incorretos.');
         } else if (error.code === 'auth/too-many-requests') {
@@ -120,19 +114,9 @@ export default function TelaInicial({
     } catch (error) {
       console.error("Erro geral no login:", error);
       setCarregando(false);
-      setVerificando(false);
       setErro('Erro ao realizar login. Tente novamente.');
     }
   };
-
-  if (verificando) {
-    return (
-      <div style={{ width: '100vw', height: '100dvh', backgroundColor: '#d7cee0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-         <LoadingElegante texto="Verificando dispositivo..." />
-      </div>
-    );
-  }
-
  return (
     <div style={{
       backgroundColor: '#d7cee0',
