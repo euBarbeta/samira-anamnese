@@ -83,10 +83,12 @@ export default function AnamneseFicha() {
 
   const [autenticado, setAutenticado] = useState(() => lerSessao('af_autenticado') === '1');
   const [abaAtiva, setAbaAtiva] = useState(() => lerSessao('af_abaAtiva') || 'telainicial');
+  
   const [authVerificado, setAuthVerificado] = useState(() => {
     if (isNativo()) return false;
     return lerSessao('af_authVerificado') === '1';
   });
+
   const [dadosPaciente, setDadosPaciente] = useState(() => {
     try {
       const s = lerSessao('af_dadosPaciente');
@@ -324,7 +326,21 @@ export default function AnamneseFicha() {
   const restaurandoRef = useRef(false);
 
   useEffect(() => {
+    console.log('⚠️ [DEBUG] Iniciando onAuthStateChanged');
+    
+    let timeoutId = setTimeout(() => {
+      if (!authVerificado) {
+        console.warn('⚠️ [DEBUG] Timeout de 5s no Auth. Forçando tela de login.');
+        setAuthVerificado(true);
+        setAutenticado(false);
+        setRota('login-uid');
+      }
+    }, 5000);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timeoutId); 
+      console.log('⚠️ [DEBUG] Firebase respondeu. User:', user ? user.email : 'null');
+
       if (emLogoutRef.current) {
         setAuthVerificado(true);
         return;
@@ -460,9 +476,10 @@ export default function AnamneseFicha() {
               setDadosPaciente(null);
               setPacienteDocPath(null);
               setAbaAtiva('telainicial');
+              setRota('login-uid');
               setAuthVerificado(true);
             }
-          }, 4000);
+          }, 3000); 
           return;
         }
 
@@ -472,10 +489,15 @@ export default function AnamneseFicha() {
         setDadosPaciente(null);
         setPacienteDocPath(null);
         setAbaAtiva('telainicial');
+        setRota('login-uid');
       }
       setAuthVerificado(true);
     });
-    return () => unsubscribe();
+
+    return () => {
+      clearTimeout(timeoutId);
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -677,8 +699,6 @@ export default function AnamneseFicha() {
           const data = snap.data();
           if (data.autorizado === true) {
             setAguardandoAprovacao(false);
-            // ✅ CORREÇÃO: Não recarrega a página (causa loop infinito). 
-            // Apenas re-executa a verificação de login para liberar o paciente.
             setRota('verificando');
             setBuscandoPaciente(true);
             handleLoginSucesso(auth.currentUser, { veioDeRefresh: true });
@@ -724,7 +744,6 @@ export default function AnamneseFicha() {
       setBuscandoPaciente(true);
 
       try {
-        // ✅ Timeout no getIdToken para não travar
         await Promise.race([
           user.getIdToken(true),
           new Promise(r => setTimeout(r, 3000))
@@ -811,7 +830,6 @@ export default function AnamneseFicha() {
       if (pacienteEncontrado) {
         
         // ✅ 1. VERIFICAÇÃO DE LGPD (PRIORIDADE MÁXIMA NO APK)
-        // Correção: Garante que a tela de login apareça sem travar o loading
         if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
           await signOutSafe();
           setAutenticado(false);
