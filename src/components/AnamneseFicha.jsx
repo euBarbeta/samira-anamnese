@@ -728,6 +728,7 @@ export default function AnamneseFicha() {
 
       let pacienteEncontrado = null;
       let mapSnap2Data = null;
+      let estetaUidParaPath = null;
 
       if (isNativo() && !uidDaURL) {
         const { value } = await Preferences.get({ key: 'pacienteId' });
@@ -743,6 +744,7 @@ export default function AnamneseFicha() {
             const pacienteSnap = await getDoc(pacienteRef);
             if (pacienteSnap.exists()) {
               pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
+              estetaUidParaPath = estUid;
               achou = true;
               break;
             }
@@ -764,6 +766,7 @@ export default function AnamneseFicha() {
           const pacienteSnap = await getDoc(pacienteRef);
           if (pacienteSnap.exists()) {
             pacienteEncontrado = { id: pacienteSnap.id, ...pacienteSnap.data() };
+            estetaUidParaPath = profissionalUid;
           }
         }
       }
@@ -785,52 +788,21 @@ export default function AnamneseFicha() {
             const altSnap = await getDoc(pacienteRefAlt);
             if (altSnap.exists()) {
               pacienteEncontrado = { id: altSnap.id, ...altSnap.data() };
+              estetaUidParaPath = estUid;
             }
           } else {
             const docMatch = querySnapshot.docs[0];
             pacienteEncontrado = { id: docMatch.id, ...docMatch.data() };
+            estetaUidParaPath = estUid;
           }
 
-          if (pacienteEncontrado) {
-            await setDoc(mapRef, {
-              profissionalUid: estUid,
-              pacienteId: pacienteEncontrado.id,
-              atualizadoEm: new Date(),
-            }, { merge: true });
-            break;
-          }
+          if (pacienteEncontrado) break;
         }
       }
 
       if (pacienteEncontrado) {
         
-        if (pacienteEncontrado.anonimizadoEm) {
-          await signOutSafe();
-          setAutenticado(false);
-          setUsuarioLogado(null);
-          setDadosPaciente(null);
-          setBuscandoPaciente(false);
-          setErroLoginExterno('Sua conta foi excluída. Entre em contato com a profissional.');
-          setRota('login-uid');
-          setAuthVerificado(true);
-          processandoLoginRef.current = false;
-          return;
-        }
-
-        if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
-          setErroLoginExterno('Nome ou Senha incorretos');
-          await signOutSafe();
-          setAutenticado(false);
-          setUsuarioLogado(null);
-          setDadosPaciente(null);
-          setBuscandoPaciente(false);
-          setRota('login-uid');
-          setAuthVerificado(true);
-          processandoLoginRef.current = false;
-          return;
-        }
-
-        // ✅ VERIFICAÇÃO DE LGPD ANTES DE QUALQUER COISA (PARA NATIVO)
+        // ✅ 1. VERIFICAÇÃO DE LGPD (PRIORIDADE MÁXIMA NO APK)
         if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
           await signOutSafe();
           setAutenticado(false);
@@ -846,6 +818,35 @@ export default function AnamneseFicha() {
           return;
         }
 
+        // ✅ 2. VERIFICAÇÃO DE ANONIMIZAÇÃO
+        if (pacienteEncontrado.anonimizadoEm) {
+          await signOutSafe();
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setBuscandoPaciente(false);
+          setErroLoginExterno('Sua conta foi excluída. Entre em contato com a profissional.');
+          setRota('login-uid');
+          setAuthVerificado(true);
+          processandoLoginRef.current = false;
+          return;
+        }
+
+        // ✅ 3. VERIFICAÇÃO DE URL (SOMENTE NO NAVEGADOR)
+        if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
+          setErroLoginExterno('Nome ou Senha incorretos');
+          await signOutSafe();
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setBuscandoPaciente(false);
+          setRota('login-uid');
+          setAuthVerificado(true);
+          processandoLoginRef.current = false;
+          return;
+        }
+
+        // ✅ 4. SALVA PREFERÊNCIA (APENAS APK)
         if (isNativo()) {
           await Preferences.set({
             key: 'pacienteId',
@@ -861,7 +862,7 @@ export default function AnamneseFicha() {
           })
           .catch(() => {});
 
-        // ✅ BLOCO DE VERIFICAÇÃO DE DISPOSITIVO (AGUARDANDO ANTES DE ENTRAR)
+        // ✅ 5. BLOCO DE VERIFICAÇÃO DE DISPOSITIVO
         try {
           const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import('../utils/dispositivos');
           const fingerprint = gerarFingerprintEstavel();
@@ -881,9 +882,8 @@ export default function AnamneseFicha() {
             }
           } catch {}
 
-          // ✅ TIMEOUT DE SEGURANÇA PARA NÃO TRAVAR A TELA
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos de limite
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
 
           const res = await fetch('/.netlify/functions/verificar-dispositivo', {
             method: 'POST',
@@ -906,7 +906,7 @@ export default function AnamneseFicha() {
               setAguardandoAprovacao(true);
               window._pacientePendente = pacienteEncontrado;
               window._pacienteDocPathPendente = estetaUidParaPath;
-              return; // Para aqui e mostra a tela de aguardando
+              return;
             } else {
               await signOutSafe();
               setAutenticado(false);
@@ -915,18 +915,12 @@ export default function AnamneseFicha() {
               setErroBloqueio(data.motivo || 'Acesso suspenso pela profissional.');
               setBuscandoPaciente(false);
               setRota('dispositivo_bloqueado');
-              return; // Para aqui e mostra a tela de bloqueado
+              return;
             }
           }
         } catch (e) {
           console.warn('Falha ao verificar dispositivo ou timeout (segue fluxo):', e);
         }
-        // ✅ FIM DO BLOCO DE VERIFICAÇÃO
-
-        const estetaUidParaPath =
-          pacienteEncontrado.criadoPorUid ||
-          (mapSnap2Data?.profissionalUid) ||
-          null;
 
         if (estetaUidParaPath) {
           setPacienteDocPath(
