@@ -333,6 +333,7 @@ export default function AnamneseFicha() {
         console.warn('⚠️ [DEBUG] Timeout de 5s no Auth. Forçando tela de login.');
         setAuthVerificado(true);
         setAutenticado(false);
+        setBuscandoPaciente(false);
         setRota('login-uid');
       }
     }, 5000);
@@ -412,6 +413,7 @@ export default function AnamneseFicha() {
             setPacienteDocPath(null);
             setAbaAtiva('telainicial');
             setRota('login-uid');
+            setBuscandoPaciente(false);
             setAuthVerificado(true);
             setTimeout(() => { emLogoutRef.current = false; }, 500);
             return;
@@ -477,6 +479,7 @@ export default function AnamneseFicha() {
               setPacienteDocPath(null);
               setAbaAtiva('telainicial');
               setRota('login-uid');
+              setBuscandoPaciente(false); // ✅ DESTRAVA O LOADING
               setAuthVerificado(true);
             }
           }, 3000); 
@@ -490,6 +493,7 @@ export default function AnamneseFicha() {
         setPacienteDocPath(null);
         setAbaAtiva('telainicial');
         setRota('login-uid');
+        setBuscandoPaciente(false); // ✅ DESTRAVA O LOADING
       }
       setAuthVerificado(true);
     });
@@ -835,7 +839,7 @@ export default function AnamneseFicha() {
           setAutenticado(false);
           setUsuarioLogado(null);
           setDadosPaciente(null);
-          setBuscandoPaciente(false);
+          setBuscandoPaciente(false); // ✅ DESTRAVA O LOADING
           setErroLoginExterno(
             'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.'
           );
@@ -1045,6 +1049,7 @@ export default function AnamneseFicha() {
     setFichaSelecionada(null);
     setErroLoginExterno('');
     setAvisoLocalizacao(null);
+    setBuscandoPaciente(false);
 
     window.history.replaceState({ abaAtiva: 'telainicial' }, '', window.location.pathname);
 
@@ -1388,6 +1393,7 @@ export default function AnamneseFicha() {
       );
     }
 
+    // ✅ CORREÇÃO CRÍTICA: Se o auth foi verificado e não está autenticado, mostra o login, ignorando `buscandoPaciente`
     if (!autenticado) {
       if (rota === 'admin') {
         return isMobile
