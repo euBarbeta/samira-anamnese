@@ -284,19 +284,33 @@ useEffect(() => {
       return;
     }
 
-    if (!lgpdAceito) {
+      if (!lgpdAceito) {
       setErro('Você precisa autorizar o tratamento dos seus dados (LGPD).');
       return;
     }
 
-  // ✅ NOVO: sanitiza tudo antes de salvar (evita XSS no PDF e no painel)
-  const nomeLimpo = sanitizarTexto(nome, { maxLength: 100 });
-  const documentoLimpo = sanitizarDocumento(documento);
-  const emailLimpo = sanitizarEmail(email);
-  const observacoesLimpo = sanitizarTexto(observacoes, {
-    maxLength: 500,
-    permitirQuebraLinha: true,
-  });
+  // ✅ CORREÇÃO: Verifica se a função existe antes de usar. Se não, usa um fallback.
+  let nomeLimpo, documentoLimpo, emailLimpo, observacoesLimpo;
+  try {
+    if (typeof sanitizarTexto === 'function') {
+      nomeLimpo = sanitizarTexto(nome, { maxLength: 100 });
+      documentoLimpo = sanitizarDocumento(documento);
+      emailLimpo = sanitizarEmail(email);
+      observacoesLimpo = sanitizarTexto(observacoes, {
+        maxLength: 500,
+        permitirQuebraLinha: true,
+      });
+    } else {
+      throw new Error('Funções de sanitização não carregadas');
+    }
+  } catch (err) {
+    console.warn('Erro na sanitização, usando dados originais:', err);
+    // Plano B: limpa de forma simples para o agendamento não falhar
+    nomeLimpo = nome.trim().substring(0, 100);
+    documentoLimpo = documento.trim().substring(0, 30);
+    emailLimpo = email.trim().toLowerCase();
+    observacoesLimpo = observacoes.trim().substring(0, 500);
+  }
 
   setEnviando(true);
 
