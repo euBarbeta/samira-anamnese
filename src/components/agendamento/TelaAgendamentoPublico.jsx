@@ -123,11 +123,6 @@ function LoadingElegante({ texto = 'Carregando agenda' }) {
   );
 }
 
-/* ============================================================
-   Botão "Voltar pro prontuário"
-   ============================================================ */
-
-
 export default function TelaAgendamentoPublico() {
   // ✅ FORÇANDO O UID DA SAMIRA DIRETO (Garante que a tela pública ache a agenda correta)
   const uidParaUsar = UID_ESTETICISTA_PADRAO || 'MZ5j3NpjlxY67yLRiEfg13TbPE32';
@@ -376,7 +371,6 @@ try {
 
   /* =================== RENDER =================== */
 
-  // 1) Carregando
   if (carregando) {
     return (
       <>
@@ -396,7 +390,6 @@ try {
     );
   }
 
-  // 2) Config não encontrada
   if (erro && !configAgenda) {
     return (
       <>
@@ -417,7 +410,6 @@ try {
     );
   }
 
-  // 3) Sucesso
   if (sucesso) {
     return (
       <>
@@ -503,7 +495,6 @@ try {
     );
   }
 
-  // 4) Tela principal
   return (
     <>
       <TelaSemInternet />
@@ -876,8 +867,11 @@ export function EstilosTAP() {
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  padding: 30px 16px 100px 16px;
-  padding-top: max(30px, env(safe-area-inset-top));
+  
+  /* ✅ CONTEÚDO SUBIU PARA O TOPO */
+  padding: 10px 16px 100px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  
   font-family: 'Montserrat', sans-serif;
   box-sizing: border-box;
   overflow-x: hidden;
@@ -937,7 +931,7 @@ export function EstilosTAP() {
         background-repeat: no-repeat;
         z-index: 0;
         pointer-events: none;
-        animation: tapShine 14s linear infinite;
+        animation: tapShine 7s linear infinite; /* ✅ Mais rápido */
         will-change: background-position;
       }
 
@@ -1591,7 +1585,8 @@ export function EstilosTAP() {
 
       /* ====== RESPONSIVO ====== */
       @media (min-width: 768px) {
-        .tap-tela { padding: 40px 24px 110px 24px; }
+        /* ✅ DESKTOP TAMBÉM SOBE O CONTEÚDO */
+        .tap-tela { padding: 20px 24px 110px 24px; }
         .tap-card { padding: 32px; }
         .tap-slots-grid {
           grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -1614,7 +1609,8 @@ export function EstilosTAP() {
       }
 
       @media (max-width: 640px) {
-        .tap-tela { padding: 18px 12px 90px 12px; }
+        /* ✅ MOBILE SOBE AINDA MAIS O CONTEÚDO */
+        .tap-tela { padding: 8px 12px 90px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
         .tap-card {
           padding: 20px 16px;
           border-radius: 18px;
@@ -1692,7 +1688,7 @@ export function EstilosTAP() {
       }
 
       @media (max-width: 380px) {
-        .tap-tela { padding: 12px 8px 88px 8px; }
+        .tap-tela { padding: 6px 8px 88px 8px; padding-top: max(6px, env(safe-area-inset-top)); }
         .tap-card {
           padding: 16px 12px;
           border-radius: 14px;
@@ -1728,7 +1724,7 @@ export function EstilosTAP() {
       }
 
       @media (max-height: 500px) and (orientation: landscape) {
-        .tap-tela { padding: 12px 12px 90px 12px; }
+        .tap-tela { padding: 10px 12px 90px 12px; }
         .tap-card { padding: 16px; }
         .tap-loading { padding: 30px 20px 30px 20px; gap: 14px; }
         .tap-loading-orbe { width: 80px; height: 80px; }
