@@ -18,7 +18,7 @@ import ModalConsentimentoAgendamento from './ModalConsentimentoAgendamento';
 import CalendarioAgenda, { LegendaCalendario } from './CalendarioAgenda';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
-
+import { UID_ESTETICISTA_PADRAO } from '../constantes'; 
 // ✅ Overlay global de "sem internet" — mesmo do AnamneseFicha
 import TelaSemInternet from '../TelaSemInternet';
 
@@ -166,23 +166,23 @@ export default function TelaAgendamentoPublico({ uidEsteticista }) {
 // ============================================================
 const [configAgenda, setConfigAgenda] = useState(null);
 const [agendamentosOcupados, setAgendamentosOcupados] = useState([]);
-
+const uidParaUsar = uidEsteticista || UID_ESTETICISTA_PADRAO;
 // ============================================================
 // ✅ Listener 1 — CONFIG da agenda (via Function, imutável)
 //    Config não muda com frequência — buscamos uma vez via
 //    Function (regras fecharam leitura pública direta).
 // ============================================================
 useEffect(() => {
-  if (!uidEsteticista) return;
+ if (!uidParaUsar) return;
 
   let cancelado = false;
 
   (async () => {
     try {
-      const res = await fetch('/.netlify/functions/buscar-agenda-publica', {
+         const res = await fetch('/.netlify/functions/buscar-agenda-publica', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uidEsteticista }),
+        body: JSON.stringify({ uidEsteticista: uidParaUsar }), // ✅ Envia a variável protegida
       });
 
       if (cancelado) return;
@@ -215,15 +215,15 @@ useEffect(() => {
 // Latência típica: 100-300ms.
 // ============================================================
 useEffect(() => {
-  if (!uidEsteticista) return;
+  if (!uidParaUsar) return;
 
-  const unsub = escutarSlotsPublicos(uidEsteticista, (slotsOcupados) => {
+  const unsub = escutarSlotsPublicos(uidParaUsar, (slotsOcupados) => {
     setAgendamentosOcupados(slotsOcupados);
     setCarregando(false);
   });
 
   return () => unsub();
-}, [uidEsteticista]);
+}, [uidParaUsar]);
 
 // ============================================================
 // Recalcula slots SEMPRE que config ou agendamentos ocupados
@@ -328,7 +328,7 @@ useEffect(() => {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    uidEsteticista,
+   uidEsteticista: uidParaUsar,
     data: slotSelecionado.data,
     horaInicio: slotSelecionado.horaInicio,
     horaFim: slotSelecionado.horaFim,
@@ -354,7 +354,7 @@ try {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    uidEsteticista,
+    uidEsteticista: uidParaUsar,
     agendamentoId: docRef.id,
     nome: nomeLimpo,          // ← sanitizado
     documento: documentoLimpo, // ← sanitizado
@@ -366,7 +366,7 @@ try {
 }
      notificarAgendamento({
   tipoEvento: 'novo',
-  uidEsteticista,
+ uidEsteticista: uidParaUsar,
   agendamento: {
     id: docRef.id,
     nome: nomeLimpo,          // ← sanitizado
