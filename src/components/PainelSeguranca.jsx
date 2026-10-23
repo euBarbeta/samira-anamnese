@@ -181,14 +181,14 @@ export default function PainelSeguranca() {
     }
   };
 
-  // ✅ LÓGICA FINAL: Esconde completamente os cards que a esteta já dispensou
+  // ✅ LÓGICA CORRIGIDA: Ignora cards que já foram dispensados
   const relevantes = tentativas.filter((t) => {
     const bloqueado = estaBloqueado(t.id);
     const temFalhas = (t.tentativas || []).length > 0;
     
-    // Se não tem mais falhas (porque o X limpou) E o alerta não está pedindo bloqueio,
-    // nós simplesmente esquecemos esse registro na tela. Ele some!
-    if (!temFalhas && t.requerBloqueio === false) {
+    // Se a conta está bloqueada E já foi dispensada (X clicado), 
+    // retorna false para o card sumir da tela.
+    if (bloqueado && t.requerBloqueio === false) {
       return false;
     }
     
@@ -332,6 +332,16 @@ export default function PainelSeguranca() {
                       </div>
                     </div>
 
+                    {/* ✅ IP e Localização */}
+                    {(d.ultimaCidade || d.ultimoPais) && (
+                      <div style={{ fontSize: 11, color: '#666', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <MdLocationOff size={12} color="#666" />
+                        <span>
+                          {d.ultimaCidade || 'Cidade desconhecida'}{d.ultimoPais ? `, ${d.ultimoPais}` : ''}
+                        </span>
+                      </div>
+                    )}
+
                     {d.motivoBloqueio && (
                       <div style={{ fontSize: 11, color: '#666', marginBottom: 8, fontStyle: 'italic' }}>
                         Motivo: {d.motivoBloqueio}
@@ -339,18 +349,43 @@ export default function PainelSeguranca() {
                     )}
 
                     <div style={{ fontSize: 10, color: '#888', marginBottom: 10 }}>
-                      Bloqueado em {d.bloqueadoEm ? new Date(d.bloqueadoEm).toLocaleString('pt-BR') : '—'}
+                      Bloqueado em {d.bloqueadoEm ? new Date(d.bloqueadoEm).toLocaleString('pt-BR') : (d.primeiroLoginEm ? new Date(d.primeiroLoginEm).toLocaleString('pt-BR') : '—')}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
-                      disabled={carregandoEste}
-                      style={btnPrimario}
-                    >
-                      <MdUndo size={14} />
-                      {carregandoEste ? 'PROCESSANDO…' : 'DESBLOQUEAR DISPOSITIVO'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'autorizar')}
+                        disabled={carregandoEste}
+                        style={btnPrimario}
+                      >
+                        <MdUndo size={14} />
+                        {carregandoEste ? 'PROCESSANDO…' : 'DESBLOQUEAR DISPOSITIVO'}
+                      </button>
+
+                      {/* ✅ NOVO BOTÃO X (Dispensar Dispositivo) */}
+                      <button
+                        type="button"
+                        onClick={() => executarAcaoDispositivo(d.pacienteId, d.fingerprint, 'dispensar')}
+                        disabled={carregandoEste}
+                        title="Fechar aviso (não altera autorização)"
+                        style={{
+                          background: 'transparent',
+                          border: '1.5px solid #ccc',
+                          color: '#666',
+                          width: 38,
+                          height: 38,
+                          borderRadius: 12,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <MdClose size={20} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
