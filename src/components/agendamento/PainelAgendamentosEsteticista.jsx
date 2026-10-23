@@ -1857,27 +1857,53 @@ export default function PainelAgendamentosEsteticista({
 // ⚖️ LGPD — Verifica se o paciente está arquivado
 // ============================================================
 const pacienteEstaArquivado = (ag) => {
-  if (!ag.pacienteId) return false;
-  const pac = pacientesPorId[ag.pacienteId];
-  return Boolean(pac?.anonimizadoEm);
-};
+  // ✅ 1. Tenta achar pelo ID (se existir)
+  if (ag.pacienteId && pacientesPorId[ag.pacienteId]?.anonimizadoEm) {
+    return true;
+  }
 
+  // ✅ 2. Se não achou pelo ID, busca por Nome + Documento (fallback)
+  const nomeNorm = normalizarNome(ag.nome);
+  const docNorm = normalizarDoc(ag.documento);
+  
+  if (nomeNorm && docNorm) {
+    const pacEncontrado = Object.values(pacientesPorId).find(
+      (p) =>
+        normalizarNome(p.nome) === nomeNorm &&
+        normalizarDoc(p.documento) === docNorm
+    );
+    if (pacEncontrado?.anonimizadoEm) return true;
+  }
+
+  return false;
+};
 // ============================================================
 // ⚖️ LGPD — Abre ficha do paciente arquivado pra reativar
 // ============================================================
 const abrirFichaParaReativar = async (ag) => {
-  if (!ag.pacienteId) return;
+  // ✅ 1. Tenta achar o paciente pelo ID
+  let pac = ag.pacienteId ? pacientesPorId[ag.pacienteId] : null;
 
-  const pac = pacientesPorId[ag.pacienteId];
+  // ✅ 2. Se não achar, busca por Nome + Documento
+  if (!pac) {
+    const nomeNorm = normalizarNome(ag.nome);
+    const docNorm = normalizarDoc(ag.documento);
+    
+    pac = Object.values(pacientesPorId).find(
+      (p) =>
+        normalizarNome(p.nome) === nomeNorm &&
+        normalizarDoc(p.documento) === docNorm
+    );
+  }
+
   if (!pac) return;
 
   // ✅ Fonte: agendamento (o paciente arquivado está sem contato)
-  //    Igual ao que o agendamento público coletou.
   const emailReal = emailContatoDoAgendamento(ag.email);
 
   setFichaPreenchida({
     ...(pac.anamnese || {}),
-    _reativandoPacienteId: ag.pacienteId,
+    _reativandoPacienteId: pac.id, // ✅ Usa o ID real que encontrou
     // Pré-preenche com o que temos
     nome: ag.nome || pac.nome || '',
     numeroDocumento: ag.documento || pac.documento || '',
