@@ -30,6 +30,12 @@ const MAX_TENTATIVAS = 1440;
 // ✅ Remove fcmToken só após 3 falhas consecutivas
 const MAX_FALHAS_FCM = 3;
 
+// ✅ UIDs das estetas (pra buscar o doc do paciente)
+const UIDS_ESTETICISTAS = [
+  'MZ5j3NpjlxY67yLRiEfg13TbPE32', // Samira
+  'ZvzIxDhsh7WMZqvG5hcFQS0yd9I2', // MbTech
+];
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
@@ -108,8 +114,6 @@ exports.handler = async (event) => {
 
     const prontosParaEnviar = prontosOrdenados.slice(0, LIMITE_POR_EXECUCAO);
 
-    // ✅ Processa em PARALELO com stagger — evita timeout do Netlify
-    //    e garante que cada notificação tenha seu "momento" no device
     const promessas = prontosParaEnviar.map((doc, idx) =>
       processarLembrete({
         doc, idx, db, webpush, getMessaging,
@@ -152,8 +156,26 @@ exports.handler = async (event) => {
 };
 
 /* ============================================================
-   Processa UM lembrete — lógica isolada, roda em paralelo
+   ✅ Verifica se o paciente está anonimizado.
+   Retorna TRUE se estiver (lembrete deve ser ignorado).
    ============================================================ */
+async function pacienteEstaAnonimizado(db, pacienteId) {
+  if (!pacienteId) return false;
+
+  for (const uidEst of UIDS_ESTETICISTAS) {
+    try {
+      const pacienteRef = db.doc(`usuarios/${uidEst}/pacientes/${pacienteId}`);
+      const pacienteSnap = await pacienteRef.get();
+      if (pacienteSnap.exists) {
+        return Boolean(pacienteSnap.data().anonimizadoEm);
+      }
+    } catch (e) {
+      console.warn(`Falha ao checar anonimização em ${uidEst}:`, e.message);
+    }
+  }
+  return false;
+}
+
 /* ============================================================
    Processa UM lembrete — lógica isolada, roda em paralelo
    ============================================================ */
@@ -167,6 +189,36 @@ async function processarLembrete({
   const data = doc.data();
   const tentativas = (data.tentativas || 0) + 1;
   const agoraInterno = Date.now();
+
+  // ============================================================
+  // ✅ NOVO — PACIENTE ANONIMIZADO
+  // ------------------------------------------------------------
+  // Se o paciente foi anonimizado (excluiu conta OU a esteta
+  // arquivou a pasta), este lembrete não deve ser enviado.
+  //
+  // Marca como `enviado: true` com erro explicativo — assim o
+  // cron não reprocessa, e a esteta pode ver o histórico se
+  // quiser debugar.
+  //
+  // ⚖️ LGPD: sem base legal pra notificar (consentimento revogado).
+  // ============================================================
+  try {
+    const anonimizado = await pacienteEstaAnonimizado(db, data.pacienteId);
+    if (anonimizado) {
+      console.log(`⏭️ Lembrete ignorado — paciente ${data.pacienteId} está anonimizado.`);
+      await doc.ref.update({
+        enviado: true,
+        enviadoEm: new Date().toISOString(),
+        erro: 'paciente anonimizado — lembrete descartado',
+        tentativas,
+      });
+      return { id: doc.id, ok: false, anonimizado: true };
+    }
+  } catch (e) {
+    // Se falhar a checagem, segue o fluxo normal (não perde o lembrete
+    // por um erro transitório do Firestore).
+    console.warn('Falha ao checar anonimização (segue normal):', e.message);
+  }
 
   const subDoc = await db
     .collection('push_subscriptions')
@@ -199,10 +251,6 @@ async function processarLembrete({
   const titulo = data.titulo || 'Lembrete';
   const corpo = 'Você tem um lembrete da Samira Estética';
 
-  // ============================================================
-  // ✅ Envia para TODOS os canais disponíveis (FCM + web-push)
-  //    Não usa "else if" — envia para os dois se ambos existirem
-  // ============================================================
   const resultadosCanal = {
     fcm: { ok: false, erro: null },
     webpush: { ok: false, erro: null },
@@ -279,12 +327,8 @@ async function processarLembrete({
     }
   }
 
-  // ✅ Sucesso se PELO MENOS UM canal entregou
   const envioOk = resultadosCanal.fcm.ok || resultadosCanal.webpush.ok;
 
-  // ============================================================
-  // ✅ Falha total — não descarta, tenta de novo
-  // ============================================================
   if (!envioOk) {
     await doc.ref.update({
       tentativas,
@@ -297,9 +341,6 @@ async function processarLembrete({
     return { id: doc.id, ok: false, erro: 'nenhum canal entregou' };
   }
 
-  // ============================================================
-  // ✅ Sucesso — reagenda (intervalo) ou fecha (data_hora)
-  // ============================================================
   const canais = [];
   if (resultadosCanal.fcm.ok) canais.push('fcm');
   if (resultadosCanal.webpush.ok) canais.push('webpush');

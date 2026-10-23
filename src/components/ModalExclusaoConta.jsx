@@ -2,22 +2,21 @@
 import React, { useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdWarning, MdDelete, MdInfoOutline } from 'react-icons/md';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from './firebase';
-import {
-  doc, getDoc, getDocs, deleteDoc, collection,
-  query, where, updateDoc,
-} from 'firebase/firestore';
-import { db } from './firebase';
 
 /**
  * Modal de exclusão da conta do paciente.
  *
  * ⚖️ LGPD + Lei 13.787/2018:
- *  - Dados de CONTATO (nome, telefone, email, endereço) → anonimizados
+ *  - Dados de CONTATO (telefone, email de contato, endereço) → anonimizados
+ *  - E-mail de ACESSO (login) → MANTIDO mas conta DESATIVADA no Auth
  *  - Dados de SAÚDE (anamnese, evoluções, fotos) → MANTIDOS por 20 anos
  *  - Agendamentos → anonimizados (mantidos para histórico da esteta)
- *  - Conta de acesso (Auth) → deletada
+ *  - Lembretes pendentes → ignorados por `checar-lembretes.js`
+ *
+ * ✅ Mesmo comportamento da exclusão feita pela esteticista
+ *    (função `excluir-paciente-completo`).
  */
 export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido }) {
   const [senha, setSenha] = useState('');
@@ -26,7 +25,7 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
   const [excluindo, setExcluindo] = useState(false);
   const [confirmacaoTexto, setConfirmacaoTexto] = useState('');
 
-  // ✅ FUNÇÃO AUXILIAR PARA EVITAR O ERRO "Database is closing/hidden"
+  // ✅ Retry — evita erro "Database is closing/hidden" quando o modal abre/fecha rápido
   const tentarComRetry = async (fn, tentativas = 3) => {
     for (let i = 0; i < tentativas; i++) {
       try {
@@ -35,7 +34,7 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
         const msg = error?.message || '';
         if (msg.includes('Database is closing/hidden') && i < tentativas - 1) {
           console.warn(`[Firebase] Tentativa ${i + 1} falhou (Database fechando). Retentando...`);
-          await new Promise(resolve => setTimeout(resolve, 500)); // Espera 500ms
+          await new Promise((resolve) => setTimeout(resolve, 500));
           continue;
         }
         throw error;
@@ -64,11 +63,6 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
         throw new Error('E-mail do paciente não encontrado.');
       }
 
-      // 1) Valida a senha fazendo re-login (COM RETRY)
-      await tentarComRetry(async () => {
-        await signInWithEmailAndPassword(auth, emailPaciente, senha);
-      });
-
       const pacienteId = pacienteData.id;
       const uidEsteticista = pacienteData.criadoPorUid;
 
@@ -76,10 +70,27 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
         throw new Error('Dados do paciente incompletos.');
       }
 
-      // 2) Chama a Function que faz a anonimização (bypassa as rules)
-      const user = auth.currentUser;
-      const token = await user.getIdToken();
+      // ============================================================
+      // 1) Re-autentica (pra ter um token válido + validar a senha)
+      // ============================================================
+      await tentarComRetry(async () => {
+        await signInWithEmailAndPassword(auth, emailPaciente, senha);
+      });
 
+      const user = auth.currentUser;
+      const token = await user.getIdToken(true);
+
+      // ============================================================
+      // 2) Chama a Function que anonimiza + desativa o Auth
+      // ------------------------------------------------------------
+      // ✅ A function cuida de:
+      //    - Anonimizar contato (telefone, emailContato, endereço)
+      //    - Manter emailAcesso (login) e nome/documento (prontuário)
+      //    - Marcar anonimizadoEm (move pra "Arquivados")
+      //    - Anonimizar agendamentos e dispositivos
+      //    - Desativar a conta no Firebase Auth (disabled: true)
+      //    - Notificar a esteta
+      // ============================================================
       const res = await fetch('/.netlify/functions/anonimizar-conta-paciente', {
         method: 'POST',
         headers: {
@@ -94,26 +105,18 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
         throw new Error(err.error || 'Falha ao anonimizar conta.');
       }
 
-      // 3) Re-autentica e deleta do Auth (COM RETRY)
-      let authDeletado = false;
-      
+      // ============================================================
+      // 3) Desloga do dispositivo
+      // ------------------------------------------------------------
+      // ✅ A conta no Auth NÃO é deletada — apenas desativada pela
+      //    function. Aqui só encerramos a sessão local.
+      // ============================================================
       try {
-        await tentarComRetry(async () => {
-          await signInWithEmailAndPassword(auth, emailPaciente, senha);
-          await auth.currentUser.delete();
-        });
-        authDeletado = true;
+        await signOut(auth);
       } catch (e) {
-        console.warn('Não foi possível deletar do Auth após retries:', e?.code || e?.message);
+        console.warn('Falha ao deslogar após exclusão:', e);
       }
 
-      if (!authDeletado) {
-        try {
-          const { signOut } = await import('firebase/auth');
-          await signOut(auth);
-        } catch {}
-      }
-      
       onExcluido?.();
     } catch (err) {
       console.error('Erro ao excluir conta:', err);
@@ -189,7 +192,8 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
           lineHeight: 1.6,
           margin: '0 0 14px 0',
         }}>
-          Esta ação é permanente e irá <strong>anonimizar</strong> seus dados de contato.
+          Esta ação é permanente. Seus dados de contato serão <strong>anonimizados</strong>
+          {' '}e sua conta de acesso será <strong>desativada</strong>.
         </p>
 
         <div style={{
@@ -205,10 +209,12 @@ export default function ModalExclusaoConta({ pacienteData, onFechar, onExcluido 
         }}>
           <strong>⚖️ Importante (LGPD + Lei 13.787/2018):</strong>
           <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px' }}>
-            <li>Seus <strong>dados de contato</strong> (nome, telefone, e-mail, endereço) serão anonimizados;</li>
+            <li>Seus <strong>dados de contato</strong> (telefone, e-mail de contato, endereço) serão anonimizados;</li>
+            <li>Seu <strong>e-mail de acesso</strong> permanece apenas para controle interno da profissional;</li>
             <li>Seu <strong>prontuário de saúde</strong> (anamnese, evoluções, fotos clínicas) será mantido por <strong>20 anos</strong> por obrigação legal;</li>
             <li>Seus <strong>agendamentos</strong> serão anonimizados, mas mantidos no histórico da profissional;</li>
-            <li>Sua <strong>conta de acesso</strong> será excluída.</li>
+            <li>Sua <strong>conta de acesso</strong> será desativada — você não conseguirá logar novamente;</li>
+            <li>Você <strong>deixará de receber lembretes</strong> e notificações.</li>
           </ul>
         </div>
 

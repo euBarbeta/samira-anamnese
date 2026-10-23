@@ -4,16 +4,16 @@
 // ------------------------------------------------------------
 // Anonimiza a conta de um paciente que está excluindo a própria conta.
 //
-// Só pode ser chamada PELO PRÓPRIO PACIENTE (validado via Firebase Auth).
+// ✅ Comportamento IDÊNTICO ao `excluir-paciente-completo` (feito
+//    pela esteticista):
+//      - Dados de contato anonimizados
+//      - E-mail de acesso MANTIDO (só a conta é desativada)
+//      - Auth DESATIVADO (disabled: true), não deletado
+//      - Prontuário preservado por 20 anos
+//      - Agendamentos e dispositivos anonimizados
+//      - Lembretes pendentes ignorados por `checar-lembretes.js`
 //
-// O que faz:
-//   1. Anonimiza dados de contato no doc do paciente
-//   2. Anonimiza todos os agendamentos do paciente
-//   3. Desativa o link de acesso
-//   4. Apaga mapeamento de email
-//   5. Anonimiza seguranca_estado + dispositivos_autorizados
-//   6. Notifica a esteta
-//   7. (O delete da conta Auth é feito pelo FRONTEND depois)
+// Só pode ser chamada PELO PRÓPRIO PACIENTE (validado via Firebase Auth).
 
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -78,6 +78,13 @@ exports.handler = async (event) => {
 
     // ============================================================
     // 3) Anonimiza o doc do paciente
+    // ------------------------------------------------------------
+    // ⚠️ IMPORTANTE:
+    //    - `emailAcesso` e `email` NÃO são apagados (a esteta precisa ver
+    //      o login do paciente na pasta arquivada).
+    //    - `nome` e `documento` NÃO são apagados (são prontuário — Lei
+    //      13.787/2018 exige guarda por 20 anos).
+    //    - Só os dados de CONTATO e CONSENTIMENTO são limpos.
     // ============================================================
     const pacienteRef = db.doc(`usuarios/${uidEsteticista}/pacientes/${pacienteId}`);
     const pacienteSnap = await pacienteRef.get();
@@ -87,24 +94,27 @@ exports.handler = async (event) => {
     }
 
     const pacienteData = pacienteSnap.data();
-    const emailAntigo = pacienteData.emailAcesso || pacienteData.email;
 
     await pacienteRef.update({
-      // ⚠️ Só apaga contato
+      // ⚠️ Só apaga CONTATO — mantém emailAcesso/email/nome/documento
       telefone: null,
       emailContato: null,
       endereco: null,
-      emailAcesso: null,
-      email: null,
       consentimentoLGPD: null,
+
+      'anamnese.telefone': null,
+      'anamnese.emailContato': null,
+      'anamnese.endereco': null,
+
       // ⚖️ Marcadores LGPD
       anonimizadoEm: agora,
       anonimizadoPor: 'paciente-solicitou',
       dataCriacaoOriginal: pacienteData.dataCriacao || agora,
+      atualizadoEm: agora,
     });
 
     // ============================================================
-    // 4) Anonimiza agendamentos
+    // 4) Anonimiza agendamentos do paciente
     // ============================================================
     const agsSnap = await db.collection('agendamentos')
       .where('pacienteId', '==', pacienteId)
@@ -143,7 +153,13 @@ exports.handler = async (event) => {
 
     // ============================================================
     // 6) Apaga mapeamento de email
+    // ------------------------------------------------------------
+    // ⚠️ Mantemos o mapeamento APAGADO — assim o paciente não consegue
+    //    logar de novo (o login precisa achar o paciente via mapeamento).
+    //    O `emailAcesso` no doc permanece apenas como registro visual
+    //    da esteta; o mapeamento (que permite o login) é apagado.
     // ============================================================
+    const emailAntigo = pacienteData.emailAcesso || pacienteData.email;
     if (emailAntigo) {
       try {
         await db.doc(`mapeamento_emails/${emailAntigo.toLowerCase()}`).delete();
@@ -191,7 +207,25 @@ exports.handler = async (event) => {
     }
 
     // ============================================================
-    // 9) Notifica a esteta
+    // 9) ✅ DESABILITA o usuário no Firebase Auth
+    // ------------------------------------------------------------
+    // Igual ao `excluir-paciente-completo`. Assim:
+    //   - A conta NÃO pode mais logar
+    //   - O UID permanece (prontuário fica intacto)
+    //   - Se a esteta reativar depois, `reativar-auth-paciente` só
+    //     faz `disabled: false` (não precisa recriar).
+    // ============================================================
+    try {
+      await getAuth().updateUser(pacienteId, { disabled: true });
+      console.log(`✅ [anonimizar-conta] Auth desabilitado (UID: ${pacienteId})`);
+    } catch (authErr) {
+      // Não quebra o fluxo — a anonimização no Firestore já foi feita.
+      // Se a conta não existir mais, apenas loga o aviso.
+      console.warn('⚠️ Falha ao desabilitar Auth:', authErr.message);
+    }
+
+    // ============================================================
+    // 10) Notifica a esteta
     // ============================================================
     try {
       const baseUrl = process.env.URL || `https://${event.headers.host}`;
