@@ -645,8 +645,10 @@ try {
               >
                 <h3 className="tap-secao">2. Seus dados</h3>
 
-                <Campo label="Nome completo *">
+                <Campo label="Nome completo *" htmlFor="pub-nome">
                   <input
+                    id="pub-nome"
+                    name="nome"
                     value={nome}
                     onChange={(e) => {
                       setNome(e.target.value);
@@ -658,8 +660,10 @@ try {
                   />
                 </Campo>
 
-                <Campo label="Documento * (CPF, RG, passaporte, ID…)">
+                <Campo label="Documento * (CPF, RG, passaporte, ID…)" htmlFor="pub-documento">
                   <input
+                    id="pub-documento"
+                    name="documento"
                     value={documento}
                     onChange={(e) => {
                       setDocumento(e.target.value);
@@ -683,9 +687,11 @@ try {
                   </span>
                 </Campo>
 
-                <Campo label="Telefone / WhatsApp *">
+                <Campo label="Telefone / WhatsApp *" htmlFor="pub-telefone">
                   <div className="tap-phone-wrap">
                     <PhoneInput
+                      id="pub-telefone"
+                      name="telefone"
                       international
                       defaultCountry="BR"
                       value={telefone}
@@ -709,8 +715,10 @@ try {
                   </span>
                 </Campo>
 
-                <Campo label="E-mail (opcional)">
+                <Campo label="E-mail (opcional)" htmlFor="pub-email">
                   <input
+                    id="pub-email"
+                    name="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
@@ -720,8 +728,10 @@ try {
                   />
                 </Campo>
 
-                <Campo label="Observações (opcional)">
+                <Campo label="Observações (opcional)" htmlFor="pub-observacoes">
                   <textarea
+                    id="pub-observacoes"
+                    name="observacoes"
                     value={observacoes}
                     onChange={(e) => setObservacoes(e.target.value)}
                     rows={3}
@@ -732,10 +742,13 @@ try {
                 </Campo>
 
                 <label
+                  htmlFor="pub-lgpd"
                   className={`tap-lgpd${lgpdAceito ? ' aceito' : ''}`}
                   style={{ cursor: 'pointer', marginTop: 10 }}
                 >
                   <input
+                    id="pub-lgpd"
+                    name="lgpdAceito"
                     type="checkbox"
                     checked={lgpdAceito}
                     onChange={(e) => {
@@ -1737,10 +1750,11 @@ export function EstilosTAP() {
 /* ============================================================
    Helpers
    ============================================================ */
-function Campo({ label, children }) {
+function Campo({ label, children, htmlFor }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <label
+        htmlFor={htmlFor} // ✅ CORREÇÃO: agora o label está ligado ao input
         style={{
           display: 'block',
           fontSize: 11,

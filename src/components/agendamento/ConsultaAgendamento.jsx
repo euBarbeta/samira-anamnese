@@ -1,7 +1,6 @@
 // src/components/agendamento/ConsultaAgendamento.jsx
 import React, { useState } from 'react';
 
-
 import { formatPhoneNumberIntl } from 'react-phone-number-input';
 import {
   MdSearch, MdWarning, MdCheckCircle, MdCancel, MdHourglassEmpty,
@@ -380,6 +379,7 @@ const remover = async () => {
             {/* Nome */}
             <div style={{ marginBottom: 12 }}>
               <label
+                htmlFor="consulta-nome" // ✅ Adicionado htmlFor
                 style={{
                   display: 'block',
                   fontSize: 11,
@@ -404,6 +404,8 @@ const remover = async () => {
                   }}
                 />
                 <input
+                  id="consulta-nome" // ✅ Adicionado id
+                  name="nome"         // ✅ Adicionado name
                   value={nome}
                   onChange={(e) => {
                     setNome(e.target.value);
@@ -423,6 +425,7 @@ const remover = async () => {
             {/* Documento */}
             <div style={{ marginBottom: 12 }}>
               <label
+                htmlFor="consulta-documento" // ✅ Adicionado htmlFor
                 style={{
                   display: 'block',
                   fontSize: 11,
@@ -447,6 +450,8 @@ const remover = async () => {
                   }}
                 />
                 <input
+                  id="consulta-documento" // ✅ Adicionado id
+                  name="documento"        // ✅ Adicionado name
                   value={documento}
                   onChange={(e) => {
                     setDocumento(e.target.value);
