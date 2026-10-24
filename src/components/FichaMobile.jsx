@@ -36,7 +36,8 @@ import {
   MdLocalPharmacy,
   MdEco,
   MdDateRange,
-  MdDownload
+  MdDownload,
+  MdLock 
 } from 'react-icons/md';
 export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode = 'edit', onIrParaEdicao, onSalvarSucesso }) {
   // Dados básicos
@@ -45,6 +46,8 @@ const [salvoSucesso, setSalvoSucesso] = useState(false);
 const [dataAutoPreenchida, setDataAutoPreenchida] = useState(false);
 const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
   const [nome, setNome] = useState('');
+  const bloquearIdentidade =
+    mode === 'edit' || Boolean(fichaSelecionada?._reativandoPacienteId);
   const [numeroDocumento, setNumeroDocumento] = useState('');
   const [telefone, setTelefone] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -556,16 +559,24 @@ const converterBRParaISO = (valorBR) => {
     if (partes.length !== 3) return '';
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
+const salvarFicha = async () => {
+  if (mode === 'view' || salvando || salvoSucesso) return;
 
- const salvarFicha = async () => {
-    if (mode === 'view' || salvando || salvoSucesso) return;
-     const nomeOk = nome && nome.trim().length > 0;
+  // ✅ NOVO: reverte qualquer tentativa de alterar nome/documento via DevTools
+  if (bloquearIdentidade && fichaSelecionada) {
+    setNome(fichaSelecionada.nome || '');
+    setNumeroDocumento(fichaSelecionada.numeroDocumento || '');
+  }
+
+  const nomeOk = nome && nome.trim().length > 0;
   const docOk = numeroDocumento && numeroDocumento.trim().length > 0;
 
   if (!nomeOk || !docOk) {
     alert('Preencha o Nome e o Nº do Documento antes de salvar.');
     return;
   }
+
+  
 
     const agora = new Date();
     const dataModificacao = agora.toLocaleString('pt-BR', {
@@ -1106,15 +1117,71 @@ useEffect(() => {
               
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
-                <label htmlFor="input-nome" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Nome:</label>
-                <input id="input-nome" name="nome" type="text" className="input-line" value={nome} readOnly={mode === 'view'} onChange={(e) => setNome(e.target.value)} autoComplete="name"  required />
-              </div>
+  <label htmlFor="input-nome" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px', display: 'flex', alignItems: 'center', gap: 4 }}>
+    Nome:
+    {bloquearIdentidade && (
+      <MdLock
+        size={12}
+        color="#999"
+        title="Não pode ser alterado após o cadastro"
+        aria-label="Nome bloqueado para edição"
+      />
+    )}
+  </label>
+  <input
+    id="input-nome"
+    name="nome"
+    type="text"
+    className="input-line"
+    value={nome}
+    readOnly={mode === 'view' || bloquearIdentidade}
+    onChange={(e) => {
+      if (bloquearIdentidade) return;
+      setNome(e.target.value);
+    }}
+    autoComplete="name"
+    required
+    style={
+      bloquearIdentidade
+        ? { opacity: 0.7, cursor: 'not-allowed' }
+        : undefined
+    }
+  />
+</div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label htmlFor="input-documento" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Documento:</label>
-                  <input id="input-documento" name="numeroDocumento" type="text" className="input-line" value={numeroDocumento} readOnly={mode === 'view'} onChange={(e) => setNumeroDocumento(e.target.value)} autoComplete="off"  required />
-                </div>
+               <div style={{ flex: 1 }}>
+  <label htmlFor="input-documento" style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px', display: 'flex', alignItems: 'center', gap: 4 }}>
+    Documento:
+    {bloquearIdentidade && (
+      <MdLock
+        size={12}
+        color="#999"
+        title="Não pode ser alterado após o cadastro"
+        aria-label="Documento bloqueado para edição"
+      />
+    )}
+  </label>
+  <input
+    id="input-documento"
+    name="numeroDocumento"
+    type="text"
+    className="input-line"
+    value={numeroDocumento}
+    readOnly={mode === 'view' || bloquearIdentidade}
+    onChange={(e) => {
+      if (bloquearIdentidade) return;
+      setNumeroDocumento(e.target.value);
+    }}
+    autoComplete="off"
+    required
+    style={
+      bloquearIdentidade
+        ? { opacity: 0.7, cursor: 'not-allowed' }
+        : undefined
+    }
+  />
+</div>
                <div style={{ flex: 1 }}>
   <label style={{ fontFamily: "'Cinzel', serif", color: '#D4AF37', fontWeight: 700, fontSize: '12px' }}>Telefone:</label>
   <div className="phone-input-ficha" style={{ marginTop: 4 }}>

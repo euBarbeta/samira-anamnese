@@ -898,7 +898,19 @@ try {
   }
 };
 
- const handleAtualizarAnamnese = async (dadosAtualizados) => {
+const handleAtualizarAnamnese = async (dadosAtualizados) => {
+  // ✅ PROTEÇÃO: nome e documento NUNCA mudam na edição
+  if (pacienteSelecionado) {
+    dadosAtualizados = {
+      ...dadosAtualizados,
+      nome: pacienteSelecionado.nome || dadosAtualizados.nome,
+      numeroDocumento:
+        pacienteSelecionado.documento ||
+        pacienteSelecionado.anamnese?.numeroDocumento ||
+        dadosAtualizados.numeroDocumento,
+    };
+  }
+
   // ✅ Sanitização defensiva (antes de qualquer coisa)
   const dadosLimpos = sanitizarFichaAnamnese(dadosAtualizados);
   dadosAtualizados = {
@@ -910,6 +922,8 @@ try {
     }),
     endereco: sanitizarTexto(dadosLimpos.endereco, { maxLength: 200 }),
   };
+
+
 
   // ⚖️ LGPD — Verifica se o paciente estava ARQUIVADO
   const estavaArquivado = Boolean(pacienteSelecionado?.anonimizadoEm);

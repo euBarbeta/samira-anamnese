@@ -33,7 +33,7 @@ import {
   MdSelfImprovement,
   MdTimer,
   MdLocalPharmacy,
-  MdEco
+  MdEco, MdLock 
 } from 'react-icons/md';
 
 export default function AnamneseFicha({ onVoltar, onSave, fichaSelecionada, mode = 'edit', onIrParaEdicao, onSalvarSucesso }) {
@@ -71,7 +71,8 @@ const [dataAutoPreenchida, setDataAutoPreenchida] = useState(false);
   const observacoesRef = useRef(null);
 
 const [lembretes, setLembretes] = useState([]);
-
+  const bloquearIdentidade =
+    mode === 'edit' || Boolean(fichaSelecionada?._reativandoPacienteId);
   // Catálogo expandido com mais opções de ícones vetoriais em roxo (#9333ea)
   const iconesDisponiveis = [
     { componente: MdFace, id: 'MdFace' },
@@ -523,8 +524,15 @@ const converterBRParaISO = (valorBR) => {
   };
 
  const salvarFicha = async () => {
-    if (mode === 'view' || salvando || salvoSucesso) return;
-     const nomeOk = nome && nome.trim().length > 0;
+  if (mode === 'view' || salvando || salvoSucesso) return;
+
+  // ✅ NOVO: reverte qualquer tentativa de alterar nome/documento via DevTools
+  if (bloquearIdentidade && fichaSelecionada) {
+    setNome(fichaSelecionada.nome || '');
+    setNumeroDocumento(fichaSelecionada.numeroDocumento || '');
+  }
+
+  const nomeOk = nome && nome.trim().length > 0;
   const docOk = numeroDocumento && numeroDocumento.trim().length > 0;
 
   if (!nomeOk || !docOk) {
@@ -911,22 +919,39 @@ useEffect(() => {
   {/* ============ LINHA 1: NOME + DATA NASC ============ */}
   <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
     <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
-      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</span>
-      <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
-        <input
-          type="text"
-          id="nome_cliente"
-          name="nome_cliente"
-          autoComplete="name"
-          className="input-line"
-          value={nome}
-          readOnly={mode === 'view'}
-          onChange={(e) => setNome(e.target.value)}
-          required 
-        />
-      </div>
-    </div>
-
+  <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+    Nome:
+    {bloquearIdentidade && (
+      <MdLock
+        size={12}
+        color="#999"
+        title="Não pode ser alterado após o cadastro"
+        aria-label="Nome bloqueado para edição"
+      />
+    )}
+  </span>
+  <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+    <input
+      type="text"
+      id="nome_cliente"
+      name="nome_cliente"
+      autoComplete="name"
+      className="input-line"
+      value={nome}
+      readOnly={mode === 'view' || bloquearIdentidade}
+      onChange={(e) => {
+        if (bloquearIdentidade) return;
+        setNome(e.target.value);
+      }}
+      required 
+      style={
+        bloquearIdentidade
+          ? { opacity: 0.7, cursor: 'not-allowed' }
+          : undefined
+      }
+    />
+  </div>
+</div>
     <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
       <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</span>
       <div style={{ width: '100px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -1045,21 +1070,39 @@ useEffect(() => {
     </div>
 
     <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
-      <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</span>
-      <div style={{ flexGrow: 1, display: 'flex' }}>
-        <input
-          type="text"
-          id="numero_documento"
-          name="numero_documento"
-          autoComplete="off"
-          className="input-line"
-          value={numeroDocumento}
-          readOnly={mode === 'view'}
-          onChange={(e) => setNumeroDocumento(e.target.value)}
-            required
-        />
-      </div>
-    </div>
+  <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+    Nº Documento:
+    {bloquearIdentidade && (
+      <MdLock
+        size={12}
+        color="#999"
+        title="Não pode ser alterado após o cadastro"
+        aria-label="Documento bloqueado para edição"
+      />
+    )}
+  </span>
+  <div style={{ flexGrow: 1, display: 'flex' }}>
+    <input
+      type="text"
+      id="numero_documento"
+      name="numero_documento"
+      autoComplete="off"
+      className="input-line"
+      value={numeroDocumento}
+      readOnly={mode === 'view' || bloquearIdentidade}
+      onChange={(e) => {
+        if (bloquearIdentidade) return;
+        setNumeroDocumento(e.target.value);
+      }}
+      required
+      style={
+        bloquearIdentidade
+          ? { opacity: 0.7, cursor: 'not-allowed' }
+          : undefined
+      }
+    />
+  </div>
+</div>
   </div>
 
   {/* ============ LINHA 4: E-MAIL DE CONTATO ============ */}

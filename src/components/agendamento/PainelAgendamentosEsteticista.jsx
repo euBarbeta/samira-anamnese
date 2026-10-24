@@ -1989,6 +1989,24 @@ const handleSalvarFichaDoAgendamento = async (dadosAnamnese) => {
   const user = getAuth().currentUser;
   if (!user) return;
 
+  // ✅ PROTEÇÃO: na REATIVAÇÃO, força nome e documento originais.
+  //    Isso é o "cinto de segurança" no backend — caso alguém
+  //    consiga burlar o readOnly da ficha (DevTools), este bloco
+  //    restaura os valores originais do paciente antes de salvar.
+  if (fichaPreenchida?._reativandoPacienteId) {
+    const pacienteOriginal = pacientesPorId[fichaPreenchida._reativandoPacienteId];
+    if (pacienteOriginal) {
+      dadosAnamnese = {
+        ...dadosAnamnese,
+        nome: pacienteOriginal.nome || dadosAnamnese.nome,
+        numeroDocumento:
+          pacienteOriginal.documento ||
+          pacienteOriginal.anamnese?.numeroDocumento ||
+          dadosAnamnese.numeroDocumento,
+      };
+    }
+  }
+
   // ============================================================
   // ✅ SANITIZAÇÃO DEFENSIVA
   // ------------------------------------------------------------
@@ -2151,7 +2169,6 @@ const handleSalvarFichaDoAgendamento = async (dadosAnamnese) => {
   }
   setFichaPreenchida(null);
 };
-
   if (fichaPreenchida) {
     const isMobileView = window.innerWidth <= 768;
     const Comp = isMobileView ? FichaMobile : FichaDesktop;
