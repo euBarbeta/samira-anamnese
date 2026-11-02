@@ -1765,7 +1765,7 @@ useEffect(() => {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <div style={{ flex: 1, height: '1px', background: 'rgba(200, 162, 74, 0.4)' }} />
             <span style={{ fontFamily: "'Cinzel', serif", color: '#2D2D2D', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px' }}>
-              ❀ OBSERVAÇÕES & CONDUTA PROFISSIONAL ❀
+              ❀ Queixas Principais❀
             </span>
             <div style={{ flex: 1, height: '1px', background: 'rgba(200, 162, 74, 0.4)' }} />
           </div>
@@ -1773,7 +1773,7 @@ useEffect(() => {
           {/* MÓDULO 5: OBSERVAÇÃO COM SUPORTE A EXPANSÃO DINÂMICA */}
           <div className="modulo-card-mobile">
             <label htmlFor="observacoes-textarea" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, fontSize: '11px', display: 'block' }}>
-              Notas e Restrições Adicionais:
+            
             </label>
             
             {/* Textarea visível apenas na tela */}
