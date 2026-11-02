@@ -1836,7 +1836,7 @@ useEffect(() => {
                 background: 'transparent', padding: '2px 10px', fontSize: '10px', letterSpacing: '1px', 
                 fontWeight: 600, border: '1.5px solid #C8A24A', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px'
               }}>
-                <span style={{ color: '#C8A24A', fontSize: '9px' }}>❀</span> OBSERVAÇÕES & CONDUTA PROFISSIONAL <span style={{ color: '#C8A24A', fontSize: '9px' }}>❀</span>
+                <span style={{ color: '#C8A24A', fontSize: '9px' }}>❀</span> Queixas Principais <span style={{ color: '#C8A24A', fontSize: '9px' }}>❀</span>
               </div>
               <div style={{ flex: 1, height: '1px', background: 'rgba(200, 162, 74, 0.3)' }} />
             </div>
@@ -1845,7 +1845,7 @@ useEffect(() => {
             <div className="modulo-bloco">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', boxSizing: 'border-box' }}>
                 <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, fontSize: '11px' }}>
-                  Notas e Restrições Adicionais:
+               
                 </span>
                 
                 {/* Textarea visível na interface de edição/visualização normal */}
