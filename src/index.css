@@ -227,3 +227,28 @@ body:not(.sendo-exportado) .lembrete-div-pdf {
 .btn-voltar-lista:active {
   transform: translateX(-1px) scale(0.98);
 }
+
+/* ============================================================
+   ⬇️ PDF — ESCONDER A BANDEIRA DO TELEFONE NA EXPORTAÇÃO
+   ------------------------------------------------------------
+   O html2canvas (usado pelo html2pdf) NÃO consegue renderizar
+   emojis de bandeira (🇧🇷, 🇵🇾, etc.) corretamente — aparece
+   só uma das cores ou nada.
+
+   Por isso, durante a exportação (body.sendo-exportado), escon-
+   demos o "ícone de bandeira" do PhoneInput. O número de tele-
+   fone (com +55, +595 etc.) continua aparecendo normalmente.
+   ============================================================ */
+body.sendo-exportado .phone-input-ficha .PhoneInputCountryIcon,
+body.sendo-exportado .phone-input-ficha .PhoneInputCountryIcon--border,
+body.sendo-exportado .phone-input-ficha .PhoneInputCountryIconImg {
+  display: none !important;
+}
+
+body.sendo-exportado .phone-input-ficha .PhoneInputCountry {
+  margin-right: 0 !important;
+}
+
+body.sendo-exportado .phone-input-ficha .PhoneInputCountrySelectArrow {
+  display: none !important;
+}
