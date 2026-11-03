@@ -2596,8 +2596,9 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 Excluir Pasta
               </button>
 
-            </div>,
-            document.body // 👈 A MÁGICA ACONTECE AQUI: Joga os botões direto pro <body>
+           
+            document.body 
+             </div>,
           )}
 
 
