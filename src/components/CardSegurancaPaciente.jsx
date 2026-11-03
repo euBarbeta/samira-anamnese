@@ -175,12 +175,13 @@ export default function CardSegurancaPaciente({ pacienteId }) {
 
 const card = {
   marginTop: 15,
-  background: 'rgba(255, 255, 255, 0.95)',
+  background: 'rgba(255, 255, 255, 0.5)', // <-- Mude para 0.75 ou 0.6
+  backdropFilter: 'blur(5px)',              // <-- Adicione esta linha (efeito de vidro)
+  WebkitBackdropFilter: 'blur(5px)',        // <-- Adicione esta linha (compatibilidade Safari)
   padding: '14px 16px',
   borderRadius: 12,
   border: '1.5px solid #d8b4fe',
 };
-
 const cardVazio = {
   marginTop: 15,
   background: '#faf5ff',
