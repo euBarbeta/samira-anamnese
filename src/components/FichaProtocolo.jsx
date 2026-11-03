@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdArrowBack, MdDateRange, MdDownload, MdEdit, MdCheckCircle, MdAdd, MdDelete } from 'react-icons/md';
+import { 
+  MdSave, MdArrowBack, MdDateRange, MdDownload, 
+  MdEdit, MdCheckCircle, MdAdd, MdDelete 
+} from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
 
 export default function FichaProtocolo({
@@ -24,6 +27,7 @@ export default function FichaProtocolo({
   
   const [salvando, setSalvando] = useState(false);
   const [salvoSucesso, setSalvoSucesso] = useState(false);
+  const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
 
   const textareaRef = useRef(null);
   const isView = mode === 'view';
@@ -73,13 +77,20 @@ export default function FichaProtocolo({
     setLembretes(Array.isArray(initialData?.lembretes) ? initialData.lembretes : []);
   }, [initialData, pacienteSelecionado, pacienteNomeProp]);
 
-  const mascaraData = (valor) => {
-    let v = valor.replace(/\D/g, '');
-    if (v.length > 8) v = v.substring(0, 8);
-    if (v.length > 4) return `${v.substring(0, 2)}/${v.substring(2, 4)}/${v.substring(4)}`;
-    else if (v.length > 2) return `${v.substring(0, 2)}/${v.substring(2)}`;
-    return v;
-  };
+  // Efeito para gerar o PDF
+  useEffect(() => {
+    if (!pdfDesktopRenderizando) return;
+    const timer = setTimeout(async () => {
+      try {
+        await exportarParaPDF('protocolo-container', nomeCliente, { compartilhar: true });
+      } catch (err) {
+        console.error('Erro ao gerar PDF:', err);
+      } finally {
+        setPdfDesktopRenderizando(false);
+      }
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [pdfDesktopRenderizando, nomeCliente]);
 
   const handleSubmit = async () => {
     if (isView || salvando || salvoSucesso) return;
@@ -227,7 +238,7 @@ export default function FichaProtocolo({
           boxSizing: 'border-box', zIndex: 1, backgroundColor: '#fff'
         }}
       >
-        {/* 1. TOPO DA MOLDURA COM CABEÇALHO DE EVOLUÇÃO */}
+        {/* 1. TOPO DA MOLDURA */}
         <div style={{
           width: '100%', height: '420px',
           backgroundImage: 'url("/imagens/moldura-topo-protocolo.jpeg")',
@@ -244,7 +255,6 @@ export default function FichaProtocolo({
                   <input id="prot-nome" type="text" value={nomeCliente} readOnly className="input-line" />
                 </div>
               </div>
-
               <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
                 <label htmlFor="prot-datanasc" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</label>
                 <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -252,7 +262,6 @@ export default function FichaProtocolo({
                 </div>
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
                 <label htmlFor="prot-telefone" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Telefone:</label>
@@ -260,7 +269,6 @@ export default function FichaProtocolo({
                   <input id="prot-telefone" type="text" value={telefone} readOnly className="input-line" />
                 </div>
               </div>
-
               <div style={{ width: '310px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
                 <label htmlFor="prot-datarealizacao" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</label>
                 <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -268,7 +276,6 @@ export default function FichaProtocolo({
                 </div>
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
                 <label htmlFor="prot-endereco" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Endereço:</label>
@@ -276,7 +283,6 @@ export default function FichaProtocolo({
                   <input id="prot-endereco" type="text" value={endereco} readOnly className="input-line" />
                 </div>
               </div>
-
               <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
                 <label htmlFor="prot-documento" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</label>
                 <div style={{ flexGrow: 1, display: 'flex' }}>
@@ -305,7 +311,6 @@ export default function FichaProtocolo({
             backgroundSize: 'contain', opacity: 0.45,
             pointerEvents: 'none', zIndex: 1
           }} />
-
           <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
             
             {/* MÓDULO: PROTOCOLO */}
@@ -317,7 +322,6 @@ export default function FichaProtocolo({
                 </div>
                 <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
               </div>
-
               <textarea
                 ref={textareaRef}
                 value={textoLivre}
@@ -451,17 +455,28 @@ export default function FichaProtocolo({
             
             {isView ? (
               <>
-                {/* Botão de PDF (Lavanda) */}
+                {/* 1. BAIXAR PDF */}
                 <button
                   type="button"
                   className="btn-acao-ficha"
-                  onClick={() => exportarParaPDF('protocolo-container', nomeCliente)}
-                  style={{ background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', color: '#2c163a', borderColor: '#8a6fa8' }}
+                  onClick={() => setPdfDesktopRenderizando(true)}
+                  disabled={pdfDesktopRenderizando}
+                  style={{ 
+                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', 
+                    color: '#2c163a', 
+                    borderColor: '#8a6fa8',
+                    opacity: pdfDesktopRenderizando ? 0.7 : 1,
+                    cursor: pdfDesktopRenderizando ? 'wait' : 'pointer'
+                  }}
                 >
-                  <MdDownload size={20} /> BAIXAR PDF
+                  {pdfDesktopRenderizando ? (
+                    <><span className="spinner-pdf" /> GERANDO PDF...</>
+                  ) : (
+                    <><MdDownload size={20} /> BAIXAR PDF</>
+                  )}
                 </button>
                 
-                {/* Botão de Editar (Dourado) */}
+                {/* 2. EDITAR PROTOCOLO */}
                 {onIrParaEdicao && (
                   <button
                     type="button"
@@ -473,7 +488,7 @@ export default function FichaProtocolo({
                 )}
               </>
             ) : (
-              /* Botão de Salvar (Dourado com verde ao salvar) */
+              /* SALVAR PROTOCOLO (Modo edição/criação) */
               <button
                 type="button"
                 className="btn-acao-ficha"
@@ -495,12 +510,17 @@ export default function FichaProtocolo({
               </button>
             )}
             
-            {/* Botão de Voltar (Transparente) */}
+            {/* VOLTAR (Sempre visível) */}
             <button
               type="button"
               className="btn-acao-ficha"
               onClick={onVoltar}
-              style={{ background: 'transparent', color: '#2c163a', borderColor: '#C8A24A', boxShadow: 'none' }}
+              style={{ 
+                background: 'transparent', 
+                color: '#2c163a', 
+                borderColor: '#C8A24A', 
+                boxShadow: 'none' 
+              }}
             >
               <MdArrowBack size={20} /> VOLTAR
             </button>
