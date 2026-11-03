@@ -711,11 +711,11 @@ export default function HistoricoAgendamentosPaciente({
         {/* CONTEÚDO */}
         {aberto && (
            <div style={{ 
-            padding: 16,
-            background: 'rgba(255, 255, 255, 0.50)', // ✅ Adicione esta linha
-            backdropFilter: 'blur(5px)',            // ✅ Adicione esta linha
-            WebkitBackdropFilter: 'blur(5px)'       // ✅ Adicione esta linha
-          }}>
+  padding: 16,
+  background: 'rgba(255, 255, 255, 0.20)', // ✅ Deixa bem mais transparente
+  backdropFilter: 'blur(10px)',            // ✅ Aumenta o desfoque (efeito vidro)
+  WebkitBackdropFilter: 'blur(10px)'       
+}}>
             {/* Filtros de período */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
               {PERIODOS.map((p) => (

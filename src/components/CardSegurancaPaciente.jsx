@@ -181,7 +181,7 @@ const card = {
   padding: '14px 16px',
   borderRadius: 12,
   border: '1.5px solid #d8b4fe',
-  maxWidth: '350px', // ✅ Deixa estreito
+  maxWidth: '280px', // ✅ Deixa estreito
   width: '100%',
   marginRight: 'auto', // ✅ Alinha à esquerda
 };
@@ -193,7 +193,7 @@ const cardVazio = {
   borderRadius: 12,
   border: '1.5px dashed #d8b4fe',
   textAlign: 'center',
-  maxWidth: '350px', // ✅ Deixa estreito
+  maxWidth: '280px', // ✅ Deixa estreito
   width: '100%',
   marginRight: 'auto', // ✅ Alinha à esquerda
 };
