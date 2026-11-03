@@ -4,6 +4,7 @@ import {
   MdEdit, MdCheckCircle, MdAdd, MdDelete 
 } from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
+import FichaDesktop from './FichaDesktop'; // ✅ Import necessário para a renderização oculta
 
 export default function FichaProtocolo({
   mode = 'create',
@@ -77,7 +78,7 @@ export default function FichaProtocolo({
     setLembretes(Array.isArray(initialData?.lembretes) ? initialData.lembretes : []);
   }, [initialData, pacienteSelecionado, pacienteNomeProp]);
 
-  // Efeito para gerar o PDF
+  // Efeito para gerar o PDF (mesma lógica da Anamnese Mobile)
   useEffect(() => {
     if (!pdfDesktopRenderizando) return;
     const timer = setTimeout(async () => {
@@ -455,7 +456,7 @@ export default function FichaProtocolo({
             
             {isView ? (
               <>
-                {/* 1. BAIXAR PDF */}
+                {/* 1. BAIXAR PDF (Lavanda) */}
                 <button
                   type="button"
                   className="btn-acao-ficha"
@@ -476,7 +477,7 @@ export default function FichaProtocolo({
                   )}
                 </button>
                 
-                {/* 2. EDITAR PROTOCOLO */}
+                {/* 2. EDITAR PROTOCOLO (Dourado) */}
                 {onIrParaEdicao && (
                   <button
                     type="button"
@@ -488,7 +489,7 @@ export default function FichaProtocolo({
                 )}
               </>
             ) : (
-              /* SALVAR PROTOCOLO (Modo edição/criação) */
+              /* SALVAR PROTOCOLO (Dourado com verde ao salvar) */
               <button
                 type="button"
                 className="btn-acao-ficha"
@@ -510,23 +511,38 @@ export default function FichaProtocolo({
               </button>
             )}
             
-            {/* VOLTAR (Sempre visível) */}
+            {/* 3. VOLTAR (Dourado Completo) */}
             <button
               type="button"
               className="btn-acao-ficha"
               onClick={onVoltar}
-              style={{ 
-                background: 'transparent', 
-                color: '#2c163a', 
-                borderColor: '#C8A24A', 
-                boxShadow: 'none' 
-              }}
             >
               <MdArrowBack size={20} /> VOLTAR
             </button>
           </div>
         </div>
       </div>
+
+      {/* ⬇️ VERSÃO DESKTOP OCULTA PARA EXPORTAÇÃO DE PDF */}
+      {pdfDesktopRenderizando && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-99999px',
+            top: 0,
+            width: '1175px',
+            zIndex: -1,
+            pointerEvents: 'none',
+            opacity: 0.01
+          }}
+        >
+          <FichaDesktop
+            mode="view"
+            fichaSelecionada={initialData}
+          />
+        </div>
+      )}
     </div>
   );
 }
