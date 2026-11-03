@@ -2707,9 +2707,8 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 Excluir Pasta
               </button>
 
-           
+            </div>,
             document.body // 👈 O Portal joga os botões direto pro body, ignorando o scroll!
-             </div>,
           )}
 
        
