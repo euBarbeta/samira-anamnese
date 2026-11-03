@@ -25,6 +25,15 @@ function baixarBlobWeb(blob, nomeArquivo) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ✅ Helper (web): verifica se é MOBILE.
+//    O Share API de ARQUIVOS só faz sentido no celular; no desktop
+//    o Chrome/Edge abrem o menu de compartilhamento em vez de baixar.
+function ehMobileWeb() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+}
+
 // ✅ Helper (web): verifica se o navegador suporta compartilhar arquivos
 function suportaCompartilharWeb() {
   return (
@@ -75,8 +84,8 @@ async function salvarEShareNativo(blob, nomeArquivo) {
 /**
  * Gera o PDF e:
  *  - Nativo (APK): salva em cache + abre menu "Abrir com..."
- *  - Web com share disponível: abre menu "Compartilhar"
- *  - Web comum: baixa o arquivo normalmente
+ *  - Web MOBILE com share disponível: abre menu "Compartilhar"
+ *  - Web DESKTOP (ou web sem share): baixa o arquivo normalmente
  */
 export const exportarParaPDF = async (containerId, nomeCliente, opcoes = {}) => {
   const { compartilhar = false } = opcoes;
@@ -143,9 +152,10 @@ export const exportarParaPDF = async (containerId, nomeCliente, opcoes = {}) => 
     }
 
     // ============================================================
-    // 2️⃣ WEB com compartilhamento de arquivos → Share API
+    // 2️⃣ WEB MOBILE com compartilhamento de arquivos → Share API
+    //    ⚠️ Só no MOBILE. No desktop, cai para o download normal.
     // ============================================================
-    if (compartilhar && suportaCompartilharWeb()) {
+    if (compartilhar && ehMobileWeb() && suportaCompartilharWeb()) {
       const file = new File([blob], nomeArquivo, { type: 'application/pdf' });
 
       if (navigator.canShare({ files: [file] })) {
@@ -172,7 +182,7 @@ export const exportarParaPDF = async (containerId, nomeCliente, opcoes = {}) => 
     }
 
     // ============================================================
-    // 3️⃣ WEB padrão (desktop) → download normal
+    // 3️⃣ WEB padrão (desktop ou mobile sem share) → download normal
     // ============================================================
     baixarBlobWeb(blob, nomeArquivo);
     return true;

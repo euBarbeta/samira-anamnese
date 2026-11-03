@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  MdSave, MdArrowBack, MdDateRange, MdDownload, 
-  MdEdit, MdCheckCircle, MdAdd, MdDelete 
+import {
+  MdSave, MdArrowBack, MdDownload,
+  MdEdit, MdCheckCircle, MdAdd, MdDelete
 } from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
-import FichaDesktop from './FichaDesktop'; // ✅ Import necessário para a renderização oculta
 
 export default function FichaProtocolo({
   mode = 'create',
@@ -25,7 +24,7 @@ export default function FichaProtocolo({
   const [dataRealizacao, setDataRealizacao] = useState('');
   const [textoLivre, setTextoLivre] = useState('');
   const [lembretes, setLembretes] = useState([]);
-  
+
   const [salvando, setSalvando] = useState(false);
   const [salvoSucesso, setSalvoSucesso] = useState(false);
   const [pdfDesktopRenderizando, setPdfDesktopRenderizando] = useState(false);
@@ -78,7 +77,8 @@ export default function FichaProtocolo({
     setLembretes(Array.isArray(initialData?.lembretes) ? initialData.lembretes : []);
   }, [initialData, pacienteSelecionado, pacienteNomeProp]);
 
-  // Efeito para gerar o PDF (mesma lógica da Anamnese Mobile)
+  // Efeito para gerar o PDF
+  // ⚠️ No desktop o gerarPdf.js baixa direto. No mobile compartilha. No APK salva+share.
   useEffect(() => {
     if (!pdfDesktopRenderizando) return;
     const timer = setTimeout(async () => {
@@ -230,8 +230,11 @@ export default function FichaProtocolo({
         }
       `}</style>
 
+      {/* ============================================================
+          CONTAINER VISÍVEL NA TELA
+          (sem id="protocolo-container" — o id fica só na versão oculta)
+         ============================================================ */}
       <div
-        id="protocolo-container"
         style={{
           width: '100%', maxWidth: '1175px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
@@ -313,7 +316,7 @@ export default function FichaProtocolo({
             pointerEvents: 'none', zIndex: 1
           }} />
           <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
-            
+
             {/* MÓDULO: PROTOCOLO */}
             <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px' }}>
@@ -381,7 +384,7 @@ export default function FichaProtocolo({
                           </button>
                         )}
                       </div>
-                      
+
                       <div style={{ marginBottom: '8px' }}>
                         <label style={{ fontSize: '9px', color: '#666', display: 'block', marginBottom: '2px', fontWeight: 600 }}>Título:</label>
                         <input
@@ -407,7 +410,7 @@ export default function FichaProtocolo({
                             <option value="data_hora">Data e Hora</option>
                           </select>
                         </div>
-                        
+
                         <div style={{ flex: 1, minWidth: '160px' }}>
                           <label style={{ fontSize: '9px', color: '#666', display: 'block', marginBottom: '2px', fontWeight: 600 }}>
                             {lembrete.tipo === 'intervalo' ? 'A cada:' : 'Data e Hora:'}
@@ -453,7 +456,7 @@ export default function FichaProtocolo({
           boxSizing: 'border-box'
         }}>
           <div className="botoes-acao-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
-            
+
             {isView ? (
               <>
                 {/* 1. BAIXAR PDF (Lavanda) */}
@@ -462,9 +465,9 @@ export default function FichaProtocolo({
                   className="btn-acao-ficha"
                   onClick={() => setPdfDesktopRenderizando(true)}
                   disabled={pdfDesktopRenderizando}
-                  style={{ 
-                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', 
-                    color: '#2c163a', 
+                  style={{
+                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                    color: '#2c163a',
                     borderColor: '#8a6fa8',
                     opacity: pdfDesktopRenderizando ? 0.7 : 1,
                     cursor: pdfDesktopRenderizando ? 'wait' : 'pointer'
@@ -476,7 +479,7 @@ export default function FichaProtocolo({
                     <><MdDownload size={20} /> BAIXAR PDF</>
                   )}
                 </button>
-                
+
                 {/* 2. EDITAR PROTOCOLO (Dourado) */}
                 {onIrParaEdicao && (
                   <button
@@ -510,7 +513,7 @@ export default function FichaProtocolo({
                 )}
               </button>
             )}
-            
+
             {/* 3. VOLTAR (Dourado Completo) */}
             <button
               type="button"
@@ -523,7 +526,10 @@ export default function FichaProtocolo({
         </div>
       </div>
 
-      {/* ⬇️ VERSÃO DESKTOP OCULTA PARA EXPORTAÇÃO DE PDF */}
+      {/* ============================================================
+          VERSÃO OCULTA DO PROTOCOLO — apenas para exportar o PDF
+          (tem o id="protocolo-container" e NÃO tem botões)
+         ============================================================ */}
       {pdfDesktopRenderizando && (
         <div
           aria-hidden="true"
@@ -537,10 +543,159 @@ export default function FichaProtocolo({
             opacity: 0.01
           }}
         >
-          <FichaDesktop
-            mode="view"
-            fichaSelecionada={initialData}
-          />
+          <div
+            id="protocolo-container"
+            style={{
+              width: '100%', maxWidth: '1175px',
+              position: 'relative', display: 'flex', flexDirection: 'column',
+              boxSizing: 'border-box', backgroundColor: '#fff'
+            }}
+          >
+            {/* TOPO (sem labels interativos) */}
+            <div style={{
+              width: '100%', height: '420px',
+              backgroundImage: 'url("/imagens/moldura-topo-protocolo.jpeg")',
+              backgroundRepeat: 'no-repeat', backgroundPosition: 'center bottom',
+              backgroundSize: '100% 100%', flexShrink: 0, marginBottom: '-130px',
+              zIndex: 3, position: 'relative', boxSizing: 'border-box',
+              padding: '330px 95px 0 95px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</span>
+                    <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+                      <input type="text" value={nomeCliente} readOnly className="input-line" />
+                    </div>
+                  </div>
+                  <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</span>
+                    <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input type="text" value={dataNasc} readOnly className="input-line" />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Telefone:</span>
+                    <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+                      <input type="text" value={telefone} readOnly className="input-line" />
+                    </div>
+                  </div>
+                  <div style={{ width: '310px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</span>
+                    <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input type="text" value={dataRealizacao} readOnly className="input-line" />
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Endereço:</span>
+                    <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+                      <input type="text" value={endereco} readOnly className="input-line" />
+                    </div>
+                  </div>
+                  <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</span>
+                    <div style={{ flexGrow: 1, display: 'flex' }}>
+                      <input type="text" value={numDocumento} readOnly className="input-line" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* MEIO */}
+            <div style={{
+              width: '100%',
+              backgroundImage: 'url("/imagens/moldura-meio.jpeg")',
+              backgroundRepeat: 'repeat-y', backgroundPosition: 'center top',
+              backgroundSize: '100% auto', display: 'flex', flexDirection: 'column',
+              boxSizing: 'border-box', padding: '135px 95px 140px 95px',
+              position: 'relative', zIndex: 2
+            }}>
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '480px', height: '480px',
+                backgroundImage: 'url("/imagens/logo-samiramarcadagua.jpeg")',
+                backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
+                backgroundSize: 'contain', opacity: 0.45,
+                pointerEvents: 'none', zIndex: 1
+              }} />
+              <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
+
+                {/* PROTOCOLO */}
+                <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px' }}>
+                    <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
+                    <div style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', background: 'rgba(255, 255, 255, 0.9)', padding: '4px 14px', fontSize: '12px', fontWeight: 700, border: '1.5px solid #C8A24A', borderRadius: '12px', textAlign: 'center', letterSpacing: '1.5px' }}>
+                      DESCRIÇÃO DO PROTOCOLO
+                    </div>
+                    <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
+                  </div>
+                  <div style={{
+                    width: '100%', minHeight: '400px',
+                    border: '1px solid rgba(200, 162, 74, 0.4)', borderRadius: '6px',
+                    background: 'rgba(255, 255, 255, 0.65)', padding: '15px',
+                    fontSize: '14px', fontFamily: "'Montserrat', sans-serif",
+                    boxSizing: 'border-box', lineHeight: '1.6', color: '#1A1A1A',
+                    whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', wordBreak: 'break-word'
+                  }}>
+                    {textoLivre || '—'}
+                  </div>
+                </div>
+
+                {/* LEMBRETES */}
+                <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                    <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)' }} />
+                    <span style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', fontSize: '11px', fontWeight: 700, border: '1px solid #C8A24A', padding: '2px 10px', borderRadius: '12px' }}>
+                      LEMBRETES PARA O PACIENTE
+                    </span>
+                    <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)' }} />
+                  </div>
+
+                  {lembretes.length === 0 ? (
+                    <p style={{ fontSize: '11px', color: '#92400e', fontStyle: 'italic', textAlign: 'center', margin: '10px 0' }}>
+                      Nenhum lembrete registrado.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {lembretes.map((l, i) => (
+                        <div key={i} style={{ background: 'rgba(255, 255, 255, 0.8)', border: '1px solid #fcd34d', borderRadius: '8px', padding: '10px' }}>
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: '#C8A24A', marginBottom: '6px' }}>
+                            Lembrete #{i + 1}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#1A1A1A', marginBottom: '4px' }}>
+                            <strong>Título:</strong> {l.titulo || '—'}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#1A1A1A' }}>
+                            <strong>{l.tipo === 'intervalo' ? 'A cada' : 'Data/Hora'}:</strong>{' '}
+                            {l.tipo === 'intervalo'
+                              ? `${l.intervaloNumero} ${l.intervaloUnidade}`
+                              : formatarDataHoraBR(l.valor)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+
+            {/* BASE (só a moldura, sem botões) */}
+            <div style={{
+              width: '100%', height: '600px',
+              backgroundImage: 'url("/imagens/moldura-base.jpeg")',
+              backgroundRepeat: 'no-repeat', backgroundPosition: 'center top',
+              backgroundSize: '100% 100%', flexShrink: 0, marginTop: '-140px',
+              zIndex: 3, position: 'relative',
+              boxSizing: 'border-box'
+            }} />
+          </div>
         </div>
       )}
     </div>
