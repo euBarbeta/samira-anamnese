@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import FichaProtocolo from './FichaProtocolo';
+import { createPortal } from 'react-dom';
 import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdCalendarMonth,
   MdAssignment, MdSecurity, MdAttachMoney, MdFolder, MdFolderOpen,
@@ -2587,7 +2588,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 abertoPorPadrao={false}
               />
 
-                          <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+                <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
               
               {/* ✅ ESPAÇO PARA O CONTEÚDO NÃO FICAR ESCONDIDO ATRÁS DOS BOTÕES FLUTUANTES */}
               <div style={{ height: '140px' }} />
@@ -2595,8 +2596,8 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
             </div>
           )}
 
-          {/* ✅ BOTÕES FIXOS NA PARTE INFERIOR (FORA DO CONTAINER DE CONTEÚDO) */}
-          {telaAtual === 'detalhe_pasta' && pacienteSelecionado && (
+          {/* ✅ BOTÕES FIXOS NA PARTE INFERIOR (ENVIADOS DIRETO PARA O BODY DO SITE) */}
+          {telaAtual === 'detalhe_pasta' && pacienteSelecionado && createPortal(
             <div style={{
               position: 'fixed',
               bottom: '20px',
@@ -2605,7 +2606,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-end',
-              zIndex: 9999,
+              zIndex: 2147483647, // Z-index máximo absoluto
               pointerEvents: 'none',
               gap: '10px'
             }}>
@@ -2706,7 +2707,8 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 Excluir Pasta
               </button>
 
-            </div>
+            </div>,
+            document.body // 👈 O Portal joga os botões direto pro body, ignorando o scroll!
           )}
 
        

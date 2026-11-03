@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { sanitizarFichaAnamnese, sanitizarTexto } from '../utils/sanitizar';
+import { createPortal } from 'react-dom';
 import FichaProtocolo from './FichaProtocolo';
 import {
   anonimizarPaciente,
@@ -2476,16 +2477,16 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 abertoPorPadrao={false}
               />
 
-              <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
-
+                          <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+              
               {/* ✅ ESPAÇO PARA O CONTEÚDO NÃO FICAR ESCONDIDO ATRÁS DOS BOTÕES FLUTUANTES */}
               <div style={{ height: '150px' }} />
 
             </div>
           )}
           
-          {/* ✅ BOTÕES FIXOS NA PARTE INFERIOR (FORA DO CONTAINER DE CONTEÚDO) */}
-          {telaAtual === 'detalhe_pasta' && pacienteSelecionado && (
+          {/* ✅ BOTÕES FIXOS NA PARTE INFERIOR (CRIADOS VIA PORTAL PARA NÃO SOFRER SCROLL) */}
+          {telaAtual === 'detalhe_pasta' && pacienteSelecionado && createPortal(
             <div style={{
               position: 'fixed',
               bottom: '20px',
@@ -2494,7 +2495,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-end',
-              zIndex: 9999,
+              zIndex: 999999, // Z-index alto para ficar acima de tudo
               pointerEvents: 'none',
               gap: '10px'
             }}>
@@ -2595,9 +2596,9 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 Excluir Pasta
               </button>
 
-            </div>
+            </div>,
+            document.body // 👈 A MÁGICA ACONTECE AQUI: Joga os botões direto pro <body>
           )}
-          
 
 
            
