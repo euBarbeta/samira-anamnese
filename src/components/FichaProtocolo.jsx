@@ -230,7 +230,7 @@ export default function FichaProtocolo({
         {/* 1. TOPO DA MOLDURA COM CABEÇALHO DE EVOLUÇÃO */}
         <div style={{
           width: '100%', height: '420px',
-          backgroundImage: 'url("/imagens/moldura-topo-evolucao.jpeg")',
+          backgroundImage: 'url("/imagens/moldura-topo-protocolo.jpeg")',
           backgroundRepeat: 'no-repeat', backgroundPosition: 'center bottom',
           backgroundSize: '100% 100%', flexShrink: 0, marginBottom: '-130px',
           zIndex: 3, position: 'relative', boxSizing: 'border-box',
