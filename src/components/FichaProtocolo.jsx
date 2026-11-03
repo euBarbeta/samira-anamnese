@@ -235,7 +235,7 @@ export default function FichaProtocolo({
         <div style={{
           width: '100%',
           height: '420px',
-          backgroundImage: 'url("/imagens/moldura-topo.jpeg")',
+          backgroundImage: 'url("/imagens/moldura-topo-protocolo.jpeg")',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center bottom',
           backgroundSize: '100% 100%',
