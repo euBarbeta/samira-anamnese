@@ -2478,6 +2478,9 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 border: pacienteSelecionado.consentimentoLGPD?.aceito
                   ? '1.5px solid #86efac'
                   : '1.5px solid #fcd34d',
+                       maxWidth: '350px',  // ✅ Deixa estreito
+                width: '100%',
+                marginRight: 'auto', // ✅ Alinha à esquerda (ou use 'margin: 15px auto 0 auto' para centralizar)
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                   <span style={{ fontSize: '13px' }}>
@@ -2533,10 +2536,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   Ver Termo Assinado
                 </button>
               </div>
-            </div>
-          )}
-          
-
+              
               {/* ✅ NOVO BOTÃO DE EXCLUIR NO CANTO INFERIOR DIREITO */}
               <div
                 style={{
@@ -2568,6 +2568,10 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   Excluir Pasta
                 </button>
               </div>
+            </div>
+          )}
+          
+
 
            
           {telaAtual === 'galeria' && pacienteSelecionado && (

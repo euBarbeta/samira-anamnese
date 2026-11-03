@@ -2647,10 +2647,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   Ver Termo Assinado
                 </button>
               </div>
-            </div>
-          )}
-
-              {/* ✅ NOVO BOTÃO DE EXCLUIR NO CANTO INFERIOR DIREITO */}
+                     {/* ✅ NOVO BOTÃO DE EXCLUIR NO CANTO INFERIOR DIREITO */}
               <div
                 style={{
                   display: 'flex',
@@ -2681,6 +2678,10 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   Excluir Pasta
                 </button>
               </div>
+            </div>
+          )}
+
+       
 
           
           {/* GALERIA */}
