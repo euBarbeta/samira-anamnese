@@ -1,9 +1,5 @@
-// src/components/FichaProtocolo.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  MdSave, MdArrowBack, MdDownload, MdAdd, MdDelete, 
-  MdEdit, MdCheckCircle, MdDateRange 
-} from 'react-icons/md';
+import { MdSave, MdArrowBack, MdDateRange, MdDownload, MdEdit, MdCheckCircle } from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
 
 export default function FichaProtocolo({
@@ -36,7 +32,7 @@ export default function FichaProtocolo({
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.max(300, textarea.scrollHeight)}px`;
+      textarea.style.height = `${Math.max(400, textarea.scrollHeight)}px`;
     }
   };
 
@@ -332,7 +328,7 @@ export default function FichaProtocolo({
                 readOnly={isView}
                 placeholder="Digite aqui o protocolo do tratamento, recomendações, produtos utilizados..."
                 style={{
-                  width: '100%', minHeight: '300px', height: 'auto',
+                  width: '100%', minHeight: '400px', height: 'auto',
                   border: '1px solid rgba(200, 162, 74, 0.4)', borderRadius: '6px',
                   background: 'rgba(255, 255, 255, 0.65)', padding: '15px',
                   fontSize: '14px', outline: 'none', resize: 'none',
@@ -440,7 +436,7 @@ export default function FichaProtocolo({
           </div>
         </div>
 
-        {/* 3. BASE */}
+        {/* 3. BASE COM BOTÕES */}
         <div style={{
           width: '100%', height: '600px',
           backgroundImage: 'url("/imagens/moldura-base.jpeg")',
@@ -452,8 +448,10 @@ export default function FichaProtocolo({
           boxSizing: 'border-box'
         }}>
           <div className="botoes-acao-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
+            
             {isView ? (
               <>
+                {/* Botão de PDF (Lavanda) */}
                 <button
                   type="button"
                   className="btn-acao-ficha"
@@ -462,6 +460,8 @@ export default function FichaProtocolo({
                 >
                   <MdDownload size={20} /> BAIXAR PDF
                 </button>
+                
+                {/* Botão de Editar (Dourado) */}
                 {onIrParaEdicao && (
                   <button
                     type="button"
@@ -473,6 +473,7 @@ export default function FichaProtocolo({
                 )}
               </>
             ) : (
+              /* Botão de Salvar (Dourado com verde ao salvar) */
               <button
                 type="button"
                 className="btn-acao-ficha"
@@ -494,11 +495,12 @@ export default function FichaProtocolo({
               </button>
             )}
             
+            {/* Botão de Voltar (Transparente) */}
             <button
               type="button"
               className="btn-acao-ficha"
               onClick={onVoltar}
-              style={{ background: 'transparent', color: '#2c163a', borderColor: '#C8A24A' }}
+              style={{ background: 'transparent', color: '#2c163a', borderColor: '#C8A24A', boxShadow: 'none' }}
             >
               <MdArrowBack size={20} /> VOLTAR
             </button>
