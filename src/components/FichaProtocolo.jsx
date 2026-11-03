@@ -1,6 +1,9 @@
 // src/components/FichaProtocolo.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdArrowBack, MdDownload, MdAdd, MdDelete, MdEdit, MdCheckCircle } from 'react-icons/md';
+import { 
+  MdSave, MdArrowBack, MdDownload, MdAdd, MdDelete, 
+  MdEdit, MdCheckCircle, MdDateRange 
+} from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
 
 export default function FichaProtocolo({
@@ -12,10 +15,17 @@ export default function FichaProtocolo({
   pacienteSelecionado,
   pacienteNomeProp,
 }) {
+  const dadosOrigem = pacienteSelecionado?.anamnese || pacienteSelecionado || initialData?.anamnese || initialData || {};
+
   const [nomeCliente, setNomeCliente] = useState('');
+  const [dataNasc, setDataNasc] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [endereco, setEndereco] = useState('');
+  const [numDocumento, setNumDocumento] = useState('');
   const [dataRealizacao, setDataRealizacao] = useState('');
   const [textoLivre, setTextoLivre] = useState('');
   const [lembretes, setLembretes] = useState([]);
+  
   const [salvando, setSalvando] = useState(false);
   const [salvoSucesso, setSalvoSucesso] = useState(false);
 
@@ -34,22 +44,46 @@ export default function FichaProtocolo({
     ajustarAlturaTextarea();
   }, [textoLivre]);
 
+  // Carrega os dados no cabeçalho igual à Ficha de Evolução
   useEffect(() => {
     const nomeFinal =
-      pacienteSelecionado?.nome ||
-      pacienteNomeProp ||
-      initialData?.nomeCliente ||
-      initialData?.paciente ||
-      '';
+      dadosOrigem.nome || dadosOrigem.nomeCliente || pacienteSelecionado?.nome ||
+      pacienteNomeProp || initialData?.nomeCliente || initialData?.paciente || '';
 
-    const realizacaoFinal =
-      initialData?.dataRealizacao || new Date().toLocaleDateString('pt-BR');
+    const nascFinal =
+      dadosOrigem.dataNasc || dadosOrigem.dataNascimento || dadosOrigem.nascimento ||
+      initialData?.dataNasc || initialData?.dataNascimento || '';
+
+    const telFinal =
+      dadosOrigem.telefone || dadosOrigem.celular || dadosOrigem.fone ||
+      initialData?.telefone || initialData?.celular || '';
+
+    const endFinal = dadosOrigem.endereco || dadosOrigem.end || initialData?.endereco || '';
+
+    const docFinal =
+      dadosOrigem.documento || dadosOrigem.nDocumento || dadosOrigem.numeroDocumento ||
+      dadosOrigem.cpf || dadosOrigem.rg || initialData?.numDocumento ||
+      initialData?.documento || initialData?.nDocumento || '';
+
+    const realizacaoFinal = initialData?.dataRealizacao || new Date().toLocaleDateString('pt-BR');
 
     setNomeCliente(nomeFinal);
+    setDataNasc(nascFinal);
+    setTelefone(telFinal);
+    setEndereco(endFinal);
+    setNumDocumento(docFinal);
     setDataRealizacao(realizacaoFinal);
     setTextoLivre(initialData?.textoLivre || '');
     setLembretes(Array.isArray(initialData?.lembretes) ? initialData.lembretes : []);
   }, [initialData, pacienteSelecionado, pacienteNomeProp]);
+
+  const mascaraData = (valor) => {
+    let v = valor.replace(/\D/g, '');
+    if (v.length > 8) v = v.substring(0, 8);
+    if (v.length > 4) return `${v.substring(0, 2)}/${v.substring(2, 4)}/${v.substring(4)}`;
+    else if (v.length > 2) return `${v.substring(0, 2)}/${v.substring(2)}`;
+    return v;
+  };
 
   const handleSubmit = async () => {
     if (isView || salvando || salvoSucesso) return;
@@ -57,7 +91,11 @@ export default function FichaProtocolo({
     const dadosProtocolo = {
       id: initialData?.id || Date.now(),
       nomeCliente,
+      dataNasc,
       dataRealizacao,
+      telefone,
+      endereco,
+      numDocumento,
       textoLivre,
       lembretes,
       dataCriacao:
@@ -131,18 +169,11 @@ export default function FichaProtocolo({
 
   return (
     <div style={{
-      backgroundColor: '#dfc6fc',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      width: '100%',
-      minHeight: '100vh',
-      margin: 0,
-      padding: '20px 10px',
-      fontFamily: "'Montserrat', sans-serif",
-      boxSizing: 'border-box',
-      overflowX: 'hidden',
-      position: 'relative'
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      backgroundColor: '#dfc6fc', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', margin: 0, padding: '20px 10px',
+      fontFamily: "'Montserrat', sans-serif", boxSizing: 'border-box',
+      overflowY: 'auto', zIndex: 9999
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Montserrat:wght@400;500;600&display=swap');
@@ -151,7 +182,14 @@ export default function FichaProtocolo({
           width: 100%; border: none; background: transparent;
           border-bottom: 1px solid #C8A24A; outline: none;
           height: 18px; font-size: 13px; color: #1A1A1A;
+          -webkit-text-fill-color: #1A1A1A;
         }
+
+        input, select, textarea {
+          color: #1A1A1A !important;
+          -webkit-text-fill-color: #1A1A1A !important;
+        }
+
         .modulo-bloco {
           background: rgba(255, 255, 255, 0.45);
           border: 1.5px solid #a855f7;
@@ -164,132 +202,118 @@ export default function FichaProtocolo({
           box-sizing: border-box;
           width: 100%;
         }
-        
-        .btn-acao-padrao {
+
+        .btn-acao-ficha {
           font-family: 'Cinzel', serif;
           background: linear-gradient(135deg, #C8A24A 0%, #e2be64 100%);
-          color: #ffffff;
-          border: 1.5px solid #9c7826;
-          padding: 12px 32px;
-          font-size: 14px;
-          font-weight: 700;
-          letter-spacing: 1.5px;
-          border-radius: 30px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 10px;
+          color: #ffffff; border: 1.5px solid #9c7826;
+          padding: 12px 32px; font-size: 14px; font-weight: 700;
+          letter-spacing: 1.5px; border-radius: 30px; cursor: pointer;
+          display: flex; align-items: center; gap: 10px;
           box-shadow: 0 4px 15px rgba(200, 162, 74, 0.4);
-          transition: all 0.3s ease;
-          outline: none;
-          justify-content: center;
-          width: 100%;
-          max-width: 340px;
+          transition: all 0.3s ease; outline: none;
+          width: 100%; max-width: 340px; justify-content: center;
         }
-        .btn-acao-padrao:hover {
+
+        .btn-acao-ficha:hover {
           transform: translateY(-3px) scale(1.03);
           box-shadow: 0 6px 22px rgba(200, 162, 74, 0.6);
           background: linear-gradient(135deg, #d8b052 0%, #eccb74 100%);
-        }
-
-        .btn-voltar-padrao {
-          font-family: 'Cinzel', serif;
-          background: transparent;
-          color: #2c163a;
-          border: 1.5px solid #C8A24A;
-          padding: 12px 32px;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 1.5px;
-          border-radius: 30px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          transition: all 0.3s ease;
-          outline: none;
-          justify-content: center;
-          width: 100%;
-          max-width: 340px;
-        }
-        .btn-voltar-padrao:hover {
-          background: rgba(200, 162, 74, 0.1);
         }
       `}</style>
 
       <div
         id="protocolo-container"
         style={{
-          width: '100%',
-          maxWidth: '1175px',
+          width: '100%', maxWidth: '1175px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          boxSizing: 'border-box',
-          zIndex: 1,
-          backgroundColor: '#ffffff'
+          position: 'relative', display: 'flex', flexDirection: 'column',
+          boxSizing: 'border-box', zIndex: 1, backgroundColor: '#fff'
         }}
       >
-        {/* 1. TOPO DA MOLDURA */}
+        {/* 1. TOPO DA MOLDURA COM CABEÇALHO DE EVOLUÇÃO */}
         <div style={{
-          width: '100%',
-          height: '420px',
-          backgroundImage: 'url("/imagens/moldura-topo-protocolo.jpeg")',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center bottom',
-          backgroundSize: '100% 100%',
-          flexShrink: 0,
-          marginBottom: '-130px',
-          zIndex: 3,
-          position: 'relative',
-          boxSizing: 'border-box',
-          padding: '290px 95px 0 95px',
-          pointerEvents: 'auto'
+          width: '100%', height: '420px',
+          backgroundImage: 'url("/imagens/moldura-topo-evolucao.jpeg")',
+          backgroundRepeat: 'no-repeat', backgroundPosition: 'center bottom',
+          backgroundSize: '100% 100%', flexShrink: 0, marginBottom: '-130px',
+          zIndex: 3, position: 'relative', boxSizing: 'border-box',
+          padding: '330px 95px 0 95px', pointerEvents: 'auto'
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'auto' }}>
             <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</span>
+                <label htmlFor="prot-nome" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</label>
                 <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
-                  <input type="text" value={nomeCliente} readOnly className="input-line" />
+                  <input id="prot-nome" type="text" value={nomeCliente} readOnly className="input-line" />
                 </div>
               </div>
+
               <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
-                <span style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</span>
-                <div style={{ width: '100px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                  <input type="text" value={dataRealizacao} readOnly className="input-line" />
+                <label htmlFor="prot-datanasc" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</label>
+                <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input id="prot-datanasc" type="text" value={dataNasc} readOnly className="input-line" />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+                <label htmlFor="prot-telefone" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Telefone:</label>
+                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+                  <input id="prot-telefone" type="text" value={telefone} readOnly className="input-line" />
+                </div>
+              </div>
+
+              <div style={{ width: '310px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+                <label htmlFor="prot-datarealizacao" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</label>
+                <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input id="prot-datarealizacao" type="text" value={dataRealizacao} readOnly className="input-line" />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+                <label htmlFor="prot-endereco" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Endereço:</label>
+                <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
+                  <input id="prot-endereco" type="text" value={endereco} readOnly className="input-line" />
+                </div>
+              </div>
+
+              <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+                <label htmlFor="prot-documento" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</label>
+                <div style={{ flexGrow: 1, display: 'flex' }}>
+                  <input id="prot-documento" type="text" value={numDocumento} readOnly className="input-line" />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 2. CORPO DA MOLDURA */}
+        {/* 2. MEIO */}
         <div style={{
           width: '100%',
           backgroundImage: 'url("/imagens/moldura-meio.jpeg")',
-          backgroundRepeat: 'repeat-y',
-          backgroundPosition: 'center top',
-          backgroundSize: '100% auto',
-          display: 'flex',
-          flexDirection: 'column',
-          boxSizing: 'border-box',
-          padding: '150px 95px 160px 95px',
-          position: 'relative',
-          zIndex: 2
+          backgroundRepeat: 'repeat-y', backgroundPosition: 'center top',
+          backgroundSize: '100% auto', display: 'flex', flexDirection: 'column',
+          boxSizing: 'border-box', padding: '135px 95px 140px 95px',
+          position: 'relative', zIndex: 2
         }}>
           <div style={{
-            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            width: '480px', height: '480px', backgroundImage: 'url("/imagens/logo-samiramarcadagua.jpeg")',
-            backgroundRepeat: 'no-repeat', backgroundPosition: 'center', backgroundSize: 'contain',
-            opacity: 0.45, pointerEvents: 'none', zIndex: 1
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '480px', height: '480px',
+            backgroundImage: 'url("/imagens/logo-samiramarcadagua.jpeg")',
+            backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
+            backgroundSize: 'contain', opacity: 0.45,
+            pointerEvents: 'none', zIndex: 1
           }} />
 
-          <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
             
             {/* MÓDULO: PROTOCOLO */}
-            <div className="modulo-bloco">
+            <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px' }}>
                 <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
                 <div style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', background: 'rgba(255, 255, 255, 0.9)', padding: '4px 14px', fontSize: '12px', fontWeight: 700, border: '1.5px solid #C8A24A', borderRadius: '12px', textAlign: 'center', letterSpacing: '1.5px' }}>
@@ -412,36 +436,27 @@ export default function FichaProtocolo({
                 </div>
               )}
             </div>
+
           </div>
         </div>
 
-        {/* 3. BASE DA MOLDURA COM BOTÕES */}
+        {/* 3. BASE */}
         <div style={{
-          width: '100%',
-          height: '600px',
+          width: '100%', height: '600px',
           backgroundImage: 'url("/imagens/moldura-base.jpeg")',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center top',
-          backgroundSize: '100% 100%',
-          flexShrink: 0,
-          marginTop: '-140px',
-          zIndex: 3,
-          position: 'relative',
-          pointerEvents: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          paddingTop: '90px',
-          boxSizing: 'border-box',
-          gap: '15px'
+          backgroundRepeat: 'no-repeat', backgroundPosition: 'center top',
+          backgroundSize: '100% 100%', flexShrink: 0, marginTop: '-140px',
+          zIndex: 3, position: 'relative', pointerEvents: 'auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'flex-start', paddingTop: '90px', gap: '15px',
+          boxSizing: 'border-box'
         }}>
           <div className="botoes-acao-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
             {isView ? (
               <>
                 <button
                   type="button"
-                  className="btn-acao-padrao"
+                  className="btn-acao-ficha"
                   onClick={() => exportarParaPDF('protocolo-container', nomeCliente)}
                   style={{ background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', color: '#2c163a', borderColor: '#8a6fa8' }}
                 >
@@ -450,7 +465,7 @@ export default function FichaProtocolo({
                 {onIrParaEdicao && (
                   <button
                     type="button"
-                    className="btn-acao-padrao"
+                    className="btn-acao-ficha"
                     onClick={onIrParaEdicao}
                   >
                     <MdEdit size={20} /> EDITAR PROTOCOLO
@@ -460,7 +475,7 @@ export default function FichaProtocolo({
             ) : (
               <button
                 type="button"
-                className="btn-acao-padrao"
+                className="btn-acao-ficha"
                 onClick={handleSubmit}
                 disabled={salvando || salvoSucesso}
                 style={{
@@ -481,8 +496,9 @@ export default function FichaProtocolo({
             
             <button
               type="button"
-              className="btn-voltar-padrao"
+              className="btn-acao-ficha"
               onClick={onVoltar}
+              style={{ background: 'transparent', color: '#2c163a', borderColor: '#C8A24A' }}
             >
               <MdArrowBack size={20} /> VOLTAR
             </button>

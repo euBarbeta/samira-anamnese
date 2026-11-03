@@ -1669,33 +1669,33 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                     <MdAssignment size={16} style={{ flexShrink: 0 }} />
                     Ficha de Anamnese
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('agendamentos')}
-                    className="btn-efeito-hover"
-                    style={{
-                      width: '100%',
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '14px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)',
-                      lineHeight: 1.2,
-                      position: 'relative',
-                    }}
-                  >
-                    <MdCalendarMonth size={16} style={{ flexShrink: 0 }} />
-                    Agendamentos
+// Exemplo para o de Agendamentos no Mobile:
+<button
+  type="button"
+  onClick={() => navegarPara('agendamentos')}
+  className="btn-efeito-hover"
+  style={{
+    width: '100%',
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', // ✅ ALTERADO
+    color: '#2c163a', // ✅ ALTERADO
+    border: '1.2px solid #8a6fa8', // ✅ ALTERADO
+    padding: '14px 16px',
+    borderRadius: '20px', // ✅ ALTERADO
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)', // ✅ ALTERADO
+    lineHeight: 1.2,
+    position: 'relative',
+  }}
+>
+  <MdCalendarMonth size={16} color="#2c163a" />
+  Agendamentos
                     {agendamentosPendentesCount > 0 && (
                       <span style={{
                         display: 'inline-flex',
@@ -1719,31 +1719,31 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   </button>
 
                   <button
-                    type="button"
-                    onClick={() => navegarPara('seguranca')}
-                    className="btn-efeito-hover"
-                    style={{
-                      width: '100%',
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '14px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
-                      lineHeight: 1.2,
-                      position: 'relative',
-                    }}
-                  >
-                    <MdSecurity size={16} style={{ flexShrink: 0 }} />
-                    Segurança
+  type="button"
+  onClick={() => navegarPara('seguranca')}
+  className="btn-efeito-hover"
+  style={{
+    width: '100%',
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', // ✅ Lavanda
+    color: '#2c163a', // ✅ Texto escuro
+    border: '1.2px solid #8a6fa8', // ✅ Borda roxa
+    padding: '14px 16px',
+    borderRadius: '20px', // ✅ Arredondamento padrão
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)', // ✅ Sombra suave
+    lineHeight: 1.2,
+    position: 'relative',
+  }}
+>
+  <MdSecurity size={16} color="#2c163a" /> {/* Ícone escuro */}
+  Segurança
                     {segurancaAlertaCount > 0 && (
                       <span style={{
                         display: 'inline-flex',
@@ -1766,31 +1766,31 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('financeiro')}
-                    className="btn-efeito-hover"
-                    style={{
-                      width: '100%',
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-                      color: '#fff',
-                      border: '1.5px solid #9c7826',
-                      padding: '14px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    <MdAttachMoney size={16} style={{ flexShrink: 0 }} />
-                    Financeiro
+                 <button
+  type="button"
+  onClick={() => navegarPara('financeiro')}
+  className="btn-efeito-hover"
+  style={{
+    width: '100%',
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)', // ✅ Lavanda
+    color: '#2c163a', // ✅ Texto escuro
+    border: '1.2px solid #8a6fa8', // ✅ Borda roxa
+    padding: '14px 16px',
+    borderRadius: '20px', // ✅ Arredondamento padrão
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)', // ✅ Sombra suave
+    lineHeight: 1.2,
+  }}
+>
+  <MdAttachMoney size={16} color="#2c163a" /> {/* Ícone escuro */}
+  Financeiro
                   </button>
                 </div>
               </div>
@@ -2298,10 +2298,16 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   Ver ficha de Anamnese
                 </button>
 
-                {/* 2. Protocolo (Agora igual ao 1) */}
+                             {/* 2. Protocolo */}
                 <button
                   type="button"
-                  onClick={() => navegarPara('ver_protocolo')}
+                  onClick={() => {
+                    if (pacienteSelecionado?.protocolo) {
+                      navegarPara('ver_protocolo');
+                    } else {
+                      navegarPara('criar_protocolo');
+                    }
+                  }}
                   className="btn-lavanda-mobile"
                   style={{
                     flex: 1,
@@ -2723,7 +2729,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               />
             </div>
           )}
-            {telaAtual === 'ver_protocolo' && pacienteSelecionado && (
+                    {telaAtual === 'ver_protocolo' && pacienteSelecionado && (
             <div>
               <FichaProtocolo
                 mode="view"
@@ -2731,10 +2737,10 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 pacienteSelecionado={pacienteSelecionado}
                 pacienteNomeProp={pacienteSelecionado?.nome}
                 onVoltar={() => navegarPara('detalhe_pasta')}
+                onIrParaEdicao={() => navegarPara('editar_protocolo')} // ✅ ADICIONE ESTA LINHA
               />
             </div>
           )}
-
           {/* CRIAR PROTOCOLO */}
           {telaAtual === 'criar_protocolo' && pacienteSelecionado && (
             <div>
@@ -2747,7 +2753,18 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               />
             </div>
           )}
-
+          {telaAtual === 'editar_protocolo' && pacienteSelecionado && (
+            <div>
+              <FichaProtocolo
+                mode="edit"
+                initialData={pacienteSelecionado.protocolo}
+                pacienteSelecionado={pacienteSelecionado}
+                pacienteNomeProp={pacienteSelecionado?.nome}
+                onSave={handleSalvarProtocolo}
+                onVoltar={() => navegarPara('ver_protocolo')} // ✅ ALTERE AQUI
+              />
+            </div>
+          )}
           {/* VER EVOLUÇÃO */}
           {telaAtual === 'ver_evolucao' && evolucaoSelecionada && (
             <div>

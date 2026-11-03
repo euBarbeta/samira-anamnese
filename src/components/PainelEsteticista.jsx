@@ -1586,117 +1586,119 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                     Ficha de anamnese
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('agendamentos')}
-                    className="btn-efeito-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '12px 24px',
-                      borderRadius: '25px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-                    }}
-                  >
-                    <MdCalendarMonth size={16} />
-                    Agendamentos
-                    {agendamentosPendentesCount > 0 && (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 20,
-                        height: 20,
-                        padding: '0 6px',
-                        borderRadius: 10,
-                        background: '#dc2626',
-                        color: '#fff',
-                        fontSize: 10,
-                        fontWeight: 800,
-                        fontFamily: "'Montserrat', sans-serif",
-                        marginLeft: 2,
-                        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
-                      }}>
-                        {agendamentosPendentesCount}
-                      </span>
-                    )}
-                  </button>
+              <button
+  type="button"
+  onClick={() => navegarPara('agendamentos')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.2px solid #8a6fa8',
+    padding: '12px 24px',
+    borderRadius: '20px', // Igual ao Baixar App, mas com o padding original
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  <MdCalendarMonth size={16} color="#2c163a" />
+  Agendamentos
+  {agendamentosPendentesCount > 0 && (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 20,
+      height: 20,
+      padding: '0 6px',
+      borderRadius: 10,
+      background: '#dc2626',
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: 800,
+      fontFamily: "'Montserrat', sans-serif",
+      marginLeft: 2,
+      boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+    }}>
+      {agendamentosPendentesCount}
+    </span>
+  )}
+</button>
 
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('seguranca')}
-                    className="btn-efeito-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '12px 24px',
-                      borderRadius: '25px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 15px rgba(126, 34, 206, 0.4)',
-                    }}
-                  >
-                    <MdSecurity size={16} />
-                    Segurança
-                    {segurancaAlertaCount > 0 && (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: 20,
-                        height: 20,
-                        padding: '0 6px',
-                        borderRadius: 10,
-                        background: '#dc2626',
-                        color: '#fff',
-                        fontSize: 10,
-                        fontWeight: 800,
-                        fontFamily: "'Montserrat', sans-serif",
-                        marginLeft: 2,
-                        boxShadow: '0 0 0 2px rgba(255,255,255,0.60)',
-                      }}>
-                        {segurancaAlertaCount}
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('financeiro')}
-                    className="btn-efeito-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-                      color: '#fff',
-                      border: '1.5px solid #9c7826',
-                      padding: '12px 24px',
-                      borderRadius: '25px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
-                    }}
-                  >
-                    <MdAttachMoney size={16} />
-                    Financeiro
-                  </button>
+           <button
+  type="button"
+  onClick={() => navegarPara('seguranca')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.2px solid #8a6fa8',
+    padding: '12px 24px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  <MdSecurity size={16} color="#2c163a" />
+  Segurança
+  {segurancaAlertaCount > 0 && (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 20,
+      height: 20,
+      padding: '0 6px',
+      borderRadius: 10,
+      background: '#dc2626',
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: 800,
+      fontFamily: "'Montserrat', sans-serif",
+      marginLeft: 2,
+      boxShadow: '0 0 0 2px rgba(255,255,255,0.60)',
+    }}>
+      {segurancaAlertaCount}
+    </span>
+  )}
+</button>
+<button
+  type="button"
+  onClick={() => navegarPara('financeiro')}
+  className="btn-efeito-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.2px solid #8a6fa8',
+    padding: '12px 24px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease'
+  }}
+>
+  <MdAttachMoney size={16} color="#2c163a" />
+  Financeiro
+</button>
                 </div>
               </div>
 
@@ -2188,10 +2190,16 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     Ver Ficha de Anamnese
   </button>
 
-  {/* Botão 2: Protocolo (Agora igual ao 1) */}
+  {/* Botão 2: Protocolo (Verifica se existe para abrir em modo edição ou visualização) */}
   <button
     type="button"
-    onClick={() => navegarPara('ver_protocolo')}
+    onClick={() => {
+      if (pacienteSelecionado?.protocolo) {
+        navegarPara('ver_protocolo');
+      } else {
+        navegarPara('criar_protocolo');
+      }
+    }}
     className="btn-lavanda-hover"
     style={{
       fontFamily: "'Cinzel', serif",
@@ -2655,17 +2663,18 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
           )}
         </div>
       </div>
-      {telaAtual === 'ver_protocolo' && pacienteSelecionado && (
-  <div>
-    <FichaProtocolo
-      mode="view"
-      initialData={pacienteSelecionado.protocolo}
-      pacienteSelecionado={pacienteSelecionado}
-      pacienteNomeProp={pacienteSelecionado?.nome}
-      onVoltar={() => navegarPara('detalhe_pasta')}
-    />
-  </div>
-)}
+        {telaAtual === 'ver_protocolo' && pacienteSelecionado && (
+        <div>
+          <FichaProtocolo
+            mode="view"
+            initialData={pacienteSelecionado.protocolo}
+            pacienteSelecionado={pacienteSelecionado}
+            pacienteNomeProp={pacienteSelecionado?.nome}
+            onVoltar={() => navegarPara('detalhe_pasta')}
+            onIrParaEdicao={() => navegarPara('editar_protocolo')} // ✅ ADICIONE ESTA LINHA
+          />
+        </div>
+      )}
 
 {telaAtual === 'criar_protocolo' && pacienteSelecionado && (
   <div>
@@ -2679,18 +2688,18 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
   </div>
 )}
 
-{telaAtual === 'editar_protocolo' && pacienteSelecionado && (
-  <div>
-    <FichaProtocolo
-      mode="edit"
-      initialData={pacienteSelecionado.protocolo}
-      pacienteSelecionado={pacienteSelecionado}
-      pacienteNomeProp={pacienteSelecionado?.nome}
-      onSave={handleSalvarProtocolo}
-      onVoltar={() => navegarPara('ver_protocolo')}
-    />
-  </div>
-)}
+      {telaAtual === 'editar_protocolo' && pacienteSelecionado && (
+        <div>
+          <FichaProtocolo
+            mode="edit"
+            initialData={pacienteSelecionado.protocolo}
+            pacienteSelecionado={pacienteSelecionado}
+            pacienteNomeProp={pacienteSelecionado?.nome}
+            onSave={handleSalvarProtocolo}
+            onVoltar={() => navegarPara('ver_protocolo')} // ✅ ALTERE AQUI
+          />
+        </div>
+      )}
 
       {mostrarModalAgendar && pacienteSelecionado && (
         <ModalAgendarParaPaciente
