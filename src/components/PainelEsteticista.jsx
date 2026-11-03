@@ -2163,7 +2163,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   </span>
                 </div>
 
-             // ... (dentro de telaAtual === 'detalhe_pasta') ...
+         
 
 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
   {/* Botão 1: Ver Ficha de Anamnese (Mantém o padrão) */}
@@ -2491,7 +2491,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
 
               <div style={{
                 marginTop: '15px',
-                background: 'rgba(255, 255, 255, 0.60)',
+                background: 'rgba(255, 255, 255, 0.5)',
                 padding: '14px 16px',
                 borderRadius: '12px',
                 border: pacienteSelecionado.consentimentoLGPD?.aceito

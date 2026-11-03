@@ -2603,7 +2603,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               {/* Card LGPD */}
               <div style={{
                 marginTop: '15px',
-                background: 'rgba(255, 255, 255, 0.60)',
+                background: 'rgba(255, 255, 255, 0.5)',
                 padding: '14px 16px',
                 borderRadius: '12px',
                 border: pacienteSelecionado.consentimentoLGPD?.aceito
