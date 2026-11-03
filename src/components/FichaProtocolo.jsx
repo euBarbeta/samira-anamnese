@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MdSave, MdArrowBack, MdDateRange, MdDownload, MdEdit, MdCheckCircle } from 'react-icons/md';
+import { MdSave, MdArrowBack, MdDateRange, MdDownload, MdEdit, MdCheckCircle, MdAdd, MdDelete } from 'react-icons/md';
 import { exportarParaPDF } from '../utils/gerarPdf';
 
 export default function FichaProtocolo({
