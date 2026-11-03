@@ -1667,7 +1667,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                         fontWeight: 800,
                         fontFamily: "'Montserrat', sans-serif",
                         marginLeft: 2,
-                        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                        boxShadow: '0 0 0 2px rgba(255,255,255,0.60)',
                       }}>
                         {segurancaAlertaCount}
                       </span>
@@ -2163,141 +2163,154 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('ver_anamnese')}
-                    className="btn-lavanda-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-                      color: '#2c163a',
-                      border: '1.5px solid #8a6fa8',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
-                      transition: 'all 0.25s ease'
-                    }}
-                  >
-                    Ver Ficha de Anamnese
-                  </button>
-<button
-  type="button"
-  onClick={() => navegarPara('ver_protocolo')}
-  className="btn-lavanda-hover"
-  style={{
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-    color: '#2c163a',
-    border: '1.5px solid #8a6fa8',
-    padding: '8px 16px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
-    transition: 'all 0.25s ease',
-  }}
->
-  Protocolo
-</button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      marcarFotosComoNotificadas(pacienteSelecionado.id);
-                      navegarPara('galeria');
-                    }}
-                    className="btn-efeito-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                      color: '#fff',
-                      border: '1.5px solid #7e22ce',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)',
-                      transition: 'all 0.25s ease'
-                    }}
-                  >
-                    <MdPhotoLibrary size={14} color="#fff" />
-                    Galeria do Paciente
-                  </button>
+             // ... (dentro de telaAtual === 'detalhe_pasta') ...
 
-                  <button
-                    type="button"
-                    onClick={() => navegarPara('criar_evolucao')}
-                    className="btn-efeito-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: '#C8A24A',
-                      color: '#fdfcfa',
-                      border: '1.5px solid #C8A24A',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    + Adicionar Evolução
-                  </button>
+<div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+  {/* Botão 1: Ver Ficha de Anamnese (Mantém o padrão) */}
+  <button
+    type="button"
+    onClick={() => navegarPara('ver_anamnese')}
+    className="btn-lavanda-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.5px solid #8a6fa8',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease'
+    }}
+  >
+    Ver Ficha de Anamnese
+  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setMostrarModalAgendar(true)}
-                    className="btn-efeito-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-                      color: '#fff',
-                      border: '1.5px solid #9c7826',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
-                    }}
-                  >
-                    <MdCalendarMonth size={14} color="#fff" />
-                    Agendar Consulta
-                  </button>
+  {/* Botão 2: Protocolo (Agora igual ao 1) */}
+  <button
+    type="button"
+    onClick={() => navegarPara('ver_protocolo')}
+    className="btn-lavanda-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.5px solid #8a6fa8',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease',
+    }}
+  >
+    Protocolo
+  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => solicitarExclusaoPasta(pacienteSelecionado.id)}
-                    className="btn-efeito-hover-perigo"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: '#ffebee',
-                      color: '#c62828',
-                      border: '1.5px solid #ef9a9a',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Excluir Pasta
-                  </button>
-                </div>
+  {/* Botão 3: Galeria do Paciente (Agora igual ao 1) */}
+  <button
+    type="button"
+    onClick={() => {
+      marcarFotosComoNotificadas(pacienteSelecionado.id);
+      navegarPara('galeria');
+    }}
+    className="btn-lavanda-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.5px solid #8a6fa8',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease'
+    }}
+  >
+    <MdPhotoLibrary size={14} color="#2c163a" />
+    Galeria do Paciente
+  </button>
+
+  {/* Botão 4: Adicionar Evolução (Agora igual ao 1) */}
+  <button
+    type="button"
+    onClick={() => navegarPara('criar_evolucao')}
+    className="btn-lavanda-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.5px solid #8a6fa8',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease'
+    }}
+  >
+    + Adicionar Evolução
+  </button>
+
+  {/* Botão 5: Agendar Consulta (Agora igual ao 1) */}
+  <button
+    type="button"
+    onClick={() => setMostrarModalAgendar(true)}
+    className="btn-lavanda-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.5px solid #8a6fa8',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease'
+    }}
+  >
+    <MdCalendarMonth size={14} color="#2c163a" />
+    Agendar Consulta
+  </button>
+
+  {/* Botão 6: Excluir Pasta (Mantém vermelho) */}
+  <button
+    type="button"
+    onClick={() => solicitarExclusaoPasta(pacienteSelecionado.id)}
+    className="btn-efeito-hover-perigo"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: '#ffebee',
+      color: '#c62828',
+      border: '1.5px solid #ef9a9a',
+      padding: '8px 16px',
+      borderRadius: '20px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer'
+    }}
+  >
+    Excluir Pasta
+  </button>
+</div>
               </div>
 
               <div style={{
-                background: 'rgba(255, 255, 255, 0.92)',
+                background: 'rgba(255, 255, 255, 0.60)',
                 padding: '25px',
                 borderRadius: '12px',
                 border: '1px solid #e2d2f5',
@@ -2478,7 +2491,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
 
               <div style={{
                 marginTop: '15px',
-                background: 'rgba(255, 255, 255, 0.92)',
+                background: 'rgba(255, 255, 255, 0.60)',
                 padding: '14px 16px',
                 borderRadius: '12px',
                 border: pacienteSelecionado.consentimentoLGPD?.aceito

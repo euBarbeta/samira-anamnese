@@ -1759,7 +1759,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                         fontWeight: 800,
                         fontFamily: "'Montserrat', sans-serif",
                         marginLeft: 2,
-                        boxShadow: '0 0 0 2px rgba(255,255,255,0.9)',
+                        boxShadow: '0 0 0 2px rgba(255,255,255,0.60)',
                       }}>
                         {segurancaAlertaCount}
                       </span>
@@ -2291,7 +2291,8 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                {/* 1. Ver Ficha de Anamnese (Padrão) */}
                 <button
                   type="button"
                   onClick={() => navegarPara('ver_anamnese')}
@@ -2313,63 +2314,41 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 >
                   Ver ficha de Anamnese
                 </button>
-      
-<button
-  type="button"
-  onClick={() => navegarPara('ver_protocolo')}
-  className="btn-lavanda-mobile"
-  style={{
-    flex: 1,
-    fontFamily: "'Cinzel', serif",
-    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-    color: '#2c163a',
-    border: '1.2px solid #8a6fa8',
-    padding: '8px',
-    borderRadius: '15px',
-    fontSize: '10px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
-  }}
->
-  Protocolo
-</button>
 
-// Telas de renderização (mesmo código do desktop)
-{telaAtual === 'ver_protocolo' && pacienteSelecionado && (
-  <div>
-    <FichaProtocolo
-      mode="view"
-      initialData={pacienteSelecionado.protocolo}
-      pacienteSelecionado={pacienteSelecionado}
-      pacienteNomeProp={pacienteSelecionado?.nome}
-      onVoltar={() => navegarPara('detalhe_pasta')}
-    />
-  </div>
-)}
+                {/* 2. Protocolo (Agora igual ao 1) */}
+                <button
+                  type="button"
+                  onClick={() => navegarPara('ver_protocolo')}
+                  className="btn-lavanda-mobile"
+                  style={{
+                    flex: 1,
+                    fontFamily: "'Cinzel', serif",
+                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                    color: '#2c163a',
+                    border: '1.2px solid #8a6fa8',
+                    padding: '8px',
+                    borderRadius: '15px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
+                    transition: 'all 0.25s ease'
+                  }}
+                >
+                  Protocolo
+                </button>
 
-{telaAtual === 'criar_protocolo' && pacienteSelecionado && (
-  <div>
-    <FichaProtocolo
-      mode="create"
-      pacienteSelecionado={pacienteSelecionado}
-      pacienteNomeProp={pacienteSelecionado?.nome}
-      onSave={handleSalvarProtocolo}
-      onVoltar={() => navegarPara('detalhe_pasta')}
-    />
-  </div>
-)}
-
+                {/* 3. Agendar Consulta (Agora igual ao 1) */}
                 <button
                   type="button"
                   onClick={() => setMostrarModalAgendar(true)}
-                  className="btn-efeito-hover"
+                  className="btn-lavanda-mobile"
                   style={{
                     width: '100%',
                     fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-                    color: '#fff',
-                    border: '1.5px solid #9c7826',
+                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                    color: '#2c163a',
+                    border: '1.2px solid #8a6fa8',
                     padding: '10px',
                     borderRadius: '15px',
                     fontSize: '11px',
@@ -2379,26 +2358,28 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
-                    boxShadow: '0 3px 10px rgba(200, 162, 74, 0.3)',
+                    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
+                    transition: 'all 0.25s ease'
                   }}
                 >
-                  <MdCalendarMonth size={14} color="#fff" />
+                  <MdCalendarMonth size={14} color="#2c163a" />
                   Agendar Consulta
                 </button>
 
+                {/* 4. Galeria do Paciente (Agora igual ao 1) */}
                 <button
                   type="button"
                   onClick={() => {
                     marcarFotosComoNotificadas(pacienteSelecionado.id);
                     navegarPara('galeria');
                   }}
-                  className="btn-efeito-hover"
+                  className="btn-lavanda-mobile"
                   style={{
                     width: '100%',
                     fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                    color: '#fff',
-                    border: 'none',
+                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                    color: '#2c163a',
+                    border: '1.2px solid #8a6fa8',
                     padding: '10px',
                     borderRadius: '15px',
                     fontSize: '11px',
@@ -2408,28 +2389,32 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
-                    boxShadow: '0 3px 10px rgba(168, 85, 247, 0.25)'
+                    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
+                    transition: 'all 0.25s ease'
                   }}
                 >
-                  <MdPhotoLibrary size={14} color="#fff" />
+                  <MdPhotoLibrary size={14} color="#2c163a" />
                   Galeria do Paciente
                 </button>
 
+                {/* 5. Adicionar Nova Evolução (Agora igual ao 1) */}
                 <button
                   type="button"
                   onClick={() => navegarPara('criar_evolucao')}
-                  className="btn-efeito-hover"
+                  className="btn-lavanda-mobile"
                   style={{
                     width: '100%',
                     fontFamily: "'Cinzel', serif",
-                    background: '#C8A24A',
-                    color: '#fff',
-                    border: 'none',
+                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                    color: '#2c163a',
+                    border: '1.2px solid #8a6fa8',
                     padding: '8px',
                     borderRadius: '15px',
                     fontSize: '11px',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
+                    transition: 'all 0.25s ease'
                   }}
                 >
                   + Adicionar Nova Evolução
@@ -2437,7 +2422,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               </div>
 
               <div style={{
-                background: 'rgba(255, 255, 255, 0.92)',
+                background: 'rgba(255, 255, 255, 0.60)',
                 padding: '16px',
                 borderRadius: '12px',
                 border: '1px solid #e2d2f5'
@@ -2618,7 +2603,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               {/* Card LGPD */}
               <div style={{
                 marginTop: '15px',
-                background: 'rgba(255, 255, 255, 0.92)',
+                background: 'rgba(255, 255, 255, 0.60)',
                 padding: '14px 16px',
                 borderRadius: '12px',
                 border: pacienteSelecionado.consentimentoLGPD?.aceito
@@ -2718,6 +2703,30 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 pacienteNome={pacienteSelecionado.nome}
                 modo="esteticista"
                 evolucoes={pacienteSelecionado.evolucoes || []}
+              />
+            </div>
+          )}
+            {telaAtual === 'ver_protocolo' && pacienteSelecionado && (
+            <div>
+              <FichaProtocolo
+                mode="view"
+                initialData={pacienteSelecionado.protocolo}
+                pacienteSelecionado={pacienteSelecionado}
+                pacienteNomeProp={pacienteSelecionado?.nome}
+                onVoltar={() => navegarPara('detalhe_pasta')}
+              />
+            </div>
+          )}
+
+          {/* CRIAR PROTOCOLO */}
+          {telaAtual === 'criar_protocolo' && pacienteSelecionado && (
+            <div>
+              <FichaProtocolo
+                mode="create"
+                pacienteSelecionado={pacienteSelecionado}
+                pacienteNomeProp={pacienteSelecionado?.nome}
+                onSave={handleSalvarProtocolo}
+                onVoltar={() => navegarPara('detalhe_pasta')}
               />
             </div>
           )}

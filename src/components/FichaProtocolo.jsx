@@ -176,69 +176,76 @@ export default function FichaProtocolo({
           </button>
         </div>
 
-        {/* DADOS DO PACIENTE */}
+         {/* DADOS DO PACIENTE */}
         <div
           style={{
             marginBottom: '20px',
             padding: '14px',
-            background: '#faf5ff',
+            background: 'rgba(250, 245, 255, 0.6)', // Deixando levemente transparente
             borderRadius: '10px',
             border: '1px solid #e2d2f5',
           }}
         >
-          <div style={{ marginBottom: '8px' }}>
-            <label
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#C8A24A',
-                display: 'block',
-                marginBottom: '4px',
-              }}
-            >
-              Nome:
-            </label>
-            <input
-              type="text"
-              value={nomeCliente}
-              readOnly
-              style={{
-                width: '100%',
-                border: 'none',
-                background: 'transparent',
-                fontWeight: 600,
-                color: '#2c163a',
-                outline: 'none',
-                fontSize: '14px',
-              }}
-            />
-          </div>
-          <div>
-            <label
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#C8A24A',
-                display: 'block',
-                marginBottom: '4px',
-              }}
-            >
-              Data de Realização:
-            </label>
-            <input
-              type="text"
-              value={dataRealizacao}
-              readOnly
-              style={{
-                width: '100%',
-                border: 'none',
-                background: 'transparent',
-                fontWeight: 600,
-                color: '#2c163a',
-                outline: 'none',
-                fontSize: '14px',
-              }}
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#C8A24A', display: 'block', marginBottom: '4px' }}>
+                Nome:
+              </label>
+              <input
+                type="text"
+                value={nomeCliente}
+                readOnly
+                style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: 600, color: '#2c163a', outline: 'none', fontSize: '14px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#C8A24A', display: 'block', marginBottom: '4px' }}>
+                Telefone:
+              </label>
+              <input
+                type="text"
+                value={pacienteSelecionado?.telefone || pacienteSelecionado?.anamnese?.telefone || '—'}
+                readOnly
+                style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: 600, color: '#2c163a', outline: 'none', fontSize: '14px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#C8A24A', display: 'block', marginBottom: '4px' }}>
+                Documento:
+              </label>
+              <input
+                type="text"
+                value={pacienteSelecionado?.documento || pacienteSelecionado?.anamnese?.numeroDocumento || '—'}
+                readOnly
+                style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: 600, color: '#2c163a', outline: 'none', fontSize: '14px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#C8A24A', display: 'block', marginBottom: '4px' }}>
+                Endereço:
+              </label>
+              <input
+                type="text"
+                value={pacienteSelecionado?.endereco || pacienteSelecionado?.anamnese?.endereco || '—'}
+                readOnly
+                style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: 600, color: '#2c163a', outline: 'none', fontSize: '14px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#C8A24A', display: 'block', marginBottom: '4px' }}>
+                Data de Realização:
+              </label>
+              <input
+                type="text"
+                value={dataRealizacao}
+                readOnly
+                style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: 600, color: '#2c163a', outline: 'none', fontSize: '14px' }}
+              />
+            </div>
           </div>
         </div>
 
@@ -283,14 +290,16 @@ export default function FichaProtocolo({
           />
         </div>
 
-        {/* LEMBRETES */}
+           {/* LEMBRETES */}
         <div
           style={{
             marginBottom: '20px',
             padding: '16px',
-            background: '#fff8e1',
+            background: 'rgba(255, 248, 225, 0.7)', // Amarelo semi-transparente
             borderRadius: '10px',
-            border: '1.5px solid #fcd34d',
+            border: '1.5px solid rgba(252, 211, 77, 0.8)', // Borda semi-transparente
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           <div
@@ -354,7 +363,7 @@ export default function FichaProtocolo({
               <div
                 key={index}
                 style={{
-                  background: '#fff',
+                  background: 'rgba(255, 255, 255, 0.8)', // Fundo branco semi-transparente
                   border: '1px solid #fcd34d',
                   borderRadius: '8px',
                   padding: '12px',
@@ -418,6 +427,7 @@ export default function FichaProtocolo({
                       border: '1px solid #ccc',
                       fontSize: '12px',
                       boxSizing: 'border-box',
+                      background: 'rgba(255,255,255,0.9)',
                     }}
                   />
                 </div>
@@ -444,6 +454,7 @@ export default function FichaProtocolo({
                         borderRadius: '6px',
                         border: '1px solid #ccc',
                         fontSize: '12px',
+                        background: 'rgba(255,255,255,0.9)',
                       }}
                     >
                       <option value="intervalo">Intervalo</option>
@@ -478,6 +489,7 @@ export default function FichaProtocolo({
                             borderRadius: '6px',
                             border: '1px solid #ccc',
                             fontSize: '12px',
+                            background: 'rgba(255,255,255,0.9)',
                           }}
                         />
                         <select
@@ -492,6 +504,7 @@ export default function FichaProtocolo({
                             borderRadius: '6px',
                             border: '1px solid #ccc',
                             fontSize: '12px',
+                            background: 'rgba(255,255,255,0.9)',
                           }}
                         >
                           <option value="horas">Horas</option>
@@ -512,6 +525,7 @@ export default function FichaProtocolo({
                           border: '1px solid #ccc',
                           fontSize: '12px',
                           boxSizing: 'border-box',
+                          background: 'rgba(255,255,255,0.9)',
                         }}
                       />
                     )}
