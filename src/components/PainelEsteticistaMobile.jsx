@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import FichaProtocolo from './FichaProtocolo';
 import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdDescription, MdCalendarMonth,
   MdAssignment, MdSecurity, MdAttachMoney, MdFolder, MdFolderOpen,
@@ -937,6 +938,53 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         dadosAtualizados.numeroDocumento,
     };
   }
+  const handleSalvarProtocolo = async (dadosProtocolo) => {
+  const user = getAuth().currentUser;
+  if (!user || !pacienteSelecionado) return;
+
+  try {
+    const protocoloParaSalvar = {
+      ...dadosProtocolo,
+      dataCriacao:
+        dadosProtocolo.dataCriacao ||
+        new Date().toLocaleDateString('pt-BR') +
+          ' às ' +
+          new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+    };
+
+    // Atualiza o campo `protocolo` do paciente
+    const pacienteAtualizado = {
+      ...pacienteSelecionado,
+      protocolo: protocoloParaSalvar,
+    };
+
+    // Salva no Firestore
+    await setDoc(
+      doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteSelecionado.id)),
+      pacienteAtualizado,
+      { merge: true }
+    );
+
+    // Atualiza o state local (o onSnapshot também vai pegar, mas isso é instantâneo)
+    setPacienteSelecionado(pacienteAtualizado);
+
+    const atualizados = pacientes.map((p) => {
+      if (p.id === pacienteSelecionado.id) return pacienteAtualizado;
+      return p;
+    });
+    setPacientes(atualizados);
+
+    // Volta para a tela de detalhes
+    substituirTela('detalhe_pasta');
+  } catch (e) {
+    console.error('Erro ao salvar protocolo:', e);
+    alert('Erro ao salvar protocolo. Tente novamente.');
+    throw e;
+  }
+};
 
   // ✅ Sanitização defensiva (antes de qualquer coisa)
   const dadosLimpos = sanitizarFichaAnamnese(dadosAtualizados);
@@ -2265,6 +2313,52 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 >
                   Ver ficha de Anamnese
                 </button>
+      
+<button
+  type="button"
+  onClick={() => navegarPara('ver_protocolo')}
+  className="btn-lavanda-mobile"
+  style={{
+    flex: 1,
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.2px solid #8a6fa8',
+    padding: '8px',
+    borderRadius: '15px',
+    fontSize: '10px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
+  }}
+>
+  Protocolo
+</button>
+
+// Telas de renderização (mesmo código do desktop)
+{telaAtual === 'ver_protocolo' && pacienteSelecionado && (
+  <div>
+    <FichaProtocolo
+      mode="view"
+      initialData={pacienteSelecionado.protocolo}
+      pacienteSelecionado={pacienteSelecionado}
+      pacienteNomeProp={pacienteSelecionado?.nome}
+      onVoltar={() => navegarPara('detalhe_pasta')}
+    />
+  </div>
+)}
+
+{telaAtual === 'criar_protocolo' && pacienteSelecionado && (
+  <div>
+    <FichaProtocolo
+      mode="create"
+      pacienteSelecionado={pacienteSelecionado}
+      pacienteNomeProp={pacienteSelecionado?.nome}
+      onSave={handleSalvarProtocolo}
+      onVoltar={() => navegarPara('detalhe_pasta')}
+    />
+  </div>
+)}
 
                 <button
                   type="button"

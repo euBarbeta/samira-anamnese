@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { sanitizarFichaAnamnese, sanitizarTexto } from '../utils/sanitizar';
+import FichaProtocolo from './FichaProtocolo';
 import {
   anonimizarPaciente,
   reativarPaciente,
@@ -1285,6 +1286,53 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       />
     );
   }
+  const handleSalvarProtocolo = async (dadosProtocolo) => {
+  const user = getAuth().currentUser;
+  if (!user || !pacienteSelecionado) return;
+
+  try {
+    const protocoloParaSalvar = {
+      ...dadosProtocolo,
+      dataCriacao:
+        dadosProtocolo.dataCriacao ||
+        new Date().toLocaleDateString('pt-BR') +
+          ' às ' +
+          new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+    };
+
+    // Atualiza o campo `protocolo` do paciente
+    const pacienteAtualizado = {
+      ...pacienteSelecionado,
+      protocolo: protocoloParaSalvar,
+    };
+
+    // Salva no Firestore
+    await setDoc(
+      doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteSelecionado.id)),
+      pacienteAtualizado,
+      { merge: true }
+    );
+
+    // Atualiza o state local (o onSnapshot também vai pegar, mas isso é instantâneo)
+    setPacienteSelecionado(pacienteAtualizado);
+
+    const atualizados = pacientes.map((p) => {
+      if (p.id === pacienteSelecionado.id) return pacienteAtualizado;
+      return p;
+    });
+    setPacientes(atualizados);
+
+    // Volta para a tela de detalhes
+    substituirTela('detalhe_pasta');
+  } catch (e) {
+    console.error('Erro ao salvar protocolo:', e);
+    alert('Erro ao salvar protocolo. Tente novamente.');
+    throw e;
+  }
+};
 
   if (telaAtual === 'editar_anamnese' && pacienteSelecionado) {
     return (
@@ -2136,7 +2184,26 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   >
                     Ver Ficha de Anamnese
                   </button>
-
+<button
+  type="button"
+  onClick={() => navegarPara('ver_protocolo')}
+  className="btn-lavanda-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #8a6fa8',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease',
+  }}
+>
+  Protocolo
+</button>
                   <button
                     type="button"
                     onClick={() => {
@@ -2556,6 +2623,42 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
           )}
         </div>
       </div>
+      {telaAtual === 'ver_protocolo' && pacienteSelecionado && (
+  <div>
+    <FichaProtocolo
+      mode="view"
+      initialData={pacienteSelecionado.protocolo}
+      pacienteSelecionado={pacienteSelecionado}
+      pacienteNomeProp={pacienteSelecionado?.nome}
+      onVoltar={() => navegarPara('detalhe_pasta')}
+    />
+  </div>
+)}
+
+{telaAtual === 'criar_protocolo' && pacienteSelecionado && (
+  <div>
+    <FichaProtocolo
+      mode="create"
+      pacienteSelecionado={pacienteSelecionado}
+      pacienteNomeProp={pacienteSelecionado?.nome}
+      onSave={handleSalvarProtocolo}
+      onVoltar={() => navegarPara('detalhe_pasta')}
+    />
+  </div>
+)}
+
+{telaAtual === 'editar_protocolo' && pacienteSelecionado && (
+  <div>
+    <FichaProtocolo
+      mode="edit"
+      initialData={pacienteSelecionado.protocolo}
+      pacienteSelecionado={pacienteSelecionado}
+      pacienteNomeProp={pacienteSelecionado?.nome}
+      onSave={handleSalvarProtocolo}
+      onVoltar={() => navegarPara('ver_protocolo')}
+    />
+  </div>
+)}
 
       {mostrarModalAgendar && pacienteSelecionado && (
         <ModalAgendarParaPaciente

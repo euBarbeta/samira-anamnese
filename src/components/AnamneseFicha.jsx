@@ -710,6 +710,9 @@ export default function AnamneseFicha() {
       setUsuarioLogado(user);
       const emailUsuario = user.email ? user.email.toLowerCase().trim() : '';
 
+      // ============================================================
+      // FLUXO DA ESTETICISTA (rápido, sem verificações extras)
+      // ============================================================
       if (EMAILS_ESTETICISTAS.includes(emailUsuario) || !emailUsuario.endsWith('@sistema.local')) {
         setUidDaURL(null);
         setModoAdmin(true);
@@ -721,10 +724,13 @@ export default function AnamneseFicha() {
         return;
       }
 
+      // ============================================================
+      // FLUXO DO PACIENTE — Aqui começa o loading visual
+      // ============================================================
       setBuscandoPaciente(true);
 
       try {
-        // ✅ Timeout no getIdToken para não travar
+        // Força o token (com timeout para não travar)
         await Promise.race([
           user.getIdToken(true),
           new Promise(r => setTimeout(r, 3000))
@@ -734,6 +740,9 @@ export default function AnamneseFicha() {
         console.warn('Erro ao forçar token:', e);
       }
 
+      // ============================================================
+      // 1. BUSCA O PACIENTE NO FIRESTORE
+      // ============================================================
       let pacienteEncontrado = null;
       let mapSnap2Data = null;
       let estetaUidParaPath = null;
@@ -810,107 +819,75 @@ export default function AnamneseFicha() {
 
       if (pacienteEncontrado) {
         
-        // ✅ 1. VERIFICAÇÃO DE LGPD (PRIORIDADE MÁXIMA NO APK)
-        // Correção: Garante que a tela de login apareça sem travar o loading
-        if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
-          await signOutSafe();
-          setAutenticado(false);
-          setUsuarioLogado(null);
-          setDadosPaciente(null);
-          setBuscandoPaciente(false);
-          setErroLoginExterno(
-            'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.'
-          );
-          setRota('login-uid');
-          setAuthVerificado(true);
-          processandoLoginRef.current = false;
-          return;
-        }
-
-        // ✅ 2. VERIFICAÇÃO DE ANONIMIZAÇÃO
-        if (pacienteEncontrado.anonimizadoEm) {
-          await signOutSafe();
-          setAutenticado(false);
-          setUsuarioLogado(null);
-          setDadosPaciente(null);
-          setBuscandoPaciente(false);
-          setErroLoginExterno('Sua conta foi excluída. Entre em contato com a profissional.');
-          setRota('login-uid');
-          setAuthVerificado(true);
-          processandoLoginRef.current = false;
-          return;
-        }
-
-        // ✅ 3. VERIFICAÇÃO DE URL (SOMENTE NO NAVEGADOR)
-        if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
-          setErroLoginExterno('Nome ou Senha incorretos');
-          await signOutSafe();
-          setAutenticado(false);
-          setUsuarioLogado(null);
-          setDadosPaciente(null);
-          setBuscandoPaciente(false);
-          setRota('login-uid');
-          setAuthVerificado(true);
-          processandoLoginRef.current = false;
-          return;
-        }
-
-        // ✅ 4. SALVA PREFERÊNCIA (APENAS APK)
-        if (isNativo()) {
-          await Preferences.set({
-            key: 'pacienteId',
-            value: String(pacienteEncontrado.id),
-          });
-        }
-
-        setDadosPaciente(pacienteEncontrado);
-
-        import('../utils/segurancaEstado')
-          .then(({ atualizarEstadoSeguranca }) => {
-            atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
-          })
-          .catch(() => {});
-
-        // ✅ 5. BLOCO DE VERIFICAÇÃO DE DISPOSITIVO
+        // ============================================================
+        // 2. VERIFICAÇÕES EM PARALELO (LGPD, Anonimização, URL, Dispositivo)
+        // ============================================================
         try {
-          const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import('../utils/dispositivos');
-          const fingerprint = gerarFingerprintEstavel();
-          const dispositivo = rotuloDispositivoCurto();
-
-          let geo = { cidade: null, pais: null, lat: null, lng: null };
-          try {
-            const { obterLocalizacao } = await import('../utils/geolocalizacao');
-            const loc = await obterLocalizacao();
-            if (loc.status === 'ativa') {
-              geo = {
-                cidade: loc.cidade || null,
-                pais: loc.pais || null,
-                lat: loc.lat ?? null,
-                lng: loc.lng ?? null,
-              };
-            }
-          } catch {}
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-          const res = await fetch('/.netlify/functions/verificar-dispositivo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              pacienteId: String(pacienteEncontrado.id),
-              fingerprint,
-              dispositivo,
-              plataforma: isNativo() ? 'apk' : 'pwa',
-              ...geo,
+          const [_, dispositivoResult] = await Promise.all([
+            // Promise 1: Validações locais rápidas (LGPD, Anonimização, URL)
+            new Promise((resolve, reject) => {
+              if (isNativo() && !pacienteEncontrado.consentimentoLGPD?.aceito) {
+                return reject({ tipo: 'lgpd', msg: 'Para usar o app, abra o link no navegador primeiro, faça login e aceite o termo LGPD. Depois volte aqui.' });
+              }
+              if (pacienteEncontrado.anonimizadoEm) {
+                return reject({ tipo: 'anonimizado', msg: 'Sua conta foi excluída. Entre em contato com a profissional.' });
+              }
+              if (!isNativo() && uidDaURL && String(uidDaURL) !== String(pacienteEncontrado.id)) {
+                return reject({ tipo: 'url', msg: 'Nome ou Senha incorretos' });
+              }
+              resolve(true);
             }),
-            signal: controller.signal,
-          }).finally(() => clearTimeout(timeoutId));
 
-          const data = await res.json();
+            // Promise 2: Verificação de dispositivo (a mais lenta)
+            (async () => {
+              try {
+                const { gerarFingerprintEstavel, rotuloDispositivoCurto } = await import('../utils/dispositivos');
+                const fingerprint = gerarFingerprintEstavel();
+                const dispositivo = rotuloDispositivoCurto();
 
-          if (data.status === 'bloqueado') {
-            if (data.motivo === 'Acesso bloqueado preventivamente. A profissional foi notificada e precisa liberar este dispositivo.') {
+                let geo = { cidade: null, pais: null, lat: null, lng: null };
+                try {
+                  const { obterLocalizacao } = await import('../utils/geolocalizacao');
+                  const loc = await obterLocalizacao();
+                  if (loc.status === 'ativa') {
+                    geo = {
+                      cidade: loc.cidade || null,
+                      pais: loc.pais || null,
+                      lat: loc.lat ?? null,
+                      lng: loc.lng ?? null,
+                    };
+                  }
+                } catch {}
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const res = await fetch('/.netlify/functions/verificar-dispositivo', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    pacienteId: String(pacienteEncontrado.id),
+                    fingerprint,
+                    dispositivo,
+                    plataforma: isNativo() ? 'apk' : 'pwa',
+                    ...geo,
+                  }),
+                  signal: controller.signal,
+                }).finally(() => clearTimeout(timeoutId));
+
+                return await res.json();
+              } catch (e) {
+                console.warn('Falha ao verificar dispositivo (timeout):', e);
+                return { status: 'conhecido' };
+              }
+            })()
+          ]);
+
+          // ============================================================
+          // 3. ANÁLISE DO RESULTADO
+          // ============================================================
+          if (dispositivoResult.status === 'bloqueado') {
+            if (dispositivoResult.motivo === 'Acesso bloqueado preventivamente. A profissional foi notificada e precisa liberar este dispositivo.') {
               setBuscandoPaciente(false);
               setAguardandoAprovacao(true);
               window._pacientePendente = pacienteEncontrado;
@@ -921,37 +898,62 @@ export default function AnamneseFicha() {
               setAutenticado(false);
               setUsuarioLogado(null);
               setDadosPaciente(null);
-              setErroBloqueio(data.motivo || 'Acesso suspenso pela profissional.');
+              setErroBloqueio(dispositivoResult.motivo || 'Acesso suspenso pela profissional.');
               setBuscandoPaciente(false);
               setRota('dispositivo_bloqueado');
               return;
             }
           }
-        } catch (e) {
-          console.warn('Falha ao verificar dispositivo ou timeout (segue fluxo):', e);
+
+          // ============================================================
+          // 4. TUDO PASSOU! LIBERA O ACESSO
+          // ============================================================
+          if (isNativo()) {
+            await Preferences.set({
+              key: 'pacienteId',
+              value: String(pacienteEncontrado.id),
+            });
+          }
+
+          setDadosPaciente(pacienteEncontrado);
+
+          import('../utils/segurancaEstado')
+            .then(({ atualizarEstadoSeguranca }) => {
+              atualizarEstadoSeguranca(pacienteEncontrado.id).catch(() => {});
+            })
+            .catch(() => {});
+
+          if (estetaUidParaPath) {
+            setPacienteDocPath(
+              doc(db, 'usuarios', estetaUidParaPath, 'pacientes', String(pacienteEncontrado.id))
+            );
+          }
+
+          const idPaciente = String(pacienteEncontrado.id);
+          window.history.replaceState(
+            { abaAtiva: 'painelPaciente', pacienteId: idPaciente },
+            '',
+            `${window.location.pathname}#${idPaciente}`
+          );
+          setUidDaURL(idPaciente);
+          setAbaAtiva('painelPaciente');
+          setAutenticado(true);
+          setBuscandoPaciente(false);
+
+        } catch (erroVerificacao) {
+          // Trata os reject das validações (LGPD, anonimizado, URL)
+          await signOutSafe();
+          setAutenticado(false);
+          setUsuarioLogado(null);
+          setDadosPaciente(null);
+          setBuscandoPaciente(false);
+          setErroLoginExterno(erroVerificacao.msg || 'Erro ao validar acesso.');
+          setRota('login-uid');
+          setAuthVerificado(true);
+          processandoLoginRef.current = false;
+          return;
         }
 
-        if (estetaUidParaPath) {
-          setPacienteDocPath(
-            doc(
-              db,
-              'usuarios',
-              estetaUidParaPath,
-              'pacientes',
-              String(pacienteEncontrado.id)
-            )
-          );
-        }
-        const idPaciente = String(pacienteEncontrado.id);
-        window.history.replaceState(
-          { abaAtiva: 'painelPaciente', pacienteId: idPaciente },
-          '',
-          `${window.location.pathname}#${idPaciente}`
-        );
-        setUidDaURL(idPaciente);
-        setAbaAtiva('painelPaciente');
-        setAutenticado(true);
-        setBuscandoPaciente(false);
       } else {
         await signOutSafe();
         setAutenticado(false);
