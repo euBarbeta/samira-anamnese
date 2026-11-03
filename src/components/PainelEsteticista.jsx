@@ -2287,25 +2287,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     Agendar Consulta
   </button>
 
-  {/* Botão 6: Excluir Pasta (Mantém vermelho) */}
-  <button
-    type="button"
-    onClick={() => solicitarExclusaoPasta(pacienteSelecionado.id)}
-    className="btn-efeito-hover-perigo"
-    style={{
-      fontFamily: "'Cinzel', serif",
-      background: '#ffebee',
-      color: '#c62828',
-      border: '1.5px solid #ef9a9a',
-      padding: '8px 16px',
-      borderRadius: '20px',
-      fontSize: '11px',
-      fontWeight: 700,
-      cursor: 'pointer'
-    }}
-  >
-    Excluir Pasta
-  </button>
 </div>
               </div>
 
@@ -2554,7 +2535,41 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               </div>
             </div>
           )}
+          
 
+              {/* ✅ NOVO BOTÃO DE EXCLUIR NO CANTO INFERIOR DIREITO */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  marginTop: '20px',
+                  paddingBottom: '20px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => solicitarExclusaoPasta(pacienteSelecionado.id)}
+                  style={{
+                    fontFamily: "'Cinzel', serif",
+                    background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)', // Vermelho do modal
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(198, 40, 40, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  Excluir Pasta
+                </button>
+              </div>
+
+           
           {telaAtual === 'galeria' && pacienteSelecionado && (
             <div>
               <button

@@ -2258,24 +2258,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   }}>
                     📁 {pacienteSelecionado.nome}
                   </h2>
-                  <button
-                    type="button"
-                    onClick={() => solicitarExclusaoPasta(pacienteSelecionado.id)}
-                    className="btn-efeito-hover-perigo"
-                    style={{
-                      background: '#ffebee',
-                      color: '#c62828',
-                      border: '1px solid #ef9a9a',
-                      padding: '4px 10px',
-                      borderRadius: '12px',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      fontFamily: "'Cinzel', serif"
-                    }}
-                  >
-                    Excluir
-                  </button>
+                 
                 </div>
 
                 <LinkAcessoPaciente pacienteId={pacienteSelecionado.id} empilhado />
@@ -2667,6 +2650,39 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
             </div>
           )}
 
+              {/* ✅ NOVO BOTÃO DE EXCLUIR NO CANTO INFERIOR DIREITO */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  marginTop: '20px',
+                  paddingBottom: '20px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => solicitarExclusaoPasta(pacienteSelecionado.id)}
+                  style={{
+                    fontFamily: "'Cinzel', serif",
+                    background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)', // Vermelho do modal
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(198, 40, 40, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  Excluir Pasta
+                </button>
+              </div>
+
+          
           {/* GALERIA */}
           {telaAtual === 'galeria' && pacienteSelecionado && (
             <div>
@@ -3007,7 +3023,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
 /* ============================================================
    CARD DE PACIENTE MOBILE
    ============================================================ */
-function CardPacienteMobile({ pac, onAbrir, onExcluir, arquivado = false }) {
+function CardPacienteMobile({ pac, onAbrir,arquivado = false }) {
   return (
     <div
       className="card-pasta-hover"
@@ -3144,29 +3160,8 @@ function CardPacienteMobile({ pac, onAbrir, onExcluir, arquivado = false }) {
             Abrir Pasta →
           </span>
 
-          {!arquivado && onExcluir && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onExcluir();
-              }}
-              className="btn-efeito-hover-perigo"
-              style={{
-                background: '#ffebee',
-                color: '#c62828',
-                border: '1px solid #ef9a9a',
-                padding: '4px 8px',
-                borderRadius: '10px',
-                fontSize: '9px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: "'Cinzel', serif"
-              }}
-            >
-              Excluir
-            </button>
-          )}
+        
+        
         </div>
       </div>
     </div>

@@ -175,20 +175,27 @@ export default function CardSegurancaPaciente({ pacienteId }) {
 
 const card = {
   marginTop: 15,
-  background: 'rgba(255, 255, 255, 0.5)', // <-- Mude para 0.75 ou 0.6
-  backdropFilter: 'blur(5px)',              // <-- Adicione esta linha (efeito de vidro)
-  WebkitBackdropFilter: 'blur(5px)',        // <-- Adicione esta linha (compatibilidade Safari)
+  background: 'rgba(255, 255, 255, 0.50)', 
+  backdropFilter: 'blur(5px)',
+  WebkitBackdropFilter: 'blur(5px)',
   padding: '14px 16px',
   borderRadius: 12,
   border: '1.5px solid #d8b4fe',
+  maxWidth: '350px', // ✅ Deixa estreito
+  width: '100%',
+  marginRight: 'auto', // ✅ Alinha à esquerda
 };
+
 const cardVazio = {
   marginTop: 15,
-  background: '#faf5ff',
+  background: 'rgba(250, 245, 255, 0.50)',
   padding: '12px 14px',
   borderRadius: 12,
   border: '1.5px dashed #d8b4fe',
   textAlign: 'center',
+  maxWidth: '350px', // ✅ Deixa estreito
+  width: '100%',
+  marginRight: 'auto', // ✅ Alinha à esquerda
 };
 
 const linha = {

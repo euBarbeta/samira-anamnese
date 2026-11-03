@@ -710,7 +710,12 @@ export default function HistoricoAgendamentosPaciente({
 
         {/* CONTEÚDO */}
         {aberto && (
-          <div style={{ padding: 16 }}>
+           <div style={{ 
+            padding: 16,
+            background: 'rgba(255, 255, 255, 0.50)', // ✅ Adicione esta linha
+            backdropFilter: 'blur(5px)',            // ✅ Adicione esta linha
+            WebkitBackdropFilter: 'blur(5px)'       // ✅ Adicione esta linha
+          }}>
             {/* Filtros de período */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
               {PERIODOS.map((p) => (
