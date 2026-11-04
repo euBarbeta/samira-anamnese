@@ -1365,7 +1365,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       fontFamily: "'Montserrat', sans-serif",
       paddingBottom: '40px',
       position: 'relative',
-      overflowX: 'hidden'
+      overflowX: 'clip'
     }}>
       <div style={{
         position: 'fixed',
