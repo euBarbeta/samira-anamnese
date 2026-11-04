@@ -2587,7 +2587,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 abertoPorPadrao={false}
               />
 
-                           <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+                          <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
               
               {/* ✅ RODAPÉ DA PASTA (LGPD e Excluir Pasta) — AGORA NO FLUXO NORMAL */}
               <div style={{
@@ -2601,7 +2601,9 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 
                 {/* 1. Card LGPD */}
                 <div style={{
-                  background: '#fff',
+                  background: 'rgba(255, 255, 255, 0.75)', // ✅ Fundo branco transparente
+                  backdropFilter: 'blur(8px)',             // ✅ Efeito de vidro fosco
+                  WebkitBackdropFilter: 'blur(8px)',       // ✅ Compatibilidade Safari/iOS
                   padding: '14px 16px',
                   borderRadius: '12px',
                   border: pacienteSelecionado.consentimentoLGPD?.aceito
@@ -2665,7 +2667,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                     Ver Termo Assinado
                   </button>
                 </div>
-
                 {/* 2. Botão Excluir Pasta */}
                 <button
                   type="button"
