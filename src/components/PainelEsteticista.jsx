@@ -2476,88 +2476,90 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 colapsavel={true}
                 abertoPorPadrao={false}
               />
-
-                             <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+              {/* ✅ CARD DE SEGURANÇA (Empurrado para baixo) */}
+              <div style={{ marginTop: '80px' }}> {/* <--- ESPAÇO ANTES DO CARD */}
+                <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+              </div>
               
               {/* ✅ RODAPÉ DA PASTA (LGPD e Excluir Pasta) - AGORA NO FLUXO NORMAL */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-end',
-                marginTop: '30px',
-                paddingBottom: '20px',
+                marginTop: '60px', // <--- EMPURRA OS BOTÕES PARA BAIXO
+                paddingBottom: '60px', // <--- ESPAÇO EXTRA ATÉ O FINAL DA PÁGINA
                 gap: '15px',
                 flexWrap: 'wrap'
               }}>
                 
                 {/* 1. Card LGPD (Esquerda) */}
-<div style={{
-  background: 'rgba(255, 255, 255, 0.75)', // ✅ Fundo branco transparente
-  backdropFilter: 'blur(8px)',             // ✅ Efeito de vidro fosco (opcional, mas fica lindo)
-  WebkitBackdropFilter: 'blur(8px)',       // ✅ Para compatibilidade com Safari
-  padding: '14px 16px',
-  borderRadius: '12px',
-  border: pacienteSelecionado.consentimentoLGPD?.aceito
-    ? '1.5px solid #86efac'
-    : '1.5px solid #fcd34d',
-  boxShadow: '0 4px 12px rgba(44, 22, 58, 0.03)',
-  maxWidth: '280px',
-  width: '100%',
-}}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-    <span style={{ fontSize: '13px' }}>
-      {pacienteSelecionado.consentimentoLGPD?.aceito ? '✅' : '⚠️'}
-    </span>
-    <span style={{
-      fontFamily: "'Cinzel', serif",
-      color: '#2c163a',
-      fontSize: '12px',
-      fontWeight: 700
-    }}>
-      Consentimento LGPD
-    </span>
-  </div>
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.75)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  border: pacienteSelecionado.consentimentoLGPD?.aceito
+                    ? '1.5px solid #86efac'
+                    : '1.5px solid #fcd34d',
+                  boxShadow: '0 4px 12px rgba(44, 22, 58, 0.03)',
+                  maxWidth: '280px',
+                  width: '100%',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '13px' }}>
+                      {pacienteSelecionado.consentimentoLGPD?.aceito ? '✅' : '⚠️'}
+                    </span>
+                    <span style={{
+                      fontFamily: "'Cinzel', serif",
+                      color: '#2c163a',
+                      fontSize: '12px',
+                      fontWeight: 700
+                    }}>
+                      Consentimento LGPD
+                    </span>
+                  </div>
 
-  {pacienteSelecionado.consentimentoLGPD?.aceito ? (
-    <span style={{ fontSize: '10px', color: '#555', display: 'block', marginBottom: '10px' }}>
-      Aceito em {new Date(pacienteSelecionado.consentimentoLGPD.dataAceite).toLocaleString('pt-BR')}
-      {' · '}v{pacienteSelecionado.consentimentoLGPD.versaoTermo}
-    </span>
-  ) : (
-    <span style={{ fontSize: '10px', color: '#92400e', display: 'block', marginBottom: '10px' }}>
-      Paciente ainda não autorizou o tratamento de dados.
-    </span>
-  )}
+                  {pacienteSelecionado.consentimentoLGPD?.aceito ? (
+                    <span style={{ fontSize: '10px', color: '#555', display: 'block', marginBottom: '10px' }}>
+                      Aceito em {new Date(pacienteSelecionado.consentimentoLGPD.dataAceite).toLocaleString('pt-BR')}
+                      {' · '}v{pacienteSelecionado.consentimentoLGPD.versaoTermo}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '10px', color: '#92400e', display: 'block', marginBottom: '10px' }}>
+                      Paciente ainda não autorizou o tratamento de dados.
+                    </span>
+                  )}
 
-  <button
-    type="button"
-    onClick={() => setMostrarTermoPDF(true)}
-    className="btn-efeito-hover"
-    style={{
-      width: '100%',
-      fontFamily: "'Cinzel', serif",
-      background: pacienteSelecionado.consentimentoLGPD?.aceito
-        ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
-        : '#f0f0f0',
-      color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
-      border: pacienteSelecionado.consentimentoLGPD?.aceito
-        ? '1.5px solid #9c7826'
-        : '1.5px solid #ccc',
-      padding: '10px',
-      borderRadius: '15px',
-      fontSize: '11px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-    }}
-  >
-    <MdDescription size={16} />
-    Ver Termo Assinado
-  </button>
-</div>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarTermoPDF(true)}
+                    className="btn-efeito-hover"
+                    style={{
+                      width: '100%',
+                      fontFamily: "'Cinzel', serif",
+                      background: pacienteSelecionado.consentimentoLGPD?.aceito
+                        ? 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)'
+                        : '#f0f0f0',
+                      color: pacienteSelecionado.consentimentoLGPD?.aceito ? '#fff' : '#555',
+                      border: pacienteSelecionado.consentimentoLGPD?.aceito
+                        ? '1.5px solid #9c7826'
+                        : '1.5px solid #ccc',
+                      padding: '10px',
+                      borderRadius: '15px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <MdDescription size={16} />
+                    Ver Termo Assinado
+                  </button>
+                </div>
 
                 {/* 2. Botão Excluir Pasta (Direita) */}
                 <button

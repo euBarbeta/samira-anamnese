@@ -2586,24 +2586,25 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 colapsavel={true}
                 abertoPorPadrao={false}
               />
-
-                          <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
+              <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
               
+              {/* ✅ ESPAÇO PARA EMPURRAR OS BOTÕES PARA O RODAPÉ */}
+              <div style={{ height: '80px' }} />
+
               {/* ✅ RODAPÉ DA PASTA (LGPD e Excluir Pasta) — AGORA NO FLUXO NORMAL */}
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px',
-                marginTop: '20px',
-                paddingBottom: '20px',
+                paddingBottom: '60px', // ✅ Dá um respiro no final da página
                 width: '100%',
               }}>
                 
                 {/* 1. Card LGPD */}
                 <div style={{
-                  background: 'rgba(255, 255, 255, 0.75)', // ✅ Fundo branco transparente
-                  backdropFilter: 'blur(8px)',             // ✅ Efeito de vidro fosco
-                  WebkitBackdropFilter: 'blur(8px)',       // ✅ Compatibilidade Safari/iOS
+                  background: 'rgba(255, 255, 255, 0.75)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
                   padding: '14px 16px',
                   borderRadius: '12px',
                   border: pacienteSelecionado.consentimentoLGPD?.aceito
@@ -2696,8 +2697,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               </div>
             </div>
           )}
-
-       
 
           
           {/* GALERIA */}
