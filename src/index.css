@@ -1,254 +1,254 @@
-:root {
-  color-scheme: light only;
-}
-
-html, body {
-  color-scheme: light !important;
-  background-color: #dfc6fc !important;
-  margin: 0;
-  padding: 0;
-}
-/* ============================================================
-   🚫 TAP HIGHLIGHT — remove o "rastro azul" ao tocar em
-   botões, links, cards no mobile (Chrome Android / iOS Safari)
-   ============================================================ */
-*,
-*::before,
-*::after {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-}
-
-button,
-a,
-input,
-select,
-textarea,
-label,
-[role="button"] {
-  -webkit-tap-highlight-color: transparent;
-  outline: none;
-}
-
-/* Mantém acessibilidade: foco visível apenas por teclado */
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-[role="button"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.35);
-  border-radius: 4px;
-}
-/* Garante que todos os inputs mantenham a consistência visual */
-input, select, textarea, label, span {
-  color-scheme: light !important;
-  font-family: 'Montserrat', sans-serif;
-}
-
-/* --- CONTAINER PRINCIPAL DO PDF --- */
-#ficha-container {
-  width: 100% !important;
-  max-width: 1100px !important;
-  margin: 0 auto !important;
-  background-color: #dfc6fc !important;
-  box-sizing: border-box !important;
-  position: relative;
-}
-
-/* --- CLASSES PARA TEXTO NO HTML2CANVAS / PDF --- */
-.caixa-texto-pdf {
-  width: 100% !important;
-  max-width: 100% !important;
-  display: block !important;
-  box-sizing: border-box !important;
-  white-space: pre-wrap !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-word !important;
-}
-
-/* --- ALTERNÂNCIA VISUAL ENTRE TELA E PDF (OBSERVAÇÕES) --- */
-body.sendo-exportado .textarea-edicao-original {
-  display: none !important;
-}
-
-body:not(.sendo-exportado) .div-visualizacao-pdf {
-  display: none !important;
-}
-
-.div-visualizacao-pdf {
-  white-space: pre-wrap !important;
-  word-break: break-word !important;
-  overflow-wrap: anywhere !important;
-  padding: 8px 10px;
-  font-size: 12px;
-  font-family: 'Montserrat', sans-serif;
-  color: #2D2D2D;
-  min-height: 100px;
-  border: 1.5px solid rgba(200, 162, 74, 0.5);
-  border-radius: 4px;
-  background: transparent;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  display: block !important;
-}
-
-/* --- ALTERNÂNCIA VISUAL PARA HÁBITOS E LEMBRETES NO PDF --- */
-body.sendo-exportado .habit-input-line,
-body.sendo-exportado .lembrete-input-original {
-  display: none !important;
-}
-
-body:not(.sendo-exportado) .habit-div-pdf,
-body:not(.sendo-exportado) .lembrete-div-pdf {
-  display: none !important;
-}
-
-/* Espelho exato do traço dos hábitos no PDF */
-.habit-div-pdf {
-  width: 100% !important;
-  flex-grow: 1;
-  border-bottom: 1.5px solid #1A1A1A !important;
-  min-height: 18px !important;
-  font-size: 11px !important;
-  font-family: 'Montserrat', sans-serif !important;
-  color: #1A1A1A !important;
-  white-space: pre-wrap !important;
-  word-break: break-word !important;
-  overflow-wrap: anywhere !important;
-  box-sizing: border-box !important;
-  padding-bottom: 2px !important;
-  margin-top: 2px !important;
-}
-
-/* Espelho exato do traço dos lembretes no PDF */
-.lembrete-div-pdf {
-  width: 100% !important;
-  border-bottom: 1.5px solid #1A1A1A !important;
-  min-height: 18px !important;
-  font-size: 11px !important;
-  font-family: 'Montserrat', sans-serif !important;
-  color: #1A1A1A !important;
-  white-space: pre-wrap !important;
-  word-break: break-word !important;
-  overflow-wrap: anywhere !important;
-  box-sizing: border-box !important;
-  padding-bottom: 2px !important;
-  margin-top: 2px !important;
-}
-.btn-lavanda-hover:hover {
-  background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
-  border-color: #6a4e8a !important;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(138, 111, 168, 0.4) !important;
-}
-
-.btn-lavanda-hover:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(138, 111, 168, 0.3) !important;
-}
-.painel-btn-lavanda-hover:hover {
-  background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
-  border-color: #6a4e8a !important;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(138, 111, 168, 0.4) !important;
-}
-
-.painel-btn-lavanda-hover:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(138, 111, 168, 0.3) !important;
-}
-.btn-lavanda-mobile:hover {
-  background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
-  border-color: #6a4e8a !important;
-  transform: translateY(-1px);
-  box-shadow: 0 5px 12px rgba(138, 111, 168, 0.4) !important;
-}
-
-.btn-lavanda-mobile:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 5px rgba(138, 111, 168, 0.3) !important;
-}
-/* --- REGRAS DE IMPRESSÃO E PDF --- */
-@media print {
-  body {
-    background-color: #ffffff !important;
+  :root {
+    color-scheme: light only;
   }
-  
-  .no-print, 
-  button, 
-  .botoes-acao-container {
+
+  html, body {
+    color-scheme: light !important;
+    background-color: #dfc6fc !important;
+    margin: 0;
+    padding: 0;
+  }
+  /* ============================================================
+    🚫 TAP HIGHLIGHT — remove o "rastro azul" ao tocar em
+    botões, links, cards no mobile (Chrome Android / iOS Safari)
+    ============================================================ */
+  *,
+  *::before,
+  *::after {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  label,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+
+  /* Mantém acessibilidade: foco visível apenas por teclado */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role="button"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.35);
+    border-radius: 4px;
+  }
+  /* Garante que todos os inputs mantenham a consistência visual */
+  input, select, textarea, label, span {
+    color-scheme: light !important;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  /* --- CONTAINER PRINCIPAL DO PDF --- */
+  #ficha-container {
+    width: 100% !important;
+    max-width: 1100px !important;
+    margin: 0 auto !important;
+    background-color: #dfc6fc !important;
+    box-sizing: border-box !important;
+    position: relative;
+  }
+
+  /* --- CLASSES PARA TEXTO NO HTML2CANVAS / PDF --- */
+  .caixa-texto-pdf {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  /* --- ALTERNÂNCIA VISUAL ENTRE TELA E PDF (OBSERVAÇÕES) --- */
+  body.sendo-exportado .textarea-edicao-original {
     display: none !important;
   }
-}
-.spinner-salvar {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: girarSalvar 0.7s linear infinite;
-  display: inline-block;
-}
-@keyframes girarSalvar {
-  to { transform: rotate(360deg); }
-}
-.spinner-salvar {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: girarSalvar 0.7s linear infinite;
-  display: inline-block;
-}
-@keyframes girarSalvar {
-  to { transform: rotate(360deg); }
-}
-/* Spinner para o botão de PDF (fundo lavanda claro → spinner escuro) */
-.spinner-pdf {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(44, 22, 58, 0.25);
-  border-top-color: #2c163a;
-  border-radius: 50%;
-  animation: girarSalvar 0.7s linear infinite;
-  display: inline-block;
-}.btn-voltar-lista {
-  transition: all 0.25s ease-in-out !important;
-}
-.btn-voltar-lista:hover {
-  transform: translateX(-3px);
-  background: linear-gradient(135deg, rgba(200, 162, 74, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%) !important;
-  box-shadow: 0 6px 18px rgba(200, 162, 74, 0.35) !important;
-  border-color: #a8852f !important;
-}
-.btn-voltar-lista:active {
-  transform: translateX(-1px) scale(0.98);
-}
 
-/* ============================================================
-   ⬇️ PDF — ESCONDER A BANDEIRA DO TELEFONE NA EXPORTAÇÃO
-   ------------------------------------------------------------
-   O html2canvas (usado pelo html2pdf) NÃO consegue renderizar
-   emojis de bandeira (🇧🇷, 🇵🇾, etc.) corretamente — aparece
-   só uma das cores ou nada.
+  body:not(.sendo-exportado) .div-visualizacao-pdf {
+    display: none !important;
+  }
 
-   Por isso, durante a exportação (body.sendo-exportado), escon-
-   demos o "ícone de bandeira" do PhoneInput. O número de tele-
-   fone (com +55, +595 etc.) continua aparecendo normalmente.
-   ============================================================ */
-body.sendo-exportado .phone-input-ficha .PhoneInputCountryIcon,
-body.sendo-exportado .phone-input-ficha .PhoneInputCountryIcon--border,
-body.sendo-exportado .phone-input-ficha .PhoneInputCountryIconImg {
-  display: none !important;
-}
+  .div-visualizacao-pdf {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-family: 'Montserrat', sans-serif;
+    color: #2D2D2D;
+    min-height: 100px;
+    border: 1.5px solid rgba(200, 162, 74, 0.5);
+    border-radius: 4px;
+    background: transparent;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
 
-body.sendo-exportado .phone-input-ficha .PhoneInputCountry {
-  margin-right: 0 !important;
-}
+  /* --- ALTERNÂNCIA VISUAL PARA HÁBITOS E LEMBRETES NO PDF --- */
+  body.sendo-exportado .habit-input-line,
+  body.sendo-exportado .lembrete-input-original {
+    display: none !important;
+  }
 
-body.sendo-exportado .phone-input-ficha .PhoneInputCountrySelectArrow {
-  display: none !important;
-}
+  body:not(.sendo-exportado) .habit-div-pdf,
+  body:not(.sendo-exportado) .lembrete-div-pdf {
+    display: none !important;
+  }
+
+  /* Espelho exato do traço dos hábitos no PDF */
+  .habit-div-pdf {
+    width: 100% !important;
+    flex-grow: 1;
+    border-bottom: 1.5px solid #1A1A1A !important;
+    min-height: 18px !important;
+    font-size: 11px !important;
+    font-family: 'Montserrat', sans-serif !important;
+    color: #1A1A1A !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    box-sizing: border-box !important;
+    padding-bottom: 2px !important;
+    margin-top: 2px !important;
+  }
+
+  /* Espelho exato do traço dos lembretes no PDF */
+  .lembrete-div-pdf {
+    width: 100% !important;
+    border-bottom: 1.5px solid #1A1A1A !important;
+    min-height: 18px !important;
+    font-size: 11px !important;
+    font-family: 'Montserrat', sans-serif !important;
+    color: #1A1A1A !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    box-sizing: border-box !important;
+    padding-bottom: 2px !important;
+    margin-top: 2px !important;
+  }
+  .btn-lavanda-hover:hover {
+    background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
+    border-color: #6a4e8a !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(138, 111, 168, 0.4) !important;
+  }
+
+  .btn-lavanda-hover:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(138, 111, 168, 0.3) !important;
+  }
+  .painel-btn-lavanda-hover:hover {
+    background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
+    border-color: #6a4e8a !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(138, 111, 168, 0.4) !important;
+  }
+
+  .painel-btn-lavanda-hover:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(138, 111, 168, 0.3) !important;
+  }
+  .btn-lavanda-mobile:hover {
+    background: linear-gradient(135deg, #a68cbb 0%, #c4b5d4 100%) !important;
+    border-color: #6a4e8a !important;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 12px rgba(138, 111, 168, 0.4) !important;
+  }
+
+  .btn-lavanda-mobile:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(138, 111, 168, 0.3) !important;
+  }
+  /* --- REGRAS DE IMPRESSÃO E PDF --- */
+  @media print {
+    body {
+      background-color: #ffffff !important;
+    }
+    
+    .no-print, 
+    button, 
+    .botoes-acao-container {
+      display: none !important;
+    }
+  }
+  .spinner-salvar {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: girarSalvar 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes girarSalvar {
+    to { transform: rotate(360deg); }
+  }
+  .spinner-salvar {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: girarSalvar 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes girarSalvar {
+    to { transform: rotate(360deg); }
+  }
+  /* Spinner para o botão de PDF (fundo lavanda claro → spinner escuro) */
+  .spinner-pdf {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(44, 22, 58, 0.25);
+    border-top-color: #2c163a;
+    border-radius: 50%;
+    animation: girarSalvar 0.7s linear infinite;
+    display: inline-block;
+  }.btn-voltar-lista {
+    transition: all 0.25s ease-in-out !important;
+  }
+  .btn-voltar-lista:hover {
+    transform: translateX(-3px);
+    background: linear-gradient(135deg, rgba(200, 162, 74, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%) !important;
+    box-shadow: 0 6px 18px rgba(200, 162, 74, 0.35) !important;
+    border-color: #a8852f !important;
+  }
+  .btn-voltar-lista:active {
+    transform: translateX(-1px) scale(0.98);
+  }
+
+  /* ============================================================
+    ⬇️ PDF — ESCONDER A BANDEIRA DO TELEFONE NA EXPORTAÇÃO
+    ------------------------------------------------------------
+    O html2canvas (usado pelo html2pdf) NÃO consegue renderizar
+    emojis de bandeira (🇧🇷, 🇵🇾, etc.) corretamente — aparece
+    só uma das cores ou nada.
+
+    Por isso, durante a exportação (body.sendo-exportado), escon-
+    demos o "ícone de bandeira" do PhoneInput. O número de tele-
+    fone (com +55, +595 etc.) continua aparecendo normalmente.
+    ============================================================ */
+  body.sendo-exportado .phone-input-ficha .PhoneInputCountryIcon,
+  body.sendo-exportado .phone-input-ficha .PhoneInputCountryIcon--border,
+  body.sendo-exportado .phone-input-ficha .PhoneInputCountryIconImg {
+    display: none !important;
+  }
+
+  body.sendo-exportado .phone-input-ficha .PhoneInputCountry {
+    margin-right: 0 !important;
+  }
+
+  body.sendo-exportado .phone-input-ficha .PhoneInputCountrySelectArrow {
+    display: none !important;
+  }

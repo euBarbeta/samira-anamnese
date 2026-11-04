@@ -2485,26 +2485,31 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
             </div>
           )}
           
-          {/* ✅ BOTÕES FIXOS NA PARTE INFERIOR (CRIADOS VIA PORTAL PARA NÃO SOFRER SCROLL) */}
+                 {/* ✅ BOTÕES FIXOS NA PARTE INFERIOR (CRIADOS VIA PORTAL PARA NÃO SOFRER SCROLL) */}
           {telaAtual === 'detalhe_pasta' && pacienteSelecionado && createPortal(
             <div style={{
               position: 'fixed',
-              bottom: '20px',
-              left: '20px',
-              right: '20px',
+              bottom: '0', // Cola no chão de verdade
+              left: '0',   // Cola na esquerda de verdade
+              right: '0',  // Cola na direita de verdade
+              padding: '0 20px 20px 20px', // Margem interna
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-end',
-              zIndex: 999999, // Z-index alto para ficar acima de tudo
+              zIndex: 2147483647,
               pointerEvents: 'none',
-              gap: '10px'
+              gap: '10px',
+              boxSizing: 'border-box',
+              // 🔥 TRUQUES PARA QUEBRAR O CONTEXTO DE RENDERIZAÇÃO DA PÁGINA
+              transform: 'translate3d(0, 0, 0)', // Força a criação de uma nova camada (GPU)
+              WebkitTransform: 'translate3d(0, 0, 0)',
+              willChange: 'transform',
+              isolation: 'isolate',
             }}>
               
               {/* 1. Card LGPD (Esquerda) */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
+                background: '#fff', // Fundo sólido (remove o bug do backdropFilter no fixed)
                 padding: '14px 16px',
                 borderRadius: '12px',
                 border: pacienteSelecionado.consentimentoLGPD?.aceito
@@ -2599,7 +2604,6 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
             </div>,
             document.body 
           )}
-
 
            
           {telaAtual === 'galeria' && pacienteSelecionado && (
