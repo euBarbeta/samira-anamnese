@@ -938,61 +938,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
         dadosAtualizados.numeroDocumento,
     };
   }
-const handleSalvarProtocolo = async (dadosProtocolo) => {
-  const user = getAuth().currentUser;
-  if (!user || !pacienteSelecionado) return;
 
-  try {
-    const protocoloParaSalvar = {
-      ...dadosProtocolo,
-      dataCriacao:
-        dadosProtocolo.dataCriacao ||
-        new Date().toLocaleDateString('pt-BR') +
-          ' às ' +
-          new Date().toLocaleTimeString('pt-BR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-    };
-
-    // Atualiza o campo `protocolo` do paciente
-    const pacienteAtualizado = {
-      ...pacienteSelecionado,
-      protocolo: protocoloParaSalvar,
-    };
-
-    // Salva no Firestore
-    await setDoc(
-      doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteSelecionado.id)),
-      pacienteAtualizado,
-      { merge: true }
-    );
-
-    // Atualiza o state local (o onSnapshot também vai pegar, mas isso é instantâneo)
-    setPacienteSelecionado(pacienteAtualizado);
-
-    const atualizados = pacientes.map((p) => {
-      if (p.id === pacienteSelecionado.id) return pacienteAtualizado;
-      return p;
-    });
-    setPacientes(atualizados);
-
-    // ✅ LIMPA A SELEÇÃO E VOLTA PARA A PASTA DIRETO
-    setEvolucaoSelecionada(null); 
-    
-    window.history.replaceState(
-      { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
-      '',
-      window.location.pathname
-    );
-    setTelaAtual('detalhe_pasta');
-
-  } catch (e) {
-    console.error('Erro ao salvar protocolo:', e);
-    alert('Erro ao salvar protocolo. Tente novamente.');
-    throw e;
-  }
-};
 
   // ✅ Sanitização defensiva (antes de qualquer coisa)
   const dadosLimpos = sanitizarFichaAnamnese(dadosAtualizados);
@@ -1111,6 +1057,61 @@ const handleSalvarProtocolo = async (dadosProtocolo) => {
   }
   const pacAtualizado = atualizados.find(p => p.id === pacienteSelecionado.id);
   setPacienteSelecionado(pacAtualizado);
+};
+const handleSalvarProtocolo = async (dadosProtocolo) => {
+  const user = getAuth().currentUser;
+  if (!user || !pacienteSelecionado) return;
+
+  try {
+    const protocoloParaSalvar = {
+      ...dadosProtocolo,
+      dataCriacao:
+        dadosProtocolo.dataCriacao ||
+        new Date().toLocaleDateString('pt-BR') +
+          ' às ' +
+          new Date().toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+    };
+
+    // Atualiza o campo `protocolo` do paciente
+    const pacienteAtualizado = {
+      ...pacienteSelecionado,
+      protocolo: protocoloParaSalvar,
+    };
+
+    // Salva no Firestore
+    await setDoc(
+      doc(db, `usuarios/${user.uid}/pacientes`, String(pacienteSelecionado.id)),
+      pacienteAtualizado,
+      { merge: true }
+    );
+
+    // Atualiza o state local (o onSnapshot também vai pegar, mas isso é instantâneo)
+    setPacienteSelecionado(pacienteAtualizado);
+
+    const atualizados = pacientes.map((p) => {
+      if (p.id === pacienteSelecionado.id) return pacienteAtualizado;
+      return p;
+    });
+    setPacientes(atualizados);
+
+    // ✅ LIMPA A SELEÇÃO E VOLTA PARA A PASTA DIRETO
+    setEvolucaoSelecionada(null); 
+    
+    window.history.replaceState(
+      { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
+      '',
+      window.location.pathname
+    );
+    setTelaAtual('detalhe_pasta');
+
+  } catch (e) {
+    console.error('Erro ao salvar protocolo:', e);
+    alert('Erro ao salvar protocolo. Tente novamente.');
+    throw e;
+  }
 };
 
   const handleCampoSubstituido = (pacId, campo, valor) => {
@@ -1677,7 +1678,7 @@ const handleSalvarProtocolo = async (dadosProtocolo) => {
                     <MdAssignment size={16} style={{ flexShrink: 0 }} />
                     Ficha de Anamnese
                   </button>
-// Exemplo para o de Agendamentos no Mobile:
+
 <button
   type="button"
   onClick={() => navegarPara('agendamentos')}
@@ -2307,33 +2308,39 @@ const handleSalvarProtocolo = async (dadosProtocolo) => {
                 </button>
 
                              {/* 2. Protocolo */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (pacienteSelecionado?.protocolo) {
-                      navegarPara('ver_protocolo');
-                    } else {
-                      navegarPara('criar_protocolo');
-                    }
-                  }}
-                  className="btn-lavanda-mobile"
-                  style={{
-                    flex: 1,
-                    fontFamily: "'Cinzel', serif",
-                    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-                    color: '#2c163a',
-                    border: '1.2px solid #8a6fa8',
-                    padding: '8px',
-                    borderRadius: '15px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
-                    transition: 'all 0.25s ease'
-                  }}
-                >
-                  Protocolo
-                </button>
+               {/* 2. Protocolo */}
+<button
+  type="button"
+  onClick={() => {
+    if (pacienteSelecionado?.protocolo) {
+      navegarPara('ver_protocolo');
+    } else {
+      navegarPara('criar_protocolo');
+    }
+  }}
+  className="btn-lavanda-mobile"
+  style={{
+    flex: 1,
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.2px solid #8a6fa8',
+    padding: '8px',
+    borderRadius: '15px',
+    fontSize: '10px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    boxShadow: '0 3px 8px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease',
+  }}
+>
+  <MdDescription size={14} color="#2c163a" />
+  Protocolo
+</button>
 
                 {/* 3. Agendar Consulta (Agora igual ao 1) */}
                 <button

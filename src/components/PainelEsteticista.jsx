@@ -1287,7 +1287,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       />
     );
   }
-const handleSalvarProtocolo = async (dadosProtocolo) => {
+  const handleSalvarProtocolo = async (dadosProtocolo) => {
   const user = getAuth().currentUser;
   if (!user || !pacienteSelecionado) return;
 
@@ -1326,16 +1326,8 @@ const handleSalvarProtocolo = async (dadosProtocolo) => {
     });
     setPacientes(atualizados);
 
-    // ✅ LIMPA A SELEÇÃO E VOLTA PARA A PASTA DIRETO
-    setEvolucaoSelecionada(null); 
-    
-    window.history.replaceState(
-      { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
-      '',
-      window.location.pathname
-    );
-    setTelaAtual('detalhe_pasta');
-
+    // Volta para a tela de detalhes
+    substituirTela('detalhe_pasta');
   } catch (e) {
     console.error('Erro ao salvar protocolo:', e);
     alert('Erro ao salvar protocolo. Tente novamente.');
@@ -2199,33 +2191,37 @@ const handleSalvarProtocolo = async (dadosProtocolo) => {
     Ver Ficha de Anamnese
   </button>
 
-  {/* Botão 2: Protocolo (Verifica se existe para abrir em modo edição ou visualização) */}
-  <button
-    type="button"
-    onClick={() => {
-      if (pacienteSelecionado?.protocolo) {
-        navegarPara('ver_protocolo');
-      } else {
-        navegarPara('criar_protocolo');
-      }
-    }}
-    className="btn-lavanda-hover"
-    style={{
-      fontFamily: "'Cinzel', serif",
-      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-      color: '#2c163a',
-      border: '1.5px solid #8a6fa8',
-      padding: '8px 16px',
-      borderRadius: '20px',
-      fontSize: '11px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
-      transition: 'all 0.25s ease',
-    }}
-  >
-    Protocolo
-  </button>
+{/* Botão 2: Protocolo (Verifica se existe para abrir em modo edição ou visualização) */}
+<button
+  type="button"
+  onClick={() => {
+    if (pacienteSelecionado?.protocolo) {
+      navegarPara('ver_protocolo');
+    } else {
+      navegarPara('criar_protocolo');
+    }
+  }}
+  className="btn-lavanda-hover"
+  style={{
+    fontFamily: "'Cinzel', serif",
+    background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+    color: '#2c163a',
+    border: '1.5px solid #8a6fa8',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    fontSize: '11px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+    transition: 'all 0.25s ease',
+  }}
+>
+  <MdDescription size={14} color="#2c163a" />
+  Protocolo
+</button>
 
   {/* Botão 3: Galeria do Paciente (Agora igual ao 1) */}
   <button

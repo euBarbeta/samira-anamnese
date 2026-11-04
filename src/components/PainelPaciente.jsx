@@ -15,7 +15,7 @@ import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning, MdCalendarMonth,
   MdFolderOpen, MdInfoOutline, MdHourglassEmpty, MdCancel,
   MdLightbulbOutline, MdDelete, MdCheckCircle, MdErrorOutline, MdClose,
-  MdRefresh,
+  MdRefresh,MdAssignment,
 } from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
 import {
@@ -2012,33 +2012,34 @@ const podeRemover = (ag) =>
         </button>
 
         {/* ✅ Ver meu Protocolo — LAVANDA */}
-        {pacienteData?.protocolo && (
-          <button
-            type="button"
-            onClick={() => irParaTela('ver_protocolo')}
-            className="painel-btn-hover"
-            style={{
-              fontFamily: "'Cinzel', serif",
-              background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-              color: '#2c163a',
-              border: '1.2px solid #8a6fa8',
-              padding: '14px 18px',
-              borderRadius: '16px',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
-              transition: 'all 0.25s ease',
-            }}
-          >
-            📋 Ver meu Protocolo
-          </button>
-        )}
+      {pacienteData?.protocolo && (
+  <button
+    type="button"
+    onClick={() => irParaTela('ver_protocolo')}
+    className="painel-btn-hover"
+    style={{
+      fontFamily: "'Cinzel', serif",
+      background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+      color: '#2c163a',
+      border: '1.2px solid #8a6fa8',
+      padding: '14px 18px',
+      borderRadius: '16px',
+      fontSize: '11px',
+      fontWeight: 700,
+      cursor: 'pointer',
+      width: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+      transition: 'all 0.25s ease',
+    }}
+  >
+    <MdAssignment size={16} color="#2c163a" />
+    Ver meu Protocolo
+  </button>
+)}
 
         {/* ✅ Minha Galeria — LAVANDA */}
         <button

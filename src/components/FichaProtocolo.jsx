@@ -16,6 +16,16 @@ export default function FichaProtocolo({
 }) {
   const dadosOrigem = pacienteSelecionado?.anamnese || pacienteSelecionado || initialData?.anamnese || initialData || {};
 
+  // 📱 RESPONSIVO: detecta mobile
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.innerWidth <= 768
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const [nomeCliente, setNomeCliente] = useState('');
   const [dataNasc, setDataNasc] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -36,7 +46,7 @@ export default function FichaProtocolo({
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.max(400, textarea.scrollHeight)}px`;
+      textarea.style.height = `${Math.max(isMobile ? 200 : 400, textarea.scrollHeight)}px`;
     }
   };
 
@@ -44,7 +54,7 @@ export default function FichaProtocolo({
     ajustarAlturaTextarea();
   }, [textoLivre]);
 
-  // Carrega os dados no cabeçalho igual à Ficha de Evolução
+  // Carrega os dados no cabeçalho
   useEffect(() => {
     const nomeFinal =
       dadosOrigem.nome || dadosOrigem.nomeCliente || pacienteSelecionado?.nome ||
@@ -77,8 +87,7 @@ export default function FichaProtocolo({
     setLembretes(Array.isArray(initialData?.lembretes) ? initialData.lembretes : []);
   }, [initialData, pacienteSelecionado, pacienteNomeProp]);
 
-  // Efeito para gerar o PDF
-  // ⚠️ No desktop o gerarPdf.js baixa direto. No mobile compartilha. No APK salva+share.
+  // Gera o PDF (SEMPRE a partir da versão desktop oculta)
   useEffect(() => {
     if (!pdfDesktopRenderizando) return;
     const timer = setTimeout(async () => {
@@ -108,12 +117,8 @@ export default function FichaProtocolo({
       lembretes,
       dataCriacao:
         initialData?.dataCriacao ||
-        new Date().toLocaleDateString('pt-BR') +
-          ' às ' +
-          new Date().toLocaleTimeString('pt-BR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
+        new Date().toLocaleDateString('pt-BR') + ' às ' +
+          new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
 
     setSalvando(true);
@@ -137,16 +142,10 @@ export default function FichaProtocolo({
   // ============================================================
   const adicionarLembrete = () => {
     if (isView) return;
-    setLembretes([
-      ...lembretes,
-      {
-        titulo: '',
-        tipo: 'intervalo',
-        valor: '',
-        intervaloNumero: '8',
-        intervaloUnidade: 'horas',
-      },
-    ]);
+    setLembretes([...lembretes, {
+      titulo: '', tipo: 'intervalo', valor: '',
+      intervaloNumero: '8', intervaloUnidade: 'horas',
+    }]);
   };
 
   const removerLembrete = (index) => {
@@ -175,13 +174,30 @@ export default function FichaProtocolo({
     }
   };
 
+  // 📱 RESPONSIVO: variáveis de layout
+  const PADDING_TOPO        = isMobile ? '250px 16px 0 16px' : '330px 95px 0 95px';
+  const PADDING_MEIO        = isMobile ? '20px 12px 30px 12px' : '135px 95px 140px 95px';
+  const ALTURA_TOPO         = isMobile ? '340px' : '420px';
+  const ALTURA_BASE         = isMobile ? '340px' : '600px';
+  const PADDING_BASE_TOPO   = isMobile ? '60px' : '90px';
+  const MARGEM_TOPO_NEG     = isMobile ? '-60px' : '-130px';
+  const MARGEM_BASE_NEG     = isMobile ? '-50px' : '-140px';
+  const BTN_MAX             = isMobile ? '100%' : '340px';
+  const BTN_PADDING         = isMobile ? '12px 20px' : '12px 32px';
+  const BTN_FONT            = isMobile ? '12px' : '14px';
+
   return (
     <div style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      position: 'fixed', top: 0, left: 0,
+      width: '100%',            // 📱 RESPONSIVO (era 100vw)
+      height: '100%',           // 📱 RESPONSIVO (era 100vh)
       backgroundColor: '#dfc6fc', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', margin: 0, padding: '20px 10px',
+      alignItems: 'center', margin: 0,
+      padding: isMobile ? '10px 0' : '20px 10px',
       fontFamily: "'Montserrat', sans-serif", boxSizing: 'border-box',
-      overflowY: 'auto', zIndex: 9999
+      overflowY: 'auto',
+      overflowX: 'hidden',      // 📱 RESPONSIVO (evita scroll lateral)
+      zIndex: 9999
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Montserrat:wght@400;500;600&display=swap');
@@ -232,62 +248,65 @@ export default function FichaProtocolo({
 
       {/* ============================================================
           CONTAINER VISÍVEL NA TELA
-          (sem id="protocolo-container" — o id fica só na versão oculta)
          ============================================================ */}
       <div
         style={{
-          width: '100%', maxWidth: '1175px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          width: '100%',
+          maxWidth: isMobile ? '100%' : '1175px',   // 📱 RESPONSIVO
+          boxShadow: isMobile ? 'none' : '0 4px 20px rgba(0,0,0,0.15)', // 📱
           position: 'relative', display: 'flex', flexDirection: 'column',
           boxSizing: 'border-box', zIndex: 1, backgroundColor: '#fff'
         }}
       >
-        {/* 1. TOPO DA MOLDURA */}
+        {/* 1. TOPO */}
         <div style={{
-          width: '100%', height: '420px',
+          width: '100%',
+          height: ALTURA_TOPO,            // 📱 RESPONSIVO
           backgroundImage: 'url("/imagens/moldura-topo-protocolo.jpeg")',
           backgroundRepeat: 'no-repeat', backgroundPosition: 'center bottom',
-          backgroundSize: '100% 100%', flexShrink: 0, marginBottom: '-130px',
+          backgroundSize: '100% 100%', flexShrink: 0,
+          marginBottom: MARGEM_TOPO_NEG,  // 📱 RESPONSIVO
           zIndex: 3, position: 'relative', boxSizing: 'border-box',
-          padding: '330px 95px 0 95px', pointerEvents: 'auto'
+          padding: PADDING_TOPO,          // 📱 RESPONSIVO
+          pointerEvents: 'auto'
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'auto' }}>
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+            <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: isMobile ? '100%' : '220px' }}>
                 <label htmlFor="prot-nome" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nome:</label>
                 <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
                   <input id="prot-nome" type="text" value={nomeCliente} readOnly className="input-line" />
                 </div>
               </div>
-              <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+              <div style={{ width: isMobile ? '100%' : '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
                 <label htmlFor="prot-datanasc" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE NASC.:</label>
                 <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <input id="prot-datanasc" type="text" value={dataNasc} readOnly className="input-line" />
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+            <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: isMobile ? '100%' : '220px' }}>
                 <label htmlFor="prot-telefone" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Telefone:</label>
                 <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
                   <input id="prot-telefone" type="text" value={telefone} readOnly className="input-line" />
                 </div>
               </div>
-              <div style={{ width: '310px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+              <div style={{ width: isMobile ? '100%' : '310px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
                 <label htmlFor="prot-datarealizacao" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>DATA DE REALIZAÇÃO:</label>
                 <div style={{ width: '120px', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <input id="prot-datarealizacao" type="text" value={dataRealizacao} readOnly className="input-line" />
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: '220px' }}>
+            <div style={{ display: 'flex', gap: isMobile ? '8px' : '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px', minWidth: isMobile ? '100%' : '220px' }}>
                 <label htmlFor="prot-endereco" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Endereço:</label>
                 <div style={{ flexGrow: 1, minWidth: 0, display: 'flex' }}>
                   <input id="prot-endereco" type="text" value={endereco} readOnly className="input-line" />
                 </div>
               </div>
-              <div style={{ width: '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
+              <div style={{ width: isMobile ? '100%' : '250px', flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '13px' }}>
                 <label htmlFor="prot-documento" style={{ fontFamily: "'Cinzel', serif", color: '#C8A24A', fontWeight: 600, whiteSpace: 'nowrap' }}>Nº Documento:</label>
                 <div style={{ flexGrow: 1, display: 'flex' }}>
                   <input id="prot-documento" type="text" value={numDocumento} readOnly className="input-line" />
@@ -303,25 +322,27 @@ export default function FichaProtocolo({
           backgroundImage: 'url("/imagens/moldura-meio.jpeg")',
           backgroundRepeat: 'repeat-y', backgroundPosition: 'center top',
           backgroundSize: '100% auto', display: 'flex', flexDirection: 'column',
-          boxSizing: 'border-box', padding: '135px 95px 140px 95px',
+          boxSizing: 'border-box',
+          padding: PADDING_MEIO,          // 📱 RESPONSIVO
           position: 'relative', zIndex: 2
         }}>
           <div style={{
             position: 'absolute', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '480px', height: '480px',
+            width: isMobile ? '200px' : '480px',   // 📱 RESPONSIVO
+            height: isMobile ? '200px' : '480px',  // 📱 RESPONSIVO
             backgroundImage: 'url("/imagens/logo-samiramarcadagua.jpeg")',
             backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
             backgroundSize: 'contain', opacity: 0.45,
             pointerEvents: 'none', zIndex: 1
           }} />
-          <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '15px', width: '100%' }}>
 
             {/* MÓDULO: PROTOCOLO */}
-            <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
+            <div className="modulo-bloco" style={{ padding: isMobile ? '8px 10px' : '12px 14px', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px' }}>
                 <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
-                <div style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', background: 'rgba(255, 255, 255, 0.9)', padding: '4px 14px', fontSize: '12px', fontWeight: 700, border: '1.5px solid #C8A24A', borderRadius: '12px', textAlign: 'center', letterSpacing: '1.5px' }}>
+                <div style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', background: 'rgba(255, 255, 255, 0.9)', padding: '4px 14px', fontSize: isMobile ? '10px' : '12px', fontWeight: 700, border: '1.5px solid #C8A24A', borderRadius: '12px', textAlign: 'center', letterSpacing: isMobile ? '1px' : '1.5px', whiteSpace: 'nowrap' }}>
                   DESCRIÇÃO DO PROTOCOLO
                 </div>
                 <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
@@ -336,10 +357,14 @@ export default function FichaProtocolo({
                 readOnly={isView}
                 placeholder="Digite aqui o protocolo do tratamento, recomendações, produtos utilizados..."
                 style={{
-                  width: '100%', minHeight: '400px', height: 'auto',
+                  width: '100%',
+                  minHeight: isMobile ? '200px' : '400px',   // 📱 RESPONSIVO
+                  height: 'auto',
                   border: '1px solid rgba(200, 162, 74, 0.4)', borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.65)', padding: '15px',
-                  fontSize: '14px', outline: 'none', resize: 'none',
+                  background: 'rgba(255, 255, 255, 0.65)',
+                  padding: isMobile ? '10px' : '15px',       // 📱 RESPONSIVO
+                  fontSize: isMobile ? '12px' : '14px',      // 📱 RESPONSIVO
+                  outline: 'none', resize: 'none',
                   overflow: 'hidden', fontFamily: "'Montserrat', sans-serif",
                   boxSizing: 'border-box', lineHeight: '1.6', color: '#1A1A1A',
                   wordWrap: 'break-word', overflowWrap: 'break-word'
@@ -348,20 +373,20 @@ export default function FichaProtocolo({
             </div>
 
             {/* MÓDULO: LEMBRETES */}
-            <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)', width: '20px' }} />
-                  <span style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', fontSize: '11px', fontWeight: 700, border: '1px solid #C8A24A', padding: '2px 10px', borderRadius: '12px' }}>
+            <div className="modulo-bloco" style={{ padding: isMobile ? '8px 10px' : '12px 14px', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', gap: isMobile ? '6px' : '10px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)', minWidth: '10px' }} />
+                  <span style={{ fontFamily: "'Cinzel', serif", color: '#1A1A1A', fontSize: isMobile ? '9px' : '11px', fontWeight: 700, border: '1px solid #C8A24A', padding: '2px 10px', borderRadius: '12px', whiteSpace: 'nowrap' }}>
                     LEMBRETES PARA O PACIENTE
                   </span>
-                  <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)', width: '20px' }} />
+                  <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)', minWidth: '10px' }} />
                 </div>
                 {!isView && (
                   <button
                     type="button"
                     onClick={adicionarLembrete}
-                    style={{ background: '#C8A24A', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '14px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, fontFamily: "'Cinzel', serif" }}
+                    style={{ background: '#C8A24A', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '14px', fontSize: isMobile ? '9px' : '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, fontFamily: "'Cinzel', serif", whiteSpace: 'nowrap' }}
                   >
                     <MdAdd size={14} /> Adicionar
                   </button>
@@ -375,7 +400,7 @@ export default function FichaProtocolo({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {lembretes.map((lembrete, index) => (
-                    <div key={index} style={{ background: 'rgba(255, 255, 255, 0.8)', border: '1px solid #fcd34d', borderRadius: '8px', padding: '10px' }}>
+                    <div key={index} style={{ background: 'rgba(255, 255, 255, 0.8)', border: '1px solid #fcd34d', borderRadius: '8px', padding: isMobile ? '8px' : '10px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                         <span style={{ fontSize: '10px', fontWeight: 700, color: '#C8A24A' }}>Lembrete #{index + 1}</span>
                         {!isView && (
@@ -398,7 +423,7 @@ export default function FichaProtocolo({
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1, minWidth: '120px' }}>
+                        <div style={{ flex: 1, minWidth: isMobile ? '100%' : '120px' }}>
                           <label style={{ fontSize: '9px', color: '#666', display: 'block', marginBottom: '2px', fontWeight: 600 }}>Tipo:</label>
                           <select
                             value={lembrete.tipo}
@@ -411,7 +436,7 @@ export default function FichaProtocolo({
                           </select>
                         </div>
 
-                        <div style={{ flex: 1, minWidth: '160px' }}>
+                        <div style={{ flex: 1, minWidth: isMobile ? '100%' : '160px' }}>
                           <label style={{ fontSize: '9px', color: '#666', display: 'block', marginBottom: '2px', fontWeight: 600 }}>
                             {lembrete.tipo === 'intervalo' ? 'A cada:' : 'Data e Hora:'}
                           </label>
@@ -446,20 +471,24 @@ export default function FichaProtocolo({
 
         {/* 3. BASE COM BOTÕES */}
         <div style={{
-          width: '100%', height: '600px',
+          width: '100%',
+          height: ALTURA_BASE,                // 📱 RESPONSIVO
           backgroundImage: 'url("/imagens/moldura-base.jpeg")',
           backgroundRepeat: 'no-repeat', backgroundPosition: 'center top',
-          backgroundSize: '100% 100%', flexShrink: 0, marginTop: '-140px',
+          backgroundSize: '100% 100%', flexShrink: 0,
+          marginTop: MARGEM_BASE_NEG,          // 📱 RESPONSIVO
           zIndex: 3, position: 'relative', pointerEvents: 'auto',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'flex-start', paddingTop: '90px', gap: '15px',
+          justifyContent: 'flex-start',
+          paddingTop: PADDING_BASE_TOPO,       // 📱 RESPONSIVO
+          paddingLeft: '16px', paddingRight: '16px', paddingBottom: '20px',
+          gap: '15px',
           boxSizing: 'border-box'
         }}>
-          <div className="botoes-acao-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%' }}>
+          <div className="botoes-acao-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
 
             {isView ? (
               <>
-                {/* 1. BAIXAR PDF (Lavanda) */}
                 <button
                   type="button"
                   className="btn-acao-ficha"
@@ -470,29 +499,35 @@ export default function FichaProtocolo({
                     color: '#2c163a',
                     borderColor: '#8a6fa8',
                     opacity: pdfDesktopRenderizando ? 0.7 : 1,
-                    cursor: pdfDesktopRenderizando ? 'wait' : 'pointer'
+                    cursor: pdfDesktopRenderizando ? 'wait' : 'pointer',
+                    maxWidth: BTN_MAX,          // 📱 RESPONSIVO
+                    padding: BTN_PADDING,       // 📱 RESPONSIVO
+                    fontSize: BTN_FONT,         // 📱 RESPONSIVO
                   }}
                 >
                   {pdfDesktopRenderizando ? (
                     <><span className="spinner-pdf" /> GERANDO PDF...</>
                   ) : (
-                    <><MdDownload size={20} /> BAIXAR PDF</>
+                    <><MdDownload size={isMobile ? 16 : 20} /> BAIXAR PDF</>
                   )}
                 </button>
 
-                {/* 2. EDITAR PROTOCOLO (Dourado) */}
                 {onIrParaEdicao && (
                   <button
                     type="button"
                     className="btn-acao-ficha"
                     onClick={onIrParaEdicao}
+                    style={{
+                      maxWidth: BTN_MAX,          // 📱 RESPONSIVO
+                      padding: BTN_PADDING,       // 📱 RESPONSIVO
+                      fontSize: BTN_FONT,         // 📱 RESPONSIVO
+                    }}
                   >
-                    <MdEdit size={20} /> EDITAR PROTOCOLO
+                    <MdEdit size={isMobile ? 16 : 20} /> EDITAR PROTOCOLO
                   </button>
                 )}
               </>
             ) : (
-              /* SALVAR PROTOCOLO (Dourado com verde ao salvar) */
               <button
                 type="button"
                 className="btn-acao-ficha"
@@ -502,33 +537,41 @@ export default function FichaProtocolo({
                   background: salvoSucesso ? 'linear-gradient(135deg, #22c55e 0%, #4ade80 100%)' : 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
                   borderColor: salvoSucesso ? '#16a34a' : '#9c7826',
                   cursor: (salvando || salvoSucesso) ? 'default' : 'pointer',
+                  maxWidth: BTN_MAX,          // 📱 RESPONSIVO
+                  padding: BTN_PADDING,       // 📱 RESPONSIVO
+                  fontSize: BTN_FONT,         // 📱 RESPONSIVO
                 }}
               >
                 {salvando ? (
                   <><span className="spinner-salvar" /> SALVANDO...</>
                 ) : salvoSucesso ? (
-                  <><MdCheckCircle size={20} /> SALVO COM SUCESSO!</>
+                  <><MdCheckCircle size={isMobile ? 16 : 20} /> SALVO COM SUCESSO!</>
                 ) : (
-                  <><MdSave size={20} /> SALVAR PROTOCOLO</>
+                  <><MdSave size={isMobile ? 16 : 20} /> SALVAR PROTOCOLO</>
                 )}
               </button>
             )}
 
-            {/* 3. VOLTAR (Dourado Completo) */}
             <button
               type="button"
               className="btn-acao-ficha"
               onClick={onVoltar}
+              style={{
+                maxWidth: BTN_MAX,          // 📱 RESPONSIVO
+                padding: BTN_PADDING,       // 📱 RESPONSIVO
+                fontSize: BTN_FONT,         // 📱 RESPONSIVO
+              }}
             >
-              <MdArrowBack size={20} /> VOLTAR
+              <MdArrowBack size={isMobile ? 16 : 20} /> VOLTAR
             </button>
           </div>
         </div>
       </div>
 
       {/* ============================================================
-          VERSÃO OCULTA DO PROTOCOLO — apenas para exportar o PDF
-          (tem o id="protocolo-container" e NÃO tem botões)
+          VERSÃO OCULTA DO PROTOCOLO — SEMPRE DESKTOP (PDF)
+          ⚠️ Este bloco NUNCA muda com isMobile.
+             O PDF é sempre gerado no formato desktop.
          ============================================================ */}
       {pdfDesktopRenderizando && (
         <div
@@ -626,7 +669,6 @@ export default function FichaProtocolo({
               }} />
               <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
 
-                {/* PROTOCOLO */}
                 <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '5px' }}>
                     <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.5)' }} />
@@ -647,7 +689,6 @@ export default function FichaProtocolo({
                   </div>
                 </div>
 
-                {/* LEMBRETES */}
                 <div className="modulo-bloco" style={{ padding: '12px 14px', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
                     <div style={{ flex: 1, height: '1.5px', background: 'rgba(200, 162, 74, 0.3)' }} />
@@ -686,7 +727,6 @@ export default function FichaProtocolo({
               </div>
             </div>
 
-            {/* BASE (só a moldura, sem botões) */}
             <div style={{
               width: '100%', height: '600px',
               backgroundImage: 'url("/imagens/moldura-base.jpeg")',
