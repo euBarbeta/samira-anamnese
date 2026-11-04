@@ -1445,7 +1445,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       minHeight: '100vh',
       backgroundColor: '#d7cee0',
       fontFamily: "'Montserrat', sans-serif",
-      paddingBottom: '30px',
+      paddingBottom: '0',
       position: 'relative',
       overflowX: 'hidden',
       boxSizing: 'border-box'
@@ -2588,15 +2588,14 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
               />
               <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
               
-              {/* ✅ ESPAÇO PARA EMPURRAR OS BOTÕES PARA O RODAPÉ */}
-              <div style={{ height: '80px' }} />
-
+             
+            
               {/* ✅ RODAPÉ DA PASTA (LGPD e Excluir Pasta) — AGORA NO FLUXO NORMAL */}
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px',
-                paddingBottom: '60px', // ✅ Dá um respiro no final da página
+                paddingBottom: '20px', // ✅ Dá um respiro no final da página
                 width: '100%',
               }}>
                 

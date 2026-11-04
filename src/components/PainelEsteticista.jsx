@@ -1363,7 +1363,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       minHeight: '100vh',
       backgroundColor: '#d7cee0',
       fontFamily: "'Montserrat', sans-serif",
-      paddingBottom: '40px',
+      paddingBottom: '0',
       position: 'relative',
       overflowX: 'clip'
     }}>
@@ -2477,7 +2477,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 abertoPorPadrao={false}
               />
               {/* ✅ CARD DE SEGURANÇA (Empurrado para baixo) */}
-              <div style={{ marginTop: '80px' }}> {/* <--- ESPAÇO ANTES DO CARD */}
+              <div style={{ marginTop: '20px' }}> {/* <--- ESPAÇO ANTES DO CARD */}
                 <CardSegurancaPaciente pacienteId={pacienteSelecionado.id} />
               </div>
               
@@ -2486,8 +2486,8 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-end',
-                marginTop: '60px', // <--- EMPURRA OS BOTÕES PARA BAIXO
-                paddingBottom: '60px', // <--- ESPAÇO EXTRA ATÉ O FINAL DA PÁGINA
+                marginTop: '30px', // <--- EMPURRA OS BOTÕES PARA BAIXO
+                paddingBottom: '20px', // <--- ESPAÇO EXTRA ATÉ O FINAL DA PÁGINA
                 gap: '15px',
                 flexWrap: 'wrap'
               }}>
