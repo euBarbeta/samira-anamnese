@@ -1363,7 +1363,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       minHeight: '100vh',
       backgroundColor: '#d7cee0',
       fontFamily: "'Montserrat', sans-serif",
-      paddingBottom: '0',
+      paddingBottom: '0px',
       position: 'relative',
       overflowX: 'clip'
     }}>
@@ -2487,7 +2487,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                 justifyContent: 'space-between',
                 alignItems: 'flex-end',
                 marginTop: '30px', // <--- EMPURRA OS BOTÕES PARA BAIXO
-                paddingBottom: '20px', // <--- ESPAÇO EXTRA ATÉ O FINAL DA PÁGINA
+                paddingBottom: '0px', // <--- ESPAÇO EXTRA ATÉ O FINAL DA PÁGINA
                 gap: '15px',
                 flexWrap: 'wrap'
               }}>
