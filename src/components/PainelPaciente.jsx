@@ -2013,35 +2013,6 @@ const podeRemover = (ag) =>
                     Ver Ficha de Anamnese
                   </button>
 
-                  {/* ✅ NOVO BOTÃO: MEU PROTOCOLO */}
-                  {pacienteData.protocolo && (
-                    <button
-                      type="button"
-                      onClick={() => irParaTela('ver_protocolo')}
-                      className="painel-btn-hover"
-                      style={{
-                        fontFamily: "'Cinzel', serif",
-                        background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-                        color: '#2c163a',
-                        border: '1.5px solid #8a6fa8',
-                        padding: '14px 18px',
-                        borderRadius: '16px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
-                        transition: 'all 0.25s ease',
-                      }}
-                    >
-                      Ver Meu Protocolo
-                    </button>
-                  )}
-
                   <button
                     type="button"
                     onClick={() => irParaTela('galeria')}
@@ -2169,7 +2140,6 @@ const podeRemover = (ag) =>
               </div>
             </div>
           )}
-          
 
           {telaAtual === 'galeria' && (
             <div>
