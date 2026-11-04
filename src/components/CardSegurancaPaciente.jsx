@@ -175,9 +175,9 @@ export default function CardSegurancaPaciente({ pacienteId }) {
 
 const card = {
   marginTop: 15,
-  background: 'transparent', 
-  backdropFilter: 'blur(5px)',
-  WebkitBackdropFilter: 'blur(5px)',
+  background: 'rgba(255, 255, 255, 0.2)', // ✅ 20% de branco, 80% de transparência
+  backdropFilter: 'blur(12px)',           // ✅ Aumentei o blur para ficar um vidro mais bonito
+  WebkitBackdropFilter: 'blur(12px)',     // ✅ Compatibilidade com Safari/iOS
   padding: '14px 16px',
   borderRadius: 12,
   border: '1.5px solid #d8b4fe',
