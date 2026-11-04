@@ -1287,7 +1287,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
       />
     );
   }
-  const handleSalvarProtocolo = async (dadosProtocolo) => {
+const handleSalvarProtocolo = async (dadosProtocolo) => {
   const user = getAuth().currentUser;
   if (!user || !pacienteSelecionado) return;
 
@@ -1326,8 +1326,16 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
     });
     setPacientes(atualizados);
 
-    // Volta para a tela de detalhes
-    substituirTela('detalhe_pasta');
+    // ✅ LIMPA A SELEÇÃO E VOLTA PARA A PASTA DIRETO
+    setEvolucaoSelecionada(null); 
+    
+    window.history.replaceState(
+      { painelEsteticista: 'detalhe_pasta', pacienteId: String(pacienteSelecionado.id) },
+      '',
+      window.location.pathname
+    );
+    setTelaAtual('detalhe_pasta');
+
   } catch (e) {
     console.error('Erro ao salvar protocolo:', e);
     alert('Erro ao salvar protocolo. Tente novamente.');

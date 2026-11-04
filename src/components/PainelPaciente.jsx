@@ -2013,6 +2013,35 @@ const podeRemover = (ag) =>
                     Ver Ficha de Anamnese
                   </button>
 
+                  {/* ✅ NOVO BOTÃO: MEU PROTOCOLO */}
+                  {pacienteData.protocolo && (
+                    <button
+                      type="button"
+                      onClick={() => irParaTela('ver_protocolo')}
+                      className="painel-btn-hover"
+                      style={{
+                        fontFamily: "'Cinzel', serif",
+                        background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+                        color: '#2c163a',
+                        border: '1.5px solid #8a6fa8',
+                        padding: '14px 18px',
+                        borderRadius: '16px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
+                        transition: 'all 0.25s ease',
+                      }}
+                    >
+                      Ver Meu Protocolo
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => irParaTela('galeria')}
@@ -2137,6 +2166,56 @@ const podeRemover = (ag) =>
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+                    {/* ✅ TELA DO PROTOCOLO DO PACIENTE */}
+          {telaAtual === 'ver_protocolo' && (
+            <div>
+              <button
+                type="button"
+                onClick={() => irParaTela('detalhe_pasta')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 20px',
+                  borderRadius: '25px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={15} color="#C8A24A" />
+                Voltar para o menu da pasta
+              </button>
+              
+              <div style={{ opacity: 0.98 }}>
+                {isMobile ? (
+                  <FichaMobile
+                    mode="view"
+                    fichaSelecionada={pacienteData.protocolo}
+                    pacienteSelecionado={pacienteData}
+                    onVoltar={() => irParaTela('detalhe_pasta')}
+                  />
+                ) : (
+                  <FichaDesktop
+                    mode="view"
+                    fichaSelecionada={pacienteData.protocolo}
+                    pacienteSelecionado={pacienteData}
+                    onVoltar={() => irParaTela('detalhe_pasta')}
+                  />
+                )}
               </div>
             </div>
           )}
