@@ -1,6 +1,7 @@
 // src/components/PainelPaciente.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import FichaProtocolo from './FichaProtocolo';
 import { gerarFingerprintEstavel } from '../utils/dispositivos';
 import ModalConsentimentoLocalizacao from './ModalConsentimentoLocalizacao';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
@@ -2169,56 +2170,7 @@ const podeRemover = (ag) =>
               </div>
             </div>
           )}
-                    {/* ✅ TELA DO PROTOCOLO DO PACIENTE */}
-          {telaAtual === 'ver_protocolo' && (
-            <div>
-              <button
-                type="button"
-                onClick={() => irParaTela('detalhe_pasta')}
-                className="btn-voltar-lista"
-                style={{
-                  fontFamily: "'Cinzel', serif",
-                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
-                  color: '#2c163a',
-                  border: '1.5px solid #C8A24A',
-                  padding: '10px 20px',
-                  borderRadius: '25px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  letterSpacing: '0.5px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '16px',
-                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
-                  transition: 'all 0.25s ease',
-                  backdropFilter: 'blur(6px)',
-                }}
-              >
-                <MdArrowBack size={15} color="#C8A24A" />
-                Voltar para o menu da pasta
-              </button>
               
-              <div style={{ opacity: 0.98 }}>
-                {isMobile ? (
-                  <FichaMobile
-                    mode="view"
-                    fichaSelecionada={pacienteData.protocolo}
-                    pacienteSelecionado={pacienteData}
-                    onVoltar={() => irParaTela('detalhe_pasta')}
-                  />
-                ) : (
-                  <FichaDesktop
-                    mode="view"
-                    fichaSelecionada={pacienteData.protocolo}
-                    pacienteSelecionado={pacienteData}
-                    onVoltar={() => irParaTela('detalhe_pasta')}
-                  />
-                )}
-              </div>
-            </div>
-          )}
 
           {telaAtual === 'galeria' && (
             <div>
@@ -2308,6 +2260,47 @@ const podeRemover = (ag) =>
     </div>
   </div>
 )}
+          {telaAtual === 'ver_protocolo' && (
+            <div>
+              <button
+                type="button"
+                onClick={() => irParaTela('detalhe_pasta')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 20px',
+                  borderRadius: '25px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={15} color="#C8A24A" />
+                Voltar para o menu da pasta
+              </button>
+              
+              <div style={{ opacity: 0.98 }}>
+                <FichaProtocolo
+                  mode="view"
+                  initialData={pacienteData.protocolo}
+                  pacienteSelecionado={pacienteData}
+                  pacienteNomeProp={pacienteData.nome}
+                  onVoltar={() => irParaTela('detalhe_pasta')}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2365,6 +2358,7 @@ const podeRemover = (ag) =>
           onConfirmar={confirmarRemocaoAgendamento}
         />
       )}
+      
 
       {/* ✅ Modal de agendar — mesmo do painel da esteticista, só data + hora */}
       {mostrarModalAgendar && (
