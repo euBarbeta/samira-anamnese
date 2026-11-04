@@ -5,6 +5,7 @@ import { gerarFingerprintEstavel } from '../utils/dispositivos';
 import ModalConsentimentoLocalizacao from './ModalConsentimentoLocalizacao';
 import HistoricoAgendamentosPaciente from './HistoricoAgendamentosPaciente';
 import { db } from './firebase';
+import FichaProtocolo from './FichaProtocolo';   // ⬅️ NOVO: necessário para o paciente ver o protocolo
 import { inscreverPush } from './push-notifications';
 import AvisoNotificacoes from './AvisoNotificacoes';
 import GaleriaPaciente from './GaleriaPaciente';
@@ -14,7 +15,7 @@ import {
   MdSearch, MdPhotoLibrary, MdArrowBack, MdWarning, MdCalendarMonth,
   MdFolderOpen, MdInfoOutline, MdHourglassEmpty, MdCancel,
   MdLightbulbOutline, MdDelete, MdCheckCircle, MdErrorOutline, MdClose,
-  MdRefresh,   // ⬅️ ADICIONE ESTA LINHA
+  MdRefresh,
 } from 'react-icons/md';
 import ModalExclusaoConta from './ModalExclusaoConta';
 import {
@@ -36,8 +37,6 @@ import ModalAgendarParaPaciente from './agendamento/ModalAgendarParaPaciente';
 
 /* ============================================================
    MODAL AMIGÁVEL DE DOWNLOAD DO APK (Android)
-   — "Baixar App Agora" em destaque (largura total).
-   — "Agora não" discreto como link embaixo.
    ============================================================ */
 function ModalBaixarAPK({ onFechar, onConfirmar }) {
   return (
@@ -71,7 +70,6 @@ function ModalBaixarAPK({ onFechar, onConfirmar }) {
           textAlign: 'center',
         }}
       >
-        {/* Ícone amigável */}
         <div
           style={{
             width: 72,
@@ -114,7 +112,6 @@ function ModalBaixarAPK({ onFechar, onConfirmar }) {
           celular. É só seguir os passos:
         </p>
 
-        {/* Passo a passo numerado */}
         <div
           style={{
             background: 'rgba(250, 245, 255, 0.9)',
@@ -166,7 +163,6 @@ function ModalBaixarAPK({ onFechar, onConfirmar }) {
           ))}
         </div>
 
-        {/* BOTÃO PRINCIPAL EM DESTAQUE (largura total) */}
         <button
           type="button"
           onClick={onConfirmar}
@@ -203,7 +199,6 @@ function ModalBaixarAPK({ onFechar, onConfirmar }) {
           BAIXAR APP AGORA
         </button>
 
-        {/* LINK DISCRETO — "Agora não" */}
         <button
           type="button"
           onClick={onFechar}
@@ -231,11 +226,10 @@ function ModalBaixarAPK({ onFechar, onConfirmar }) {
 }
 
 /* ============================================================
-   MODAL DE AVISO / CONFIRMAÇÃO — estética do sistema
-   Substitui alert() e window.confirm() nativos
+   MODAL DE AVISO / CONFIRMAÇÃO
    ============================================================ */
 function ModalAviso({
-  tipo = 'info',       // 'info' | 'sucesso' | 'aviso' | 'erro'
+  tipo = 'info',
   titulo,
   mensagem,
   textoConfirmar = 'OK',
@@ -430,7 +424,7 @@ function ModalAviso({
 }
 
 /* ============================================================
-   MODAL DE INSTALAÇÃO (PWA) — embutido no mesmo arquivo
+   MODAL DE INSTALAÇÃO (PWA)
    ============================================================ */
 function ModalInstalacao({ onClose }) {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -711,7 +705,6 @@ function formatarDataBR(iso) {
 function ModalRemoverAgendamento({ agendamento, onFechar, onConfirmar }) {
   const [removendo, setRemovendo] = useState(false);
 
-
   const isConcluido = agendamento?.status === 'concluido';
 
   const handleConfirmar = async () => {
@@ -896,7 +889,7 @@ function ModalRemoverAgendamento({ agendamento, onFechar, onConfirmar }) {
    PAINEL DO PACIENTE
    ============================================================ */
 export default function PainelPaciente({
-  pacienteData,
+  pacienteData: pacienteDataProp,
   onLogout,
   abrirAnamneseInicial = false,
 }) {
@@ -905,8 +898,6 @@ export default function PainelPaciente({
   const [telaAtual, setTelaAtual] = useState('detalhe_pasta');
 
   const [meusAgendamentos, setMeusAgendamentos] = useState([]);
-
- 
 
   const [evolucaoSelecionada, setEvolucaoSelecionada] = useState(null);
 
@@ -929,6 +920,37 @@ export default function PainelPaciente({
 
   // ✅ NOVO: modal genérico de avisos / confirmações (substitui alert/confirm)
   const [aviso, setAviso] = useState(null);
+
+  // ============================================================
+  // 🔄 LISTENER EM TEMPO REAL — protocolo, evoluções, lembretes
+  // Garante que o paciente vê o protocolo assim que for salvo
+  // ============================================================
+  const [pacienteLive, setPacienteLive] = useState(null);
+
+  useEffect(() => {
+    if (!pacienteDataProp?.id || !pacienteDataProp?.criadoPorUid) return;
+
+    const unsub = onSnapshot(
+      doc(
+        db,
+        'usuarios',
+        pacienteDataProp.criadoPorUid,
+        'pacientes',
+        String(pacienteDataProp.id)
+      ),
+      (snap) => {
+        if (snap.exists()) {
+          setPacienteLive({ id: snap.id, ...snap.data() });
+        }
+      },
+      (e) => console.warn('Erro listener paciente live:', e)
+    );
+
+    return () => unsub();
+  }, [pacienteDataProp?.id, pacienteDataProp?.criadoPorUid]);
+
+  // ✅ Usa sempre a versão mais atualizada; cai pra prop se ainda não chegou
+  const pacienteData = pacienteLive || pacienteDataProp;
 
   const isAndroid =
     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
@@ -992,10 +1014,6 @@ useEffect(() => {
 // 🚨 BLOQUEIO EM TEMPO REAL
 // Se a esteta bloquear este device, o paciente é deslogado.
 // ============================================================
-// ============================================================
-// 🚨 BLOQUEIO EM TEMPO REAL
-// Se a esteta bloquear este device, o paciente é deslogado.
-// ============================================================
 useEffect(() => {
   if (!pacienteData?.id) return;
 
@@ -1036,8 +1054,6 @@ useEffect(() => {
   const urlCompleta = window.location.pathname + hashAtual;
 
   // ✅ 1) Sempre empilha "detalhe_pasta" como RAIZ do histórico.
-  //    Assim o botão voltar nativo (Android/navegador) sempre
-  //    tem pra onde ir, mesmo se o app foi fechado e reaberto.
   window.history.replaceState(
     { ...(window.history.state || {}), painelPacienteTela: 'detalhe_pasta' },
     '',
@@ -1075,22 +1091,10 @@ useEffect(() => {
       });
     setMeusAgendamentos(lista);
   },
-  
-      
       (e) => console.warn('Erro listener agendamentos:', e)
     );
     return () => unsub();
   }, [pacienteData?.id]);
-
-
-
-// ============================================================
-// ✅ BACKFILL — vincula agendamentos antigos feitos pelo LINK
-//    PÚBLICO (que não têm `pacienteId`) ao paciente logado.
-//    Roda UMA VEZ quando o painel monta.
-// ============================================================
-
-
 
   useEffect(() => {
     const onPop = (e) => {
@@ -1193,7 +1197,7 @@ useEffect(() => {
   const APK_URL = 'https://samira-anamnese.netlify.app/downloads/samira-estetica.apk';
 
   const handleInstalarApp = async () => {
-    // ✅ ANDROID → abre o modal amigável (não mais o "aviso" vermelho)
+    // ✅ ANDROID → abre o modal amigável
     if (isAndroid) {
       setMostrarModalAPK(true);
       return;
@@ -1357,7 +1361,6 @@ const confirmarRemocaoAgendamento = async () => {
   if (!agendamentoParaRemover) return;
   try {
     // ✅ NÃO deleta — apenas marca como oculto pro paciente.
-    //    Assim o agendamento continua aparecendo no painel da esteticista.
     await updateDoc(doc(db, 'agendamentos', agendamentoParaRemover.id), {
       ocultoParaPaciente: true,
       ocultadoPacienteEm: new Date().toISOString(),
@@ -1671,475 +1674,501 @@ const podeRemover = (ag) =>
         </div>
 
         <div style={{ padding: '0 2px', width: '100%', boxSizing: 'border-box' }}>
-          {telaAtual === 'detalhe_pasta' && (
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.9)',
-                borderRadius: '20px',
-                border: '1px solid rgba(226, 210, 245, 0.9)',
-                padding: '24px',
-                boxShadow: '0 8px 24px rgba(44, 22, 58, 0.06)',
-                backdropFilter: 'blur(8px)',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '10px' }}>
-                <div
-                  style={{
-                    padding: '16px',
-                    background: 'rgba(215, 206, 224, 0.25)',
-                    borderRadius: '14px',
-                    border: '1px solid rgba(226, 210, 245, 0.6)',
-                  }}
-                >
-                  <h2
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      color: '#2c163a',
-                      fontSize: '18px',
-                      margin: '0 0 6px 0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                   
-                   📁{pacienteData.nome}
-                  </h2>
-                  <span style={{ fontSize: '11px', color: '#555' }}>
-                    Pasta criada em:{' '}
-                    <strong style={{ color: '#2c163a' }}>{pacienteData.dataCriacao}</strong>
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-
-                  {meusAgendamentos.some(
-                    (a) => a.aguardandoConsentimento && a.status === 'pendente'
-                  ) && (
-                    <div
-                      style={{
-                        background: 'linear-gradient(135deg, #fff8e1 0%, #fef3c7 100%)',
-                        border: '1.5px solid #fcd34d',
-                        borderRadius: 14,
-                        padding: 14,
-                        marginBottom: 4,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: 12,
-                      }}
-                    >
-                      <MdHourglassEmpty
-                        size={22}
-                        color="#92400e"
-                        style={{ flexShrink: 0, marginTop: 2 }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontFamily: "'Cinzel', serif",
-                            color: '#92400e',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            marginBottom: 4,
-                          }}
-                        >
-                          Você tem agendamento(s) aguardando confirmação
-                        </div>
-                        <p
-                          style={{
-                            fontSize: 11,
-                            color: '#5d4037',
-                            margin: '0 0 10px 0',
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          Para confirmar, aceite o termo de consentimento abaixo.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setMostrarConsentimento(true)}
-                          style={{
-                            width: '100%',
-                            fontFamily: "'Cinzel', serif",
-                            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                            color: '#fff',
-                            border: '1.5px solid #9c7826',
-                            padding: '10px 16px',
-                            borderRadius: 16,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                          }}
-                        >
-                          <MdHourglassEmpty size={14} />
-                          ACEITAR E CONFIRMAR AGENDAMENTOS
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {meusAgendamentos.length > 0 && (
-                    <div
-                      style={{
-                        background: '#f0fdf4',
-                        border: '1.5px solid #86efac',
-                        borderRadius: 14,
-                        padding: 16,
-                        marginBottom: 16,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontFamily: "'Cinzel', serif",
-                          color: '#166534',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          marginBottom: 10,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        <MdCalendarMonth size={16} color="#166534" />
-                        Meus Agendamentos
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {meusAgendamentos.slice(0, 3).map((ag) => (
-                          <div
-                            key={ag.id}
-                            style={{
-                              background: '#fff',
-                              border: '1px solid #d1fae5',
-                              borderRadius: 10,
-                              padding: '10px 12px',
-                              fontSize: 12,
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 4,
-                                gap: 8,
-                                flexWrap: 'wrap',
-                              }}
-                            >
-                              <strong style={{ color: '#166534' }}>
-                                {formatarDataBR(ag.data)} às {ag.horaInicio}
-                              </strong>
-                              <span
-                                style={{
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  padding: '1px 8px',
-                                  borderRadius: 10,
-                                  textTransform: 'capitalize',
-                                  background:
-                                    ag.status === 'confirmado'
-                                      ? '#dcfce7'
-                                      : ag.status === 'pendente'
-                                      ? '#fef3c7'
-                                      : ag.status === 'cancelado'
-                                      ? '#fee2e2'
-                                      : ag.status === 'concluido'
-                                      ? '#e5e7eb'
-                                      : '#f3f4f6',
-                                  color:
-                                    ag.status === 'confirmado'
-                                      ? '#166534'
-                                      : ag.status === 'pendente'
-                                      ? '#92400e'
-                                      : ag.status === 'cancelado'
-                                      ? '#991b1b'
-                                      : ag.status === 'concluido'
-                                      ? '#374151'
-                                      : '#666',
-                                }}
-                              >
-                                {ag.status}
-                              </span>
-                            </div>
-
-                            {ag.observacoes && (
-                              <div
-                                style={{
-                                  fontSize: 10.5,
-                                  color: '#555',
-                                  fontStyle: 'italic',
-                                  marginBottom: 6,
-                                }}
-                              >
-                                {ag.observacoes}
-                              </div>
-                            )}
-
-                            {/* Pendente / Confirmado → botão Cancelar */}
-                            {(ag.status === 'pendente' || ag.status === 'confirmado') && (
-                              <button
-                                type="button"
-                                onClick={() => cancelarAgendamento(ag)}
-                                style={{
-                                  marginTop: 4,
-                                  background: '#ffebee',
-                                  color: '#c62828',
-                                  border: '1px solid #ef9a9a',
-                                  padding: '4px 10px',
-                                  borderRadius: 10,
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  fontFamily: "'Cinzel', serif",
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                }}
-                              >
-                                <MdCancel size={12} />
-                                Cancelar
-                              </button>
-                            )}
-
-                            {/* Cancelado / Concluído → botão Remover da lista (abre modal) */}
-                           {/* Faltou / Cancelado / Concluído → botões de ação */}
-{(ag.status === 'faltou' ||
-  ag.status === 'cancelado' ||
-  ag.status === 'concluido') && (
+       {telaAtual === 'detalhe_pasta' && (
   <div
     style={{
-      display: 'flex',
-      gap: 6,
-      marginTop: 4,
-      flexWrap: 'wrap',
+      background: 'rgba(255, 255, 255, 0.9)',
+      borderRadius: '20px',
+      border: '1px solid rgba(226, 210, 245, 0.9)',
+      padding: '24px',
+      boxShadow: '0 8px 24px rgba(44, 22, 58, 0.06)',
+      backdropFilter: 'blur(8px)',
     }}
   >
-    {/* 🔄 Reagendar — só aparece quando faltou */}
-    {/* 🔄 Reagendar — faltou OU cancelado */}
-{(ag.status === 'faltou' || ag.status === 'cancelado') && (
-  <button
-    type="button"
-    onClick={() => abrirModalReagendar(ag)}
-    style={{
-      background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
-      color: '#fff',
-      border: 'none',
-      padding: '4px 10px',
-      borderRadius: 10,
-      fontSize: 9,
-      fontWeight: 700,
-      cursor: 'pointer',
-      fontFamily: "'Cinzel', serif",
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 4,
-      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
-    }}
-  >
-    <MdRefresh size={12} />
-    Reagendar
-  </button>
-)}
-    {/* 🗑️ Remover da lista — cancelado, concluído ou faltou */}
-    <button
-      type="button"
-      onClick={() => abrirModalRemoverAgendamento(ag)}
-      style={{
-        background: '#f5f5f5',
-        color: '#555',
-        border: '1px solid #ddd',
-        padding: '4px 10px',
-        borderRadius: 10,
-        fontSize: 9,
-        fontWeight: 700,
-        cursor: 'pointer',
-        fontFamily: "'Cinzel', serif",
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-      }}
-    >
-      <MdDelete size={12} />
-      Remover da lista
-    </button>
-  </div>
-)}
-{mostrarModalLocalizacao && (
-  <ModalConsentimentoLocalizacao
-    pacienteId={pacienteData.id}
-    onFinalizar={() => setMostrarModalLocalizacao(false)}
-  />
-)}
-                            
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* ✅ Histórico completo de agendamentos (colapsável) */}
-<HistoricoAgendamentosPaciente
-  pacienteId={pacienteData.id}
-  pacienteNome={pacienteData.nome}
-  pacienteDocumento={pacienteData.documento}
-  uidEsteticista={pacienteData.criadoPorUid}
-  modo="paciente"
-  colapsavel={true}
-  abertoPorPadrao={false}
-/>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '10px' }}>
+      <div
+        style={{
+          padding: '16px',
+          background: 'rgba(215, 206, 224, 0.25)',
+          borderRadius: '14px',
+          border: '1px solid rgba(226, 210, 245, 0.6)',
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: "'Cinzel', serif",
+            color: '#2c163a',
+            fontSize: '18px',
+            margin: '0 0 6px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          📁{pacienteData.nome}
+        </h2>
+        <span style={{ fontSize: '11px', color: '#555' }}>
+          Pasta criada em:{' '}
+          <strong style={{ color: '#2c163a' }}>{pacienteData.dataCriacao}</strong>
+        </span>
+      </div>
 
-                  <button
-                    type="button"
-                    onClick={() => irParaTela('ver_anamnese')}
-                    className="painel-btn-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '14px 18px',
-                      borderRadius: '16px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      width: '100%',
-                      textAlign: 'center',
-                      boxShadow: '0 4px 12px rgba(200, 162, 74, 0.25)',
-                      transition: 'all 0.25s ease',
-                    }}
-                  >
-                    Ver Ficha de Anamnese
-                  </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
 
-                  <button
-                    type="button"
-                    onClick={() => irParaTela('galeria')}
-                    className="painel-btn-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '14px 18px',
-                      borderRadius: '16px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 12px rgba(168, 85, 247, 0.25)',
-                      transition: 'all 0.25s ease',
-                    }}
-                  >
-                    <Images size={16} color="#fff" />
-                    Minha Galeria
-                  </button>
+        {meusAgendamentos.some(
+          (a) => a.aguardandoConsentimento && a.status === 'pendente'
+        ) && (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #fff8e1 0%, #fef3c7 100%)',
+              border: '1.5px solid #fcd34d',
+              borderRadius: 14,
+              padding: 14,
+              marginBottom: 4,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 12,
+            }}
+          >
+            <MdHourglassEmpty
+              size={22}
+              color="#92400e"
+              style={{ flexShrink: 0, marginTop: 2 }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  color: '#92400e',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  marginBottom: 4,
+                }}
+              >
+                Você tem agendamento(s) aguardando confirmação
+              </div>
+              <p
+                style={{
+                  fontSize: 11,
+                  color: '#5d4037',
+                  margin: '0 0 10px 0',
+                  lineHeight: 1.5,
+                }}
+              >
+                Para confirmar, aceite o termo de consentimento abaixo.
+              </p>
+              <button
+                type="button"
+                onClick={() => setMostrarConsentimento(true)}
+                style={{
+                  width: '100%',
+                  fontFamily: "'Cinzel', serif",
+                  background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+                  color: '#fff',
+                  border: '1.5px solid #9c7826',
+                  padding: '10px 16px',
+                  borderRadius: 16,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                <MdHourglassEmpty size={14} />
+                ACEITAR E CONFIRMAR AGENDAMENTOS
+              </button>
+            </div>
+          </div>
+        )}
 
-                  {!appInstalado && (
-                    <button
-                      type="button"
-                      onClick={handleInstalarApp}
-                      className="painel-btn-lavanda-hover"
-                      style={{
-                        fontFamily: "'Cinzel', serif",
-                        background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
-                        color: '#2c163a',
-                        border: '1.2px solid #8a6fa8',
-                        padding: '14px 18px',
-                        borderRadius: '16px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: '0 4px 12px rgba(138, 111, 168, 0.25)',
-                        transition: 'all 0.25s ease',
-                      }}
-                    >
-                      <DownloadCloud size={16} color="#2c163a" />
-                      {isAndroid ? 'Baixar App' : 'Baixar Web App'}
-                    </button>
-                  )}
-
-                  {/* ✅ AGENDAR NOVO HORÁRIO — abre modal direto (só data + hora) */}
-                  <button
-                    type="button"
-                    onClick={() => setMostrarModalAgendar(true)}
-                    className="painel-btn-hover"
-                    style={{
-                      fontFamily: "'Cinzel', serif",
-                      background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 45%, #C8A24A 100%)',
-                      color: '#fff',
-                      border: '1.5px solid #9c7826',
-                      padding: '14px 18px',
-                      borderRadius: '16px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      letterSpacing: '0.5px',
-                      cursor: 'pointer',
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(200, 162, 74, 0.35)',
-                      transition: 'all 0.25s ease',
-                    }}
-                  >
-                    <MdCalendarMonth size={16} color="#fff" />
-                    AGENDAR NOVO HORÁRIO
-                  </button>
-
+        {meusAgendamentos.length > 0 && (
+          <div
+            style={{
+              background: '#f0fdf4',
+              border: '1.5px solid #86efac',
+              borderRadius: 14,
+              padding: 16,
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "'Cinzel', serif",
+                color: '#166534',
+                fontSize: 13,
+                fontWeight: 700,
+                marginBottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <MdCalendarMonth size={16} color="#166534" />
+              Meus Agendamentos
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {meusAgendamentos.slice(0, 3).map((ag) => (
+                <div
+                  key={ag.id}
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #d1fae5',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                  }}
+                >
                   <div
                     style={{
-                      marginTop: '20px',
-                      paddingTop: '16px',
-                      borderTop: '1px dashed rgba(198, 40, 40, 0.2)',
                       display: 'flex',
-                      justifyContent: 'center',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 4,
+                      gap: 8,
+                      flexWrap: 'wrap',
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setMostrarExclusaoConta(true)}
+                    <strong style={{ color: '#166534' }}>
+                      {formatarDataBR(ag.data)} às {ag.horaInicio}
+                    </strong>
+                    <span
                       style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#b0a8b8',
-                        fontFamily: "'Montserrat', sans-serif",
-                        fontSize: '10px',
-                        fontWeight: 400,
-                        letterSpacing: '0.3px',
-                        cursor: 'pointer',
-                        padding: '6px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        transition: 'color 0.25s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#c62828';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = '#b0a8b8';
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 8px',
+                        borderRadius: 10,
+                        textTransform: 'capitalize',
+                        background:
+                          ag.status === 'confirmado'
+                            ? '#dcfce7'
+                            : ag.status === 'pendente'
+                            ? '#fef3c7'
+                            : ag.status === 'cancelado'
+                            ? '#fee2e2'
+                            : ag.status === 'concluido'
+                            ? '#e5e7eb'
+                            : '#f3f4f6',
+                        color:
+                          ag.status === 'confirmado'
+                            ? '#166534'
+                            : ag.status === 'pendente'
+                            ? '#92400e'
+                            : ag.status === 'cancelado'
+                            ? '#991b1b'
+                            : ag.status === 'concluido'
+                            ? '#374151'
+                            : '#666',
                       }}
                     >
-                      <MdInfoOutline size={11} style={{ opacity: 0.7 }} />
-                      excluir minha conta
-                    </button>
+                      {ag.status}
+                    </span>
                   </div>
+
+                  {ag.observacoes && (
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        color: '#555',
+                        fontStyle: 'italic',
+                        marginBottom: 6,
+                      }}
+                    >
+                      {ag.observacoes}
+                    </div>
+                  )}
+
+                  {(ag.status === 'pendente' || ag.status === 'confirmado') && (
+                    <button
+                      type="button"
+                      onClick={() => cancelarAgendamento(ag)}
+                      style={{
+                        marginTop: 4,
+                        background: '#ffebee',
+                        color: '#c62828',
+                        border: '1px solid #ef9a9a',
+                        padding: '4px 10px',
+                        borderRadius: 10,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: "'Cinzel', serif",
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <MdCancel size={12} />
+                      Cancelar
+                    </button>
+                  )}
+
+                  {(ag.status === 'faltou' ||
+                    ag.status === 'cancelado' ||
+                    ag.status === 'concluido') && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 6,
+                        marginTop: 4,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {(ag.status === 'faltou' || ag.status === 'cancelado') && (
+                        <button
+                          type="button"
+                          onClick={() => abrirModalReagendar(ag)}
+                          style={{
+                            background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '4px 10px',
+                            borderRadius: 10,
+                            fontSize: 9,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            fontFamily: "'Cinzel', serif",
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                          }}
+                        >
+                          <MdRefresh size={12} />
+                          Reagendar
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => abrirModalRemoverAgendamento(ag)}
+                        style={{
+                          background: '#f5f5f5',
+                          color: '#555',
+                          border: '1px solid #ddd',
+                          padding: '4px 10px',
+                          borderRadius: 10,
+                          fontSize: 9,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: "'Cinzel', serif",
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <MdDelete size={12} />
+                        Remover da lista
+                      </button>
+                    </div>
+                  )}
+
+                  {mostrarModalLocalizacao && (
+                    <ModalConsentimentoLocalizacao
+                      pacienteId={pacienteData.id}
+                      onFinalizar={() => setMostrarModalLocalizacao(false)}
+                    />
+                  )}
                 </div>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
+
+        {/* ✅ Histórico completo de agendamentos (colapsável) */}
+        <HistoricoAgendamentosPaciente
+          pacienteId={pacienteData.id}
+          pacienteNome={pacienteData.nome}
+          pacienteDocumento={pacienteData.documento}
+          uidEsteticista={pacienteData.criadoPorUid}
+          modo="paciente"
+          colapsavel={true}
+          abertoPorPadrao={false}
+        />
+
+        {/* ✅ Ver Ficha de Anamnese — MANTÉM DOURADO */}
+        <button
+          type="button"
+          onClick={() => irParaTela('ver_anamnese')}
+          className="painel-btn-hover"
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: 'linear-gradient(135deg, #C8A24A 0%, #e2be64 100%)',
+            color: '#fff',
+            border: 'none',
+            padding: '14px 18px',
+            borderRadius: '16px',
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(200, 162, 74, 0.25)',
+            transition: 'all 0.25s ease',
+          }}
+        >
+          Ver Ficha de Anamnese
+        </button>
+
+        {/* ✅ Ver meu Protocolo — LAVANDA */}
+        {pacienteData?.protocolo && (
+          <button
+            type="button"
+            onClick={() => irParaTela('ver_protocolo')}
+            className="painel-btn-hover"
+            style={{
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+              color: '#2c163a',
+              border: '1.2px solid #8a6fa8',
+              padding: '14px 18px',
+              borderRadius: '16px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+              transition: 'all 0.25s ease',
+            }}
+          >
+            📋 Ver meu Protocolo
+          </button>
+        )}
+
+        {/* ✅ Minha Galeria — LAVANDA */}
+        <button
+          type="button"
+          onClick={() => irParaTela('galeria')}
+          className="painel-btn-hover"
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+            color: '#2c163a',
+            border: '1.2px solid #8a6fa8',
+            padding: '14px 18px',
+            borderRadius: '16px',
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+            transition: 'all 0.25s ease',
+          }}
+        >
+          <Images size={16} color="#2c163a" />
+          Minha Galeria
+        </button>
+
+        {/* ✅ Baixar App / Web App — já é LAVANDA (continua igual) */}
+        {!appInstalado && (
+          <button
+            type="button"
+            onClick={handleInstalarApp}
+            className="painel-btn-lavanda-hover"
+            style={{
+              fontFamily: "'Cinzel', serif",
+              background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+              color: '#2c163a',
+              border: '1.2px solid #8a6fa8',
+              padding: '14px 18px',
+              borderRadius: '16px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+              transition: 'all 0.25s ease',
+            }}
+          >
+            <DownloadCloud size={16} color="#2c163a" />
+            {isAndroid ? 'Baixar App' : 'Baixar Web App'}
+          </button>
+        )}
+
+        {/* ✅ Agendar Novo Horário — LAVANDA */}
+        <button
+          type="button"
+          onClick={() => setMostrarModalAgendar(true)}
+          className="painel-btn-hover"
+          style={{
+            fontFamily: "'Cinzel', serif",
+            background: 'linear-gradient(135deg, #b8a3c9 0%, #d7cee0 100%)',
+            color: '#2c163a',
+            border: '1.2px solid #8a6fa8',
+            padding: '14px 18px',
+            borderRadius: '16px',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.5px',
+            cursor: 'pointer',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: '0 3px 10px rgba(138, 111, 168, 0.25)',
+            transition: 'all 0.25s ease',
+          }}
+        >
+          <MdCalendarMonth size={16} color="#2c163a" />
+          AGENDAR NOVO HORÁRIO
+        </button>
+
+        <div
+          style={{
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px dashed rgba(198, 40, 40, 0.2)',
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setMostrarExclusaoConta(true)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#b0a8b8',
+              fontFamily: "'Montserrat', sans-serif",
+              fontSize: '10px',
+              fontWeight: 400,
+              letterSpacing: '0.3px',
+              cursor: 'pointer',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              transition: 'color 0.25s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#c62828';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#b0a8b8';
+            }}
+          >
+            <MdInfoOutline size={11} style={{ opacity: 0.7 }} />
+            excluir minha conta
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
           {telaAtual === 'galeria' && (
             <div>
@@ -2229,6 +2258,48 @@ const podeRemover = (ag) =>
     </div>
   </div>
 )}
+
+          {/* ✅ NOVO: Tela do Protocolo — paciente vê o protocolo + lembretes + botão BAIXAR PDF */}
+          {telaAtual === 'ver_protocolo' && pacienteData?.protocolo && (
+            <div>
+              <button
+                type="button"
+                onClick={() => irParaTela('detalhe_pasta')}
+                className="btn-voltar-lista"
+                style={{
+                  fontFamily: "'Cinzel', serif",
+                  background:
+                    'linear-gradient(135deg, rgba(200, 162, 74, 0.12) 0%, rgba(168, 85, 247, 0.10) 100%)',
+                  color: '#2c163a',
+                  border: '1.5px solid #C8A24A',
+                  padding: '10px 20px',
+                  borderRadius: '25px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  boxShadow: '0 3px 10px rgba(200, 162, 74, 0.15)',
+                  transition: 'all 0.25s ease',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <MdArrowBack size={15} color="#C8A24A" />
+                Voltar para o menu da pasta
+              </button>
+
+              <FichaProtocolo
+                mode="view"
+                initialData={pacienteData.protocolo}
+                pacienteSelecionado={pacienteData}
+                pacienteNomeProp={pacienteData.nome}
+                onVoltar={() => irParaTela('detalhe_pasta')}
+              />
+            </div>
+          )}
         </div>
       </div>
 
