@@ -2607,7 +2607,7 @@ const handleAtualizarAnamnese = async (dadosAtualizados) => {
                   border: pacienteSelecionado.consentimentoLGPD?.aceito
                     ? '1.5px solid #86efac'
                     : '1.5px solid #fcd34d',
-                  boxShadow: '0 4px 12px rgba(44, 22, 58, 0.08)',
+                  boxShadow: '0 4px 12px rgba(44, 22, 58, 0.03)',
                   width: '100%',
                   boxSizing: 'border-box',
                 }}>

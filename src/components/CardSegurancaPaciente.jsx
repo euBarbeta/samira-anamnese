@@ -175,7 +175,7 @@ export default function CardSegurancaPaciente({ pacienteId }) {
 
 const card = {
   marginTop: 15,
-  background: 'rgba(255, 255, 255, 0.50)', 
+  background: 'transparent', 
   backdropFilter: 'blur(5px)',
   WebkitBackdropFilter: 'blur(5px)',
   padding: '14px 16px',
@@ -188,7 +188,7 @@ const card = {
 
 const cardVazio = {
   marginTop: 15,
-  background: 'rgba(250, 245, 255, 0.50)',
+  background: 'transparent',
   padding: '12px 14px',
   borderRadius: 12,
   border: '1.5px dashed #d8b4fe',
